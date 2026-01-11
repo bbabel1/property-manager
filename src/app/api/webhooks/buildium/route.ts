@@ -373,12 +373,8 @@ function verifySignature(
     req.headers.get('x-buildium-webhook-timestamp') ||
     '';
 
-  // In local/dev, allow processing without a secret to simplify testing.
   if (!secret) {
-    console.warn(
-      '[buildium-webhook] BUILDIUM_WEBHOOK_SECRET is not set; skipping signature verification',
-    );
-    return { ok: true };
+    return { ok: false, reason: 'missing-secret' };
   }
 
   if (!sig) {
@@ -568,7 +564,7 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json(
       { error: 'Invalid signature', reason: sigCheck.reason },
-      { status: 401 },
+      { status: sigCheck.reason === 'missing-secret' ? 503 : 401 },
     );
   }
 

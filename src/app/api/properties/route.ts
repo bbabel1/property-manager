@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase, supabaseAdmin } from '@/lib/db';
+import { supabase } from '@/lib/db';
 import { mapPropertyToBuildium, mapCountryToBuildium } from '@/lib/buildium-mappers';
 import { mapGoogleCountryToEnum } from '@/lib/utils';
-import { requireUser } from '@/lib/auth';
 import { requireAuth } from '@/lib/auth/guards';
 import { logger } from '@/lib/logger';
 import { buildiumFetch } from '@/lib/buildium-http';
@@ -26,6 +25,7 @@ import { ComplianceSyncService } from '@/lib/compliance-sync-service';
 import { buildNormalizedAddressKey } from '@/lib/normalized-address';
 import type { BuildiumPropertyCreate } from '@/types/buildium';
 import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
+import { requireOrgMember } from '@/lib/auth/org-guards';
 
 type PropertiesInsert = DatabaseSchema['public']['Tables']['properties']['Insert'];
 // type PropertiesUpdate = DatabaseSchema['public']['Tables']['properties']['Update'] // Unused
@@ -91,13 +91,9 @@ interface PropertyRequestBody {
   lot?: string | null;
 }
 
-interface OrgMembershipRow {
-  org_id: string;
-}
-
 export async function POST(request: NextRequest) {
   try {
-    const user = await requireUser(request);
+    const { supabase: db, user } = await requireAuth();
     const body = await request.json();
     const url = new URL(request.url);
     const syncToBuildium = url.searchParams.get('syncToBuildium') === 'true';
@@ -145,31 +141,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Resolve organization context (required by NOT NULL constraint and RLS policies)
-    const db = supabaseAdmin || supabase;
-    let orgId: string | null = request.headers.get('x-org-id') || null;
-    if (!orgId) {
-      // Fallback: pick the user's first org membership (handle 0, 1, or many rows)
-      try {
-        const { data: rows, error: membershipsError } = await db
-          .from('org_memberships')
-          .select('org_id')
-          .eq('user_id', user.id)
-          .limit(1);
-        if (membershipsError) {
-          logger.error({ error: membershipsError, userId: user.id }, 'Failed to resolve org memberships');
-          return NextResponse.json(
-            { error: 'Failed to resolve organization context' },
-            { status: 500 },
-          );
-        }
-        const first = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
-        orgId = (first as OrgMembershipRow)?.org_id || null;
-      } catch {}
-    }
-
-    if (!orgId) {
-      return NextResponse.json({ error: 'Organization context required' }, { status: 400 });
-    }
+    const orgId = await resolveOrgIdFromRequest(request, user.id, db);
+    await requireOrgMember({ client: db, userId: user.id, orgId });
 
     const cleanId = (value: unknown): string | null => {
       if (typeof value !== 'string') return null;

@@ -566,7 +566,7 @@ export default function LeaseLedgerPanel({
                 {card.label}
               </div>
               <div className="text-foreground mt-1 text-2xl font-semibold">
-                ${card.value.toFixed(2)}
+                {formatCurrency(Number.isFinite(card.value) ? card.value : 0)}
               </div>
             </div>
           ))}

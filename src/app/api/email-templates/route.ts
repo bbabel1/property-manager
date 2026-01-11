@@ -7,12 +7,11 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { ZodError } from 'zod';
-import { requireUser } from '@/lib/auth';
+import { requireAuth } from '@/lib/auth/guards';
 import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
-import { getAllEmailTemplates, createEmailTemplate } from '@/lib/email-template-service';
+import { createEmailTemplate } from '@/lib/email-template-service';
 import { EmailTemplateInsertSchema } from '@/types/email-templates';
-import { supabaseAdmin } from '@/lib/db';
-import { requireOrgAdmin } from '@/lib/auth/org-guards';
+import { requireOrgAdmin, requireOrgMember } from '@/lib/auth/org-guards';
 
 /**
  * GET /api/email-templates
@@ -20,8 +19,9 @@ import { requireOrgAdmin } from '@/lib/auth/org-guards';
  */
 export async function GET(request: NextRequest) {
   try {
-    const user = await requireUser(request);
-    const orgId = await resolveOrgIdFromRequest(request, user.id, supabaseAdmin);
+    const { supabase, user } = await requireAuth(request);
+    const orgId = await resolveOrgIdFromRequest(request, user.id, supabase);
+    await requireOrgMember({ client: supabase, userId: user.id, orgId });
 
     const url = new URL(request.url);
     const status = url.searchParams.get('status') as 'active' | 'inactive' | 'archived' | null;
@@ -29,32 +29,43 @@ export async function GET(request: NextRequest) {
     const page = parseInt(url.searchParams.get('page') || '1', 10);
     const limit = Math.min(parseInt(url.searchParams.get('limit') || '50', 10), 100);
 
-    const filters: { status?: 'active' | 'inactive' | 'archived' } = {};
-    if (status && ['active', 'inactive', 'archived'].includes(status)) {
-      filters.status = status;
-    }
-
-    const templates = await getAllEmailTemplates(orgId, filters.status ? filters : undefined);
-
-    // Filter by template_key if provided
-    let filteredTemplates = templates;
-    if (templateKey) {
-      filteredTemplates = templates.filter((t) => t.template_key === templateKey);
-    }
-
-    // Pagination
     const offset = (page - 1) * limit;
-    const paginatedTemplates = filteredTemplates.slice(offset, offset + limit);
-    const total = filteredTemplates.length;
-    const totalPages = Math.ceil(total / limit);
+
+    let query = supabase
+      .from('email_templates')
+      .select('*', { count: 'exact' })
+      .eq('org_id', orgId);
+
+    if (status && ['active', 'inactive', 'archived'].includes(status)) {
+      query = query.eq('status', status);
+    }
+    if (templateKey) {
+      query = query.eq('template_key', templateKey);
+    }
+
+    const { data, error, count } = await query
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (error) {
+      console.error('Error fetching email templates:', error);
+      return NextResponse.json({ error: 'Failed to fetch templates' }, { status: 500 });
+    }
+
+    const templates = (data || []).map((template) => {
+      const availableVariables = Array.isArray(template.available_variables)
+        ? template.available_variables
+        : JSON.parse(JSON.stringify(template.available_variables || []));
+      return { ...template, available_variables: availableVariables };
+    });
 
     return NextResponse.json({
-      templates: paginatedTemplates,
+      templates,
       pagination: {
         page,
         limit,
-        total,
-        totalPages,
+        total: count ?? templates.length,
+        totalPages: Math.ceil((count ?? templates.length) / limit),
       },
     });
   } catch (error) {
@@ -75,10 +86,10 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const user = await requireUser(request);
-    const orgId = await resolveOrgIdFromRequest(request, user.id, supabaseAdmin);
+    const { supabase, user, roles } = await requireAuth(request);
+    const orgId = await resolveOrgIdFromRequest(request, user.id, supabase);
 
-    await requireOrgAdmin({ client: supabaseAdmin, userId: user.id, orgId });
+    await requireOrgAdmin({ client: supabase, userId: user.id, orgId, roles });
 
     const body = await request.json();
     const validated = EmailTemplateInsertSchema.parse({
@@ -87,7 +98,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Check if template_key already exists for this org
-    const existing = await supabaseAdmin
+    const existing = await supabase
       .from('email_templates')
       .select('id')
       .eq('org_id', orgId)
@@ -106,7 +117,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const template = await createEmailTemplate(orgId, validated, user.id);
+    const template = await createEmailTemplate(orgId, validated, user.id, supabase);
 
     if (!template) {
       return NextResponse.json({ error: 'Failed to create template' }, { status: 500 });

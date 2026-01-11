@@ -40,11 +40,20 @@ export default async function EditBillPage({ params }: { params: Promise<{ billI
 
   const billRes = await db
     .from('transactions')
-    .select('id, date, due_date, memo, reference_number, vendor_id, transaction_type')
+    .select('id, date, due_date, memo, reference_number, vendor_id, transaction_type, is_recurring, recurring_schedule')
     .eq('id', billId)
-    .maybeSingle<BillRow>()
+    .maybeSingle<BillRow & { is_recurring?: boolean | null; recurring_schedule?: any }>()
   const bill = billRes?.data
   if (!bill || bill.transaction_type !== 'Bill') notFound()
+
+  // Fetch approval state
+  const { data: workflowRow } = await db
+    .from('bill_workflow')
+    .select('approval_state')
+    .eq('bill_transaction_id', billId)
+    .maybeSingle()
+  const approvalState = (workflowRow as any)?.approval_state ?? 'draft'
+  const isApproved = approvalState === 'approved'
 
   const [vendorRowsRes, linesRes, propsRes, unitsRes, accountsRes] = await Promise.all([
     db
@@ -109,6 +118,10 @@ export default async function EditBillPage({ params }: { params: Promise<{ billI
     type: a?.type || null,
   }))
 
+  // Extract recurring schedule from JSONB
+  const recurringSchedule = bill.recurring_schedule as any
+  const schedule = recurringSchedule?.schedule || null
+
   return (
     <BillEditForm
       billId={billId}
@@ -124,6 +137,9 @@ export default async function EditBillPage({ params }: { params: Promise<{ billI
       units={units}
       accounts={accounts}
       lines={lines}
+      isRecurring={bill.is_recurring || false}
+      recurringSchedule={schedule}
+      isApproved={isApproved}
     />
   )
 }

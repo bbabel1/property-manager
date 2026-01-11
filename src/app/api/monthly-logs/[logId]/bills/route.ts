@@ -8,7 +8,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import { requireAuth } from '@/lib/auth/guards';
-import type { AppRole } from '@/lib/auth/roles';
+import { requireOrgMember, resolveResourceOrg } from '@/lib/auth/org-guards';
 import { hasPermission } from '@/lib/permissions';
 import { supabaseAdmin } from '@/lib/db';
 import { buildiumFetch } from '@/lib/buildium-http';
@@ -22,11 +22,7 @@ type BuildiumBillWithLines = Parameters<typeof upsertBillWithLines>[0];
 
 export async function GET(request: Request, { params }: { params: Promise<{ logId: string }> }) {
   try {
-    // Auth check
-    const roles: AppRole[] =
-      process.env.NODE_ENV === 'development'
-        ? ['platform_admin']
-        : (await requireAuth()).roles;
+    const { supabase, user, roles } = await requireAuth();
 
     if (!hasPermission(roles, 'monthly_logs.read')) {
       return NextResponse.json(
@@ -38,11 +34,28 @@ export async function GET(request: Request, { params }: { params: Promise<{ logI
     // Parse parameters
     const { logId } = await params;
 
+    const resolved = await resolveResourceOrg(supabase, 'monthly_log', logId);
+    if (!resolved.ok) {
+      return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Monthly log not found' } }, { status: 404 });
+    }
+    try {
+      await requireOrgMember({ client: supabase, userId: user.id, orgId: resolved.orgId });
+    } catch (memberErr) {
+      const msg = memberErr instanceof Error ? memberErr.message : '';
+      const status = msg === 'ORG_FORBIDDEN' ? 403 : 401;
+      return NextResponse.json(
+        { error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
+        { status },
+      );
+    }
+    const orgId = resolved.orgId;
+
     // Fetch assigned bills
-    const { data: assignedBills, error: assignedError } = await supabaseAdmin
+    const { data: assignedBills, error: assignedError } = await supabase
       .from('transactions')
       .select('*')
       .eq('monthly_log_id', logId)
+      .eq('org_id', orgId)
       .eq('transaction_type', 'Bill')
       .order('date', { ascending: false });
 
@@ -55,10 +68,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ logI
     }
 
     // Fetch unassigned bills
-    const { data: unassignedBills, error: unassignedError } = await supabaseAdmin
+    const { data: unassignedBills, error: unassignedError } = await supabase
       .from('transactions')
       .select('*')
       .is('monthly_log_id', null)
+      .eq('org_id', orgId)
       .eq('transaction_type', 'Bill')
       .order('date', { ascending: false })
       .limit(50); // Limit to recent unassigned bills
@@ -120,10 +134,7 @@ const toBuildiumDate = (value: string): string => {
 
 export async function POST(request: Request, { params }: { params: Promise<{ logId: string }> }) {
   try {
-    const roles: AppRole[] =
-      process.env.NODE_ENV === 'development'
-        ? ['platform_admin']
-        : (await requireAuth()).roles;
+    const { supabase, user, roles } = await requireAuth();
 
     if (!hasPermission(roles, 'monthly_logs.write')) {
       return NextResponse.json(
@@ -133,6 +144,24 @@ export async function POST(request: Request, { params }: { params: Promise<{ log
     }
 
     const { logId } = await params;
+    const resolved = await resolveResourceOrg(supabase, 'monthly_log', logId);
+    if (!resolved.ok) {
+      return NextResponse.json(
+        { error: { code: 'NOT_FOUND', message: 'Monthly log not found' } },
+        { status: 404 },
+      );
+    }
+    try {
+      await requireOrgMember({ client: supabase, userId: user.id, orgId: resolved.orgId });
+    } catch (memberErr) {
+      const msg = memberErr instanceof Error ? memberErr.message : '';
+      const status = msg === 'ORG_FORBIDDEN' ? 403 : 401;
+      return NextResponse.json(
+        { error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
+        { status },
+      );
+    }
+    const orgId = resolved.orgId;
     const body = await request.json();
     const parsed = CreateBillSchema.safeParse(body);
 
@@ -153,7 +182,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ log
       );
     }
 
-    const { data: logRecord, error: logError } = await supabaseAdmin
+    const { data: logRecord, error: logError } = await supabase
       .from('monthly_logs')
       .select(
         `
@@ -173,6 +202,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ log
       `,
       )
       .eq('id', logId)
+      .eq('org_id', orgId)
       .maybeSingle();
 
     if (logError) throw logError;
@@ -204,10 +234,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ log
 
     const buildiumUnitId = unitRecord?.buildium_unit_id ?? null;
 
-    const { data: vendorRecord, error: vendorError } = await supabaseAdmin
+    const { data: vendorRecord, error: vendorError } = await supabase
       .from('vendors')
       .select('id, buildium_vendor_id')
       .eq('id', payload.vendor_id)
+      .eq('org_id', orgId)
       .maybeSingle<{ id: string; buildium_vendor_id: number | null }>();
 
     if (vendorError) throw vendorError;
@@ -224,9 +255,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ log
     }
 
     const accountIds = payload.allocations.map((entry) => entry.account_id);
-    const { data: accountRows, error: accountError } = await supabaseAdmin
+    const { data: accountRows, error: accountError } = await supabase
       .from('gl_accounts')
       .select('id, buildium_gl_account_id')
+      .eq('org_id', orgId)
       .in('id', accountIds);
 
     if (accountError) throw accountError;
@@ -285,8 +317,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ log
       Lines: lines,
     };
 
-    // Resolve orgId from monthly_log
-    const orgId = logRecord?.org_id ?? undefined;
+    if (logRecord.org_id && logRecord.org_id !== orgId) {
+      return NextResponse.json(
+        { error: { code: 'FORBIDDEN', message: 'Monthly log not found' } },
+        { status: 403 },
+      );
+    }
 
     const response = await buildiumFetch('POST', '/bills', undefined, buildiumPayload, orgId);
 

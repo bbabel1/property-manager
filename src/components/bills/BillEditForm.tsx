@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useTransition } from 'react';
+import { useCallback, useMemo, useState, useTransition } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { describeBuildiumPayload } from '@/lib/buildium-response';
@@ -44,6 +44,9 @@ export type BillLinePreview = {
   isNew?: boolean;
 };
 
+import { RecurringBillSettings } from './RecurringBillSettings';
+import type { RecurringBillSchedule } from '@/types/recurring-bills';
+
 export interface BillEditFormProps {
   billId: string;
   initial: {
@@ -58,6 +61,9 @@ export interface BillEditFormProps {
   units: { id: string; label: string; property_id: string | null }[];
   accounts: { id: string; label: string; type?: string | null }[];
   lines: BillLinePreview[];
+  isRecurring?: boolean;
+  recurringSchedule?: RecurringBillSchedule | null;
+  isApproved?: boolean;
 }
 
 export default function BillEditForm({
@@ -68,6 +74,9 @@ export default function BillEditForm({
   units,
   accounts,
   lines,
+  isRecurring = false,
+  recurringSchedule = null,
+  isApproved = false,
 }: BillEditFormProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -88,6 +97,11 @@ export default function BillEditForm({
     id: string;
     field: 'property' | 'unit' | 'account' | 'description' | 'amount';
   } | null>(null);
+  const [recurringUpdates, setRecurringUpdates] = useState<{
+    is_recurring?: boolean;
+    recurring_schedule?: RecurringBillSchedule;
+    recurring_action?: 'pause' | 'resume' | 'disable';
+  } | null>(null);
   const total = useMemo(
     () =>
       rows
@@ -101,11 +115,36 @@ export default function BillEditForm({
 
   const returnTo = searchParams.get('returnTo') || null;
 
+  const handleRecurringUpdate = useCallback(
+    async (updates: {
+      is_recurring?: boolean;
+      recurring_schedule?: RecurringBillSchedule;
+      recurring_action?: 'pause' | 'resume' | 'disable';
+    }) => {
+      setRecurringUpdates(updates);
+      // Immediately apply recurring updates (they're handled separately)
+      const payload: any = { ...updates };
+      if (updates.recurring_schedule) {
+        payload.recurring_schedule = updates.recurring_schedule;
+      }
+      const res = await fetch(`/api/bills/${billId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || 'Failed to update recurring settings');
+      }
+    },
+    [billId],
+  );
+
   const onSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     setError(null);
     startTransition(async () => {
-      const payload = {
+      const payload: any = {
         date: form.date || null,
         due_date: form.due_date || null,
         vendor_id: form.vendor_id || null,
@@ -121,6 +160,10 @@ export default function BillEditForm({
             unit_id: r.unit_id || null,
           })),
       };
+      // Include recurring updates if they exist
+      if (recurringUpdates) {
+        Object.assign(payload, recurringUpdates);
+      }
       const res = await fetch(`/api/bills/${billId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -302,8 +345,21 @@ export default function BillEditForm({
                 className="w-full text-base"
               />
             </label>
+          </div>
 
-            <div className="space-y-4 border-t border-border/60 pt-6">
+          {/* Recurring Bill Settings */}
+          <div className="border-t border-border/60 pt-6">
+            <RecurringBillSettings
+              billId={billId}
+              billDate={form.date || initial.date}
+              isRecurring={isRecurring}
+              schedule={recurringSchedule}
+              isApproved={isApproved}
+              onUpdate={handleRecurringUpdate}
+            />
+          </div>
+
+          <div className="space-y-4 border-t border-border/60 pt-6">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h3 className="text-foreground text-sm font-semibold">Item details</h3>

@@ -25,6 +25,8 @@ import { BillApprovalWorkflow } from '@/components/bills/BillApprovalWorkflow';
 import { BillApplicationsList } from '@/components/bills/BillApplicationsList';
 import { BillPaymentForm } from '@/components/bills/BillPaymentForm';
 import { VendorCreditForm } from '@/components/bills/VendorCreditForm';
+import { RecurringBillStatusBadge } from '@/components/bills/RecurringBillStatusBadge';
+import type { RecurringBillSchedule } from '@/types/recurring-bills';
 
 export type BillPageParams = { billId: string };
 type BillPageProps = { params: Promise<BillPageParams> };
@@ -191,7 +193,7 @@ export default async function BillDetailsPage({ params }: BillPageProps) {
   const billRes = await db
     .from('transactions')
     .select(
-      'id, date, due_date, paid_date, total_amount, status, memo, reference_number, vendor_id, buildium_bill_id, transaction_type, org_id, work_order_id',
+      'id, date, due_date, paid_date, total_amount, status, memo, reference_number, vendor_id, buildium_bill_id, transaction_type, org_id, work_order_id, is_recurring, recurring_schedule',
     )
     .eq('id', billId)
     .maybeSingle();
@@ -418,6 +420,12 @@ export default async function BillDetailsPage({ params }: BillPageProps) {
   const workOrder = workOrderRes?.data ?? null;
   const workflow = workflowRes?.data ?? null;
   const approvalState = (workflow as any)?.approval_state ?? 'draft';
+
+  // Extract recurring schedule from JSONB
+  const recurringScheduleJsonb = (bill as any)?.recurring_schedule as any;
+  const recurringSchedule: RecurringBillSchedule | null = recurringScheduleJsonb?.schedule || null;
+  const isRecurring = (bill as any)?.is_recurring || false;
+  const nextRunDate = recurringSchedule?.next_run_date || null;
   const auditEntries = auditRes?.data ?? [];
   const applications = applicationsRes?.data ?? [];
   const hasReconciledApplications = applications.some(
@@ -773,6 +781,106 @@ export default async function BillDetailsPage({ params }: BillPageProps) {
                     </dl>
                   </CardContent>
                 </Card>
+
+                {/* Recurring Bill Section - Show if recurring or has recurring history */}
+                {(isRecurring || recurringSchedule) && (
+                  <Card className="border-border/70 shadow-sm">
+                    <CardHeader className="border-border/60 bg-muted/30 border-b">
+                      <div className="flex items-center justify-between">
+                        <CardTitle>Recurring Billing</CardTitle>
+                        <RecurringBillStatusBadge schedule={recurringSchedule} nextRunDate={nextRunDate} />
+                      </div>
+                    </CardHeader>
+                    <CardContent className="px-6 py-6">
+                      <dl className="grid gap-x-12 gap-y-6 text-sm md:grid-cols-3">
+                        <div className="space-y-1.5">
+                          <dt className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+                            Frequency
+                          </dt>
+                          <dd className="text-foreground text-sm">
+                            {recurringSchedule.frequency === 'Every2Weeks'
+                              ? 'Biweekly'
+                              : recurringSchedule.frequency === 'Yearly'
+                                ? 'Annually'
+                                : recurringSchedule.frequency}
+                          </dd>
+                        </div>
+                        <div className="space-y-1.5">
+                          <dt className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+                            Status
+                          </dt>
+                          <dd className="text-foreground text-sm">
+                            {recurringSchedule.status === 'active'
+                              ? 'Active'
+                              : recurringSchedule.status === 'paused'
+                                ? 'Paused'
+                                : recurringSchedule.status === 'ended'
+                                  ? 'Ended'
+                                  : 'Unknown'}
+                          </dd>
+                        </div>
+                        {recurringSchedule.start_date && (
+                          <div className="space-y-1.5">
+                            <dt className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+                              Start Date
+                            </dt>
+                            <dd className="text-foreground text-sm">{formatDate(recurringSchedule.start_date)}</dd>
+                          </div>
+                        )}
+                        {recurringSchedule.end_date && (
+                          <div className="space-y-1.5">
+                            <dt className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+                              End Date
+                            </dt>
+                            <dd className="text-foreground text-sm">{formatDate(recurringSchedule.end_date)}</dd>
+                          </div>
+                        )}
+                        {nextRunDate && isRecurring && (
+                          <div className="space-y-1.5">
+                            <dt className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+                              Next Billing Date
+                            </dt>
+                            <dd className="text-foreground text-sm">{formatDate(nextRunDate)}</dd>
+                          </div>
+                        )}
+                        {recurringSchedule.last_generated_at && (
+                          <div className="space-y-1.5">
+                            <dt className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+                              Last Generated
+                            </dt>
+                            <dd className="text-foreground text-sm">
+                              {new Date(recurringSchedule.last_generated_at).toLocaleString()}
+                            </dd>
+                          </div>
+                        )}
+                        {recurringSchedule.ended_at && (
+                          <div className="space-y-1.5">
+                            <dt className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+                              Ended At
+                            </dt>
+                            <dd className="text-foreground text-sm">
+                              {new Date(recurringSchedule.ended_at).toLocaleString()}
+                            </dd>
+                          </div>
+                        )}
+                      </dl>
+                      {approvalState !== 'approved' && isRecurring && (
+                        <div className="mt-6">
+                          <Link href={`/bills/${billId}/edit?returnTo=/bills/${billId}`}>
+                            <Button variant="outline" size="sm">
+                              Edit Recurring Settings
+                            </Button>
+                          </Link>
+                        </div>
+                      )}
+                      {!isRecurring && recurringSchedule.status === 'ended' && (
+                        <div className="mt-4 text-sm text-muted-foreground">
+                          This bill's recurring schedule has been disabled. Generated bills remain in the system.
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
 
                 <BillApprovalWorkflow
                   billId={bill.id}

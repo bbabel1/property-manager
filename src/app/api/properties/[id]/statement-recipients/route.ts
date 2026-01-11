@@ -6,8 +6,8 @@
 
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { supabaseAdmin } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/guards';
+import { requireOrgMember, resolveResourceOrg } from '@/lib/auth/org-guards';
 import { hasPermission } from '@/lib/permissions';
 
 // Recipient validation schema
@@ -21,23 +21,39 @@ const updateRecipientsSchema = z.object({
   recipients: z.array(recipientSchema),
 });
 
-const isDevBypass = process.env.NODE_ENV === 'development';
-
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    if (!isDevBypass) {
-      const auth = await requireAuth();
-      if (!hasPermission(auth.roles, 'monthly_logs.write')) {
-        return NextResponse.json(
-          { error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
-          { status: 403 },
-        );
-      }
+    const auth = await requireAuth();
+    const { supabase, user, roles } = auth;
+    if (!hasPermission(roles, 'monthly_logs.write')) {
+      return NextResponse.json(
+        { error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
+        { status: 403 },
+      );
     }
 
     // Parse parameters
     const { id: propertyId } = await params;
     const body = await request.json();
+
+    const resolved = await resolveResourceOrg(supabase, 'property', propertyId);
+    if (!resolved.ok) {
+      return NextResponse.json(
+        { error: { code: 'NOT_FOUND', message: 'Property not found' } },
+        { status: 404 },
+      );
+    }
+    try {
+      await requireOrgMember({ client: supabase, userId: user.id, orgId: resolved.orgId });
+    } catch (memberErr) {
+      const msg = memberErr instanceof Error ? memberErr.message : '';
+      const status = msg === 'ORG_FORBIDDEN' ? 403 : 401;
+      return NextResponse.json(
+        { error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
+        { status },
+      );
+    }
+    const orgId = resolved.orgId;
 
     // Validate request
     const validation = updateRecipientsSchema.safeParse(body);
@@ -57,10 +73,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const { recipients } = validation.data;
 
     // Ensure the property exists before attempting to update recipients
-    const { data: property, error: propertyError } = await supabaseAdmin
+    const { data: property, error: propertyError } = await supabase
       .from('properties')
       .select('id, bin, borough, city')
       .eq('id', propertyId)
+      .eq('org_id', orgId)
       .maybeSingle();
 
     if (propertyError || !property) {
@@ -89,10 +106,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
 
     // Update property statement recipients
-    const { error: updateError } = await supabaseAdmin
+    const { error: updateError } = await supabase
       .from('properties')
       .update({ statement_recipients: recipients })
-      .eq('id', propertyId);
+      .eq('id', propertyId)
+      .eq('org_id', orgId);
 
     if (updateError) {
       console.error('Error updating statement recipients:', updateError);
@@ -106,7 +124,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   } catch (error) {
     console.error('Error in PATCH /api/properties/[id]/statement-recipients:', error);
 
-    if (!isDevBypass && error instanceof Error && error.message === 'UNAUTHENTICATED') {
+    if (error instanceof Error && error.message === 'UNAUTHENTICATED') {
       return NextResponse.json(
         { error: { code: 'UNAUTHORIZED', message: 'Authentication required' } },
         { status: 401 },
@@ -122,24 +140,43 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    if (!isDevBypass) {
-      const auth = await requireAuth();
-      if (!hasPermission(auth.roles, 'monthly_logs.read')) {
-        return NextResponse.json(
-          { error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
-          { status: 403 },
-        );
-      }
+    const auth = await requireAuth();
+    const { supabase, user, roles } = auth;
+    if (!hasPermission(roles, 'monthly_logs.read')) {
+      return NextResponse.json(
+        { error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
+        { status: 403 },
+      );
     }
 
     // Parse parameters
     const { id: propertyId } = await params;
 
+    const resolved = await resolveResourceOrg(supabase, 'property', propertyId);
+    if (!resolved.ok) {
+      return NextResponse.json(
+        { error: { code: 'NOT_FOUND', message: 'Property not found' } },
+        { status: 404 },
+      );
+    }
+    try {
+      await requireOrgMember({ client: supabase, userId: user.id, orgId: resolved.orgId });
+    } catch (memberErr) {
+      const msg = memberErr instanceof Error ? memberErr.message : '';
+      const status = msg === 'ORG_FORBIDDEN' ? 403 : 401;
+      return NextResponse.json(
+        { error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
+        { status },
+      );
+    }
+    const orgId = resolved.orgId;
+
     // Fetch property statement recipients
-    const { data: property, error: propertyError } = await supabaseAdmin
+    const { data: property, error: propertyError } = await supabase
       .from('properties')
       .select('statement_recipients')
       .eq('id', propertyId)
+      .eq('org_id', orgId)
       .single();
 
     if (propertyError || !property) {
@@ -155,7 +192,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   } catch (error) {
     console.error('Error in GET /api/properties/[id]/statement-recipients:', error);
 
-    if (!isDevBypass && error instanceof Error && error.message === 'UNAUTHENTICATED') {
+    if (error instanceof Error && error.message === 'UNAUTHENTICATED') {
       return NextResponse.json(
         { error: { code: 'UNAUTHORIZED', message: 'Authentication required' } },
         { status: 401 },

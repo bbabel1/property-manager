@@ -1,6 +1,5 @@
 import { PageBody, PageShell } from '@/components/layout/page-shell'
 import PageHeader from '@/components/layout/PageHeader'
-import { supabaseAdmin } from '@/lib/db'
 import { getPropertyShellCached, PropertyService } from '@/lib/property-service'
 import { resolvePropertyIdentifier } from '@/lib/public-id-utils'
 import { cookies as nextCookies, headers as nextHeaders } from 'next/headers'
@@ -59,20 +58,6 @@ export default async function PropertyLayout({ children, params }: { children: R
         headerType = headerType ?? fresh.property_type ?? null
         headerAssign = headerAssign ?? fresh.service_assignment ?? null
         headerPlan = headerPlan ?? fresh.service_plan ?? null
-      }
-    } catch {}
-  }
-
-  if (!headerBuildiumId && supabaseAdmin) {
-    try {
-      const { data } = await supabaseAdmin
-        .from('properties')
-        .select('buildium_property_id')
-        .eq('id', propertyId)
-        .maybeSingle()
-      const buildiumId = (data as { buildium_property_id?: number | null } | null)?.buildium_property_id
-      if (buildiumId != null) {
-        headerBuildiumId = typeof buildiumId === 'number' ? buildiumId : Number(buildiumId)
       }
     } catch {}
   }

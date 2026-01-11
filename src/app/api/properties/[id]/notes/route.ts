@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/db'
-import { requireUser } from '@/lib/auth'
+import { requireAuth } from '@/lib/auth/guards'
+import { requireOrgMember, resolveResourceOrg } from '@/lib/auth/org-guards'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 
@@ -13,8 +13,20 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Too many requests', retryAfter: rateLimit.retryAfter }, { status: 429 })
     }
 
-    await requireUser(request)
+    const { supabase, user } = await requireAuth()
     const { id: propertyId } = await params
+
+    const resolved = await resolveResourceOrg(supabase, 'property', propertyId)
+    if (!resolved.ok) {
+      return NextResponse.json({ error: 'Property not found' }, { status: 404 })
+    }
+    try {
+      await requireOrgMember({ client: supabase, userId: user.id, orgId: resolved.orgId })
+    } catch (memberErr) {
+      const msg = memberErr instanceof Error ? memberErr.message : ''
+      const status = msg === 'ORG_FORBIDDEN' ? 403 : 401
+      return NextResponse.json({ error: 'Forbidden' }, { status })
+    }
 
     const { searchParams } = new URL(request.url)
     const limitRaw = Number(searchParams.get('limit') ?? '50')
@@ -24,8 +36,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const start = offset
     const end = offset + (limit > 0 ? limit - 1 : 0)
 
-    const client = supabaseAdmin as any
-    const { data, error } = await client
+    const { data, error } = await supabase
       .from(TABLE)
       .select('*')
       .eq('property_id', propertyId)
@@ -53,8 +64,20 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'Too many requests', retryAfter: rateLimit.retryAfter }, { status: 429 })
     }
 
-    const user = await requireUser(request)
+    const { supabase, user } = await requireAuth()
     const { id: propertyId } = await params
+
+    const resolved = await resolveResourceOrg(supabase, 'property', propertyId)
+    if (!resolved.ok) {
+      return NextResponse.json({ error: 'Property not found' }, { status: 404 })
+    }
+    try {
+      await requireOrgMember({ client: supabase, userId: user.id, orgId: resolved.orgId })
+    } catch (memberErr) {
+      const msg = memberErr instanceof Error ? memberErr.message : ''
+      const status = msg === 'ORG_FORBIDDEN' ? 403 : 401
+      return NextResponse.json({ error: 'Forbidden' }, { status })
+    }
 
     const payload = await request.json()
     const subject = typeof payload?.subject === 'string' ? payload.subject.trim() : null
@@ -68,8 +91,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'Body is required' }, { status: 400 })
     }
 
-    const client = supabaseAdmin as any
-    const { data, error } = await client
+    const { data, error } = await supabase
+      .from(TABLE)
       .insert({
         property_id: propertyId,
         subject,

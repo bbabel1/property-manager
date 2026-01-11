@@ -4,46 +4,46 @@ overview: Add recurring bill functionality to the Bill Details page, allowing us
 todos:
   - id: backend-types
     content: Create recurring bill types and Zod validation schema in src/types/recurring-bills.ts with split schedule model (monthly/quarterly/yearly vs weekly/every2weeks), canonical frequency values (Every2Weeks, Yearly), date-only fields, display label mapping, and server-owned field protection
-    status: pending
+    status: completed
   - id: backend-api
     content: Update PATCH endpoint in src/app/api/bills/[id]/route.ts to handle is_recurring and recurring_schedule with server-side validation, date-only handling, approval workflow integration (block like line edits), and blocking of server-owned fields (next_run_date, last_generated_at)
-    status: pending
+    status: completed
     dependencies:
       - backend-types
   - id: backend-engine
-    content: Create recurring bill generation engine in src/lib/recurring-bills-engine.ts with split schedule model, timezone-aware date calculations, catch-up logic, duplicate prevention, and metadata storage (parent_transaction_id, instance_date, sequence)
-    status: pending
+    content: Create recurring bill generation engine in src/lib/recurring-bills-engine.ts with split schedule model, date-only calculations, catch-up logic, idempotency_key pattern (bill_recur:${parentId}:${instanceDate}), always set org_id on children, and metadata storage
+    status: completed
     dependencies:
       - backend-types
   - id: backend-cron
-    content: Create cron job script in scripts/cron/recurring-bills.ts with advisory locks, per-run metrics (generated/skipped/duplicates/errors, org ids), catch-up for missed instances, and idempotent reruns
-    status: pending
+    content: Create cron job script in scripts/cron/recurring-bills.ts reusing existing recurring.ts pattern (ENABLE flag, horizon, TZ warning), with advisory locks, per-run metrics (generated/skipped/duplicates/errors, org ids), catch-up for missed instances, and idempotent reruns using idempotency_key
+    status: completed
     dependencies:
       - backend-engine
   - id: frontend-settings
-    content: Create RecurringBillSettings component in src/components/bills/RecurringBillSettings.tsx with conditional fields (month/day vs day_of_week), pause/resume/disable actions with confirmations, timezone messaging, and read-only server-owned fields
-    status: pending
+    content: Create RecurringBillSettings component in src/components/bills/RecurringBillSettings.tsx with conditional fields (month/day vs day_of_week), frequency display labels (Biweekly→Every2Weeks, Annually→Yearly), pause/resume/disable actions with confirmations, date-only messaging, local-only warning for Weekly/Every2Weeks, and read-only server-owned fields
+    status: completed
     dependencies:
       - backend-types
   - id: frontend-badge
     content: Create RecurringBillStatusBadge component in src/components/bills/RecurringBillStatusBadge.tsx
-    status: pending
+    status: completed
     dependencies:
       - backend-types
   - id: frontend-details
     content: Add recurring section to Bill Details page in src/app/(protected)/bills/[billId]/page.tsx
-    status: pending
+    status: completed
     dependencies:
       - frontend-settings
       - frontend-badge
   - id: frontend-edit
     content: Integrate recurring settings into BillEditForm in src/components/bills/BillEditForm.tsx
-    status: pending
+    status: completed
     dependencies:
       - frontend-settings
   - id: validation-edge-cases
     content: Implement validation and edge case handling (approval workflow, timezone-aware date validation, month/day combinations, rollover policies, duplicate prevention with unique constraint, parent void/delete behavior, server-owned field blocking)
-    status: pending
+    status: completed
     dependencies:
       - backend-api
       - backend-engine
@@ -55,11 +55,11 @@ todos:
       - backend-api
       - frontend-settings
   - id: database-migration
-    content: Create database migration for unique constraint on (parent_transaction_id, instance_date) and performance indexes
-    status: pending
+    content: Create database migration for either dedicated bill_schedules table (Option A, recommended) OR namespaced JSONB with idempotency_key column, unique constraints, and performance indexes
+    status: completed
   - id: buildium-mapping
-    content: Implement Buildium mapping with per-frequency mapping both directions, unsupported cadence handling, timezone preservation, and metadata preservation
-    status: pending
+    content: Implement Buildium mapping with explicit frequency support (Weekly/Every2Weeks are local-only, don't sync), per-frequency mapping for Monthly/Quarterly/Yearly both directions, date-only handling, rollover policy documentation, and metadata preservation
+    status: completed
     dependencies:
       - backend-types
       - backend-engine
@@ -309,30 +309,34 @@ const idempotencyKey = `bill_recur:${parentTransactionId}:${instanceDate}`
 #### 1.4 Add Recurring Bill Generation Cron Job
 
 - **File**: `scripts/cron/recurring-bills.ts`
-- Similar pattern to `scripts/cron/recurring.ts`
+- **Reuse existing pattern** from `scripts/cron/recurring.ts`:
+  - `ENABLE_RECURRING_BILLS` environment flag (similar to `ENABLE_RECURRING`)
+  - Horizon parameter (default 60 days)
+  - TZ warning if not America/New_York
 - **Cron Safety Features**:
-- **Advisory lock**: Use PostgreSQL advisory lock to prevent concurrent runs
+  - **Advisory lock**: Use PostgreSQL advisory lock to prevent concurrent runs
     ```sql
-        SELECT pg_advisory_lock(hashtext('recurring-bills-generation'))
+    SELECT pg_advisory_lock(hashtext('recurring-bills-generation'))
     ```
 
-- **Per-run metrics**: Track and log:
+    - Consider adding same lock pattern to `scripts/cron/recurring.ts` for consistency
+  - **Per-run metrics**: Track and log:
     - `generated`: Count of bills created
     - `skipped`: Count of bills skipped (duplicates, ended schedules, etc.)
     - `duplicates`: Count of duplicate attempts prevented
     - `errors`: Count of errors encountered
     - `org_ids`: List of orgs processed
-- **Catch up missed instances**: 
-    - Use `last_generated_at` and `next_run_at` from schedule
+  - **Catch up missed instances**: 
+    - Use `last_generated_at` and `next_run_date` from schedule
     - Generate bills for missed dates up to horizon
-    - Handle timezone-aware date comparisons
-- **Idempotent reruns**: Safe to rerun if interrupted
-- **Error handling**: 
+    - Handle date-only comparisons (no timezone issues)
+  - **Idempotent reruns**: Safe to rerun if interrupted (idempotency_key prevents duplicates)
+  - **Error handling**: 
     - Continue processing other bills if one fails
     - Log errors with context (org_id, bill_id, error details)
     - Don't fail entire run on individual bill errors
 - Call `generateRecurringBills(60)` for 60-day horizon
-- Use org timezone (default US/Eastern) for all date calculations
+- Use org timezone (default US/Eastern) for date calculations, but store dates as date-only
 
 ### Phase 2: Frontend Components
 

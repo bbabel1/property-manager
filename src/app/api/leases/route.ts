@@ -151,7 +151,7 @@ const getLegacyPool = (): Pool | null => {
   if (!connectionString) return null;
   legacyPool = new Pool({
     connectionString,
-    ssl: { rejectUnauthorized: false },
+    ssl: { rejectUnauthorized: true },
     application_name: 'pm-legacy-leases',
   });
   return legacyPool;

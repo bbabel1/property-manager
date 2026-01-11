@@ -1816,6 +1816,43 @@ export async function mapTransactionBillToBuildium(
   };
   const mappedStatus = approvalStateToBuildiumStatus(approvalState);
 
+  // Map recurring schedule (only for supported frequencies: Monthly, Quarterly, Yearly)
+  // Weekly/Every2Weeks are local-only and should not be synced to Buildium
+  let buildiumRecurringSchedule: BuildiumBillCreate['RecurringSchedule'] | undefined = undefined;
+  const isRecurring = (tx as any)?.is_recurring || false;
+  if (isRecurring) {
+    const recurringScheduleJsonb = (tx as any)?.recurring_schedule as any;
+    const schedule = recurringScheduleJsonb?.schedule;
+    if (schedule && schedule.status === 'active') {
+      const frequency = schedule.frequency;
+      // Only sync Monthly, Quarterly, Yearly to Buildium
+      if (frequency === 'Monthly' || frequency === 'Quarterly' || frequency === 'Yearly') {
+        // Buildium expects day-of-month in the StartDate (first occurrence)
+        // For Monthly: use day_of_month from schedule
+        // For Quarterly/Yearly: use month + day_of_month from schedule
+        const startDateStr = schedule.start_date ? normalizeDateString(schedule.start_date) : normalizeDateString(tx.date);
+        
+        buildiumRecurringSchedule = {
+          Frequency: frequency,
+          StartDate: startDateStr,
+          EndDate: schedule.end_date ? normalizeDateString(schedule.end_date) : undefined,
+        };
+        
+        // Note: Buildium doesn't expose day_of_month/month in RecurringSchedule
+        // The StartDate should already have the correct day of month
+        // Rollover policy differences are documented but not mapped
+      }
+      // Weekly/Every2Weeks are intentionally not synced (local-only)
+      // Log a warning if user tries to sync local-only frequency
+      if (frequency === 'Weekly' || frequency === 'Every2Weeks') {
+        logger.warn(
+          { transactionId, frequency },
+          'Weekly/Every2Weeks recurrence is local-only and will not sync to Buildium',
+        );
+      }
+    }
+  }
+
   const payload: BuildiumBillCreate = {
     VendorId: vendorBuildiumId,
     Date: normalizeDateString(tx.date),
@@ -1829,6 +1866,8 @@ export async function mapTransactionBillToBuildium(
     CategoryId: billCategoryBuildiumId,
     Lines: buildiumLines.length > 0 ? buildiumLines : undefined,
     Status: mappedStatus,
+    IsRecurring: isRecurring && buildiumRecurringSchedule !== undefined,
+    RecurringSchedule: buildiumRecurringSchedule,
   };
 
   return payload;
@@ -4916,6 +4955,43 @@ export async function mapBillTransactionFromBuildium(
     throw new Error('Unable to resolve org_id for Buildium bill transaction');
   }
 
+  // Map recurring schedule from Buildium (only Monthly/Quarterly/Yearly are supported)
+  let recurringScheduleJsonb: any = null;
+  const isRecurring = buildiumBill?.IsRecurring || false;
+  if (isRecurring && buildiumBill?.RecurringSchedule) {
+    const buildiumSchedule = buildiumBill.RecurringSchedule;
+    const frequency = buildiumSchedule.Frequency;
+    // Map Buildium frequency to local canonical value
+    if (frequency === 'Monthly' || frequency === 'Quarterly' || frequency === 'Yearly') {
+      const startDateStr = buildiumSchedule.StartDate
+        ? normalizeDateString(buildiumSchedule.StartDate)
+        : normalizeDateString(buildiumBill.Date);
+      const startDate = new Date(startDateStr + 'T00:00:00Z');
+      
+      // Extract day_of_month and month from Buildium StartDate
+      const dayOfMonth = startDate.getUTCDate();
+      const month = startDate.getUTCMonth() + 1;
+      
+      // Build local schedule structure (namespaced JSONB)
+      recurringScheduleJsonb = {
+        schedule: {
+          frequency: frequency,
+          start_date: startDateStr,
+          end_date: buildiumSchedule.EndDate
+            ? normalizeDateString(buildiumSchedule.EndDate)
+            : null,
+          status: 'active', // Default to active when syncing from Buildium
+          day_of_month: dayOfMonth,
+          rollover_policy: 'last_day', // Default rollover policy (Buildium may differ)
+          // For Quarterly/Yearly, extract month from start_date
+          ...(frequency === 'Quarterly' || frequency === 'Yearly' ? { month } : {}),
+          // Note: Buildium doesn't expose rollover_policy, so we default to 'last_day'
+          // This may not match Buildium's behavior exactly
+        },
+      };
+    }
+  }
+
   return {
     buildium_bill_id: buildiumBill?.Id ?? null,
     date: normalizeDateString(buildiumBill?.Date),
@@ -4930,6 +5006,8 @@ export async function mapBillTransactionFromBuildium(
     category_id: categoryId,
     org_id: orgId,
     updated_at: nowIso,
+    is_recurring: isRecurring,
+    recurring_schedule: recurringScheduleJsonb,
   };
 }
 

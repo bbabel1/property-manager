@@ -10,6 +10,14 @@ import { hasPermission } from '@/lib/permissions';
 import { supabaseAdmin } from '@/lib/db';
 import { requireOrgMember } from '@/lib/auth/org-guards';
 import type { Database as DatabaseSchema } from '@/types/database';
+import {
+  RecurringBillScheduleSchema,
+  RecurringBillScheduleJsonbSchema,
+  computeNextRunDate,
+  mapDisplayLabelToFrequency,
+  type RecurringBillSchedule,
+} from '@/types/recurring-bills';
+import { getOrgTimezone } from '@/lib/org-timezone';
 
 type TransactionLineInsert = DatabaseSchema['public']['Tables']['transaction_lines']['Insert'];
 type BillLinePayload = {
@@ -116,6 +124,13 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         { status: 409 },
       );
     }
+    // Treat recurrence settings as "structural" like lines/amounts
+    if ('is_recurring' in payload || 'recurring_schedule' in payload) {
+      return NextResponse.json(
+        { error: 'Approved bills cannot modify recurring settings. Void or reject to change recurrence.' },
+        { status: 409 },
+      );
+    }
   }
 
   const update: Record<string, unknown> = {};
@@ -125,6 +140,161 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   if ('reference_number' in payload) update.reference_number = payload.reference_number || null;
   if ('memo' in payload) update.memo = payload.memo || null;
   update.updated_at = nowIso;
+
+  // Handle recurring bill settings
+  if ('is_recurring' in payload || 'recurring_schedule' in payload) {
+    const isRecurring = payload.is_recurring === true;
+    const recurringSchedule = payload.recurring_schedule;
+
+    if (isRecurring && recurringSchedule) {
+      // Map display labels to canonical frequencies
+      if (recurringSchedule.frequency && typeof recurringSchedule.frequency === 'string') {
+        const canonical = mapDisplayLabelToFrequency(recurringSchedule.frequency);
+        if (canonical) {
+          recurringSchedule.frequency = canonical;
+        }
+      }
+
+      // Strip server-owned fields
+      delete (recurringSchedule as any).next_run_date;
+      delete (recurringSchedule as any).last_generated_at;
+
+      // Validate schedule using Zod schema
+      const validationResult = RecurringBillScheduleSchema.safeParse(recurringSchedule);
+      if (!validationResult.success) {
+        return NextResponse.json(
+          {
+            error: 'Invalid recurring schedule',
+            details: validationResult.error.errors.map((e) => `${e.path.join('.')}: ${e.message}`).join('; '),
+          },
+          { status: 400 },
+        );
+      }
+
+      const validatedSchedule = validationResult.data;
+
+      // Get bill date for validation
+      const { data: currentBill } = await admin
+        .from('transactions')
+        .select('date')
+        .eq('id', id)
+        .maybeSingle();
+      const billDate = currentBill?.date || new Date().toISOString().slice(0, 10);
+
+      // Validate start_date >= bill.date
+      if (validatedSchedule.start_date < billDate) {
+        return NextResponse.json(
+          { error: 'start_date must be on or after the bill date' },
+          { status: 400 },
+        );
+      }
+
+      // Validate end_date not in past on create
+      const todayStr = new Date().toISOString().slice(0, 10);
+      if (validatedSchedule.end_date && validatedSchedule.end_date < todayStr) {
+        return NextResponse.json(
+          { error: 'end_date cannot be in the past' },
+          { status: 400 },
+        );
+      }
+
+      // Get org timezone
+      const orgTimezone = await getOrgTimezone(orgId);
+
+      // Compute next_run_date
+      const nextRunDate = computeNextRunDate(validatedSchedule, orgTimezone);
+
+      // Build namespaced schedule JSONB
+      const scheduleJsonb: { schedule: RecurringBillSchedule } = {
+        schedule: {
+          ...validatedSchedule,
+          next_run_date: nextRunDate,
+          last_generated_at: null, // Will be set by generation engine
+        },
+      };
+
+      update.is_recurring = true;
+      update.recurring_schedule = scheduleJsonb;
+    } else if (isRecurring === false) {
+      // Disabling recurrence
+      update.is_recurring = false;
+      // Keep existing recurring_schedule for history, but mark as ended if it exists
+      const { data: currentBill } = await admin
+        .from('transactions')
+        .select('recurring_schedule')
+        .eq('id', id)
+        .maybeSingle();
+      if (currentBill?.recurring_schedule && typeof currentBill.recurring_schedule === 'object') {
+        const currentSchedule = currentBill.recurring_schedule as any;
+        if (currentSchedule?.schedule) {
+          update.recurring_schedule = {
+            ...currentSchedule,
+            schedule: {
+              ...currentSchedule.schedule,
+              status: 'ended',
+              ended_at: nowIso,
+            },
+          };
+        }
+      }
+    }
+  }
+
+  // Handle pause/resume/disable actions
+  if (payload.recurring_action === 'pause' || payload.recurring_action === 'resume' || payload.recurring_action === 'disable') {
+    const { data: currentBill } = await admin
+      .from('transactions')
+      .select('recurring_schedule, is_recurring')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (!currentBill?.is_recurring || !currentBill?.recurring_schedule) {
+      return NextResponse.json(
+        { error: 'Bill is not set up for recurrence' },
+        { status: 400 },
+      );
+    }
+
+    const currentSchedule = currentBill.recurring_schedule as any;
+    if (!currentSchedule?.schedule) {
+      return NextResponse.json(
+        { error: 'Invalid recurring schedule structure' },
+        { status: 400 },
+      );
+    }
+
+    const orgTimezone = await getOrgTimezone(orgId);
+
+    if (payload.recurring_action === 'pause') {
+      update.recurring_schedule = {
+        ...currentSchedule,
+        schedule: {
+          ...currentSchedule.schedule,
+          status: 'paused',
+        },
+      };
+    } else if (payload.recurring_action === 'resume') {
+      const schedule = currentSchedule.schedule as RecurringBillSchedule;
+      const nextRunDate = computeNextRunDate({ ...schedule, status: 'active' }, orgTimezone);
+      update.recurring_schedule = {
+        ...currentSchedule,
+        schedule: {
+          ...schedule,
+          status: 'active',
+          next_run_date: nextRunDate,
+        },
+      };
+    } else if (payload.recurring_action === 'disable') {
+      update.recurring_schedule = {
+        ...currentSchedule,
+        schedule: {
+          ...currentSchedule.schedule,
+          status: 'ended',
+          ended_at: nowIso,
+        },
+      };
+    }
+  }
 
   // If approved, block amount/line changes
   if (approvalState === 'approved' && Array.isArray(payload?.lines)) {
