@@ -37,8 +37,14 @@ begin
   v_header.created_at := coalesce(v_header.created_at, now());
   v_header.updated_at := coalesce(v_header.updated_at, now());
   v_header.date := coalesce(v_header.date, current_date);
-  v_header.email_receipt := coalesce(v_header.email_receipt, false);
-  v_header.print_receipt := coalesce(v_header.print_receipt, false);
+  
+  -- Ensure receipt flags have defaults (handle NULL from jsonb_populate_record when field is missing)
+  if v_header.email_receipt is null then
+    v_header.email_receipt := false;
+  end if;
+  if v_header.print_receipt is null then
+    v_header.print_receipt := false;
+  end if;
 
   insert into public.transactions
   select v_header.*
