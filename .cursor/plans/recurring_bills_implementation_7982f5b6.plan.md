@@ -3,10 +3,10 @@ name: Recurring Bills Implementation
 overview: Add recurring bill functionality to the Bill Details page, allowing users to configure recurrence schedules, manage existing recurring settings, and automatically generate future bills based on schedules.
 todos:
   - id: backend-types
-    content: Create recurring bill types and Zod validation schema in src/types/recurring-bills.ts with split schedule model (monthly/quarterly/annual vs weekly/biweekly), timezone support, and server-owned field protection
+    content: Create recurring bill types and Zod validation schema in src/types/recurring-bills.ts with split schedule model (monthly/quarterly/yearly vs weekly/every2weeks), canonical frequency values (Every2Weeks, Yearly), date-only fields, display label mapping, and server-owned field protection
     status: pending
   - id: backend-api
-    content: Update PATCH endpoint in src/app/api/bills/[id]/route.ts to handle is_recurring and recurring_schedule with server-side validation, timezone handling, and blocking of server-owned fields (next_run_at, last_generated_at)
+    content: Update PATCH endpoint in src/app/api/bills/[id]/route.ts to handle is_recurring and recurring_schedule with server-side validation, date-only handling, approval workflow integration (block like line edits), and blocking of server-owned fields (next_run_date, last_generated_at)
     status: pending
     dependencies:
       - backend-types
@@ -624,10 +624,9 @@ const idempotencyKey = `bill_recur:${parentTransactionId}:${instanceDate}`
 ## Performance Considerations
 
 - Bill generation engine should batch process bills
-- Add database indexes:
-- `CREATE INDEX IF NOT EXISTS idx_transactions_is_recurring ON transactions(is_recurring) WHERE is_recurring = true;`
-- `CREATE INDEX IF NOT EXISTS idx_transactions_parent_recurring ON transactions((recurring_schedule->>'parent_transaction_id')) WHERE is_recurring = false AND recurring_schedule->>'parent_transaction_id' IS NOT NULL;`
-- `CREATE UNIQUE INDEX IF NOT EXISTS idx_transactions_recurring_instance ON transactions((recurring_schedule->>'parent_transaction_id'), (recurring_schedule->>'instance_date')) WHERE recurring_schedule->>'parent_transaction_id' IS NOT NULL;`
+- Add database indexes (see migration section above for full SQL)
+- Use `idempotency_key` index for primary duplicate prevention
+- Use unique constraint `(parent_transaction_id, instance_date)` for defense-in-depth
 - Consider pagination for large recurring bill lists
 - Use advisory locks to prevent concurrent cron runs
 
