@@ -23,6 +23,7 @@ import {
   type LeaseAccountOption,
   type LeaseFormSuccessPayload,
 } from '@/components/leases/types';
+import { formatCurrency } from '@/lib/transactions/formatting';
 import {
   getMonthlyLogErrorMessage,
   safeParseJson,
@@ -452,7 +453,7 @@ export default function CreateBillForm({
           </div>
           <div className="flex items-center justify-end gap-6 text-sm font-medium">
             <span className="text-muted-foreground uppercase">Total</span>
-            <span>${allocationTotal.toFixed(2)}</span>
+            <span>{formatCurrency(allocationTotal)}</span>
           </div>
         </CardContent>
       </Card>

@@ -20,6 +20,7 @@ import { Textarea } from '@/components/ui/textarea';
 import type { LeaseAccountOption, LeaseTenantOption } from '@/components/leases/types';
 import { getTenantOptionValue } from '@/components/leases/types';
 import { RentCycleEnumDb } from '@/schemas/lease-api';
+import { formatCurrency } from '@/lib/transactions/formatting';
 
 const PaymentSchema = z.object({
   amount: z.coerce.number().positive('Amount must be greater than 0'),
@@ -478,11 +479,9 @@ export default function RecurringPaymentForm({
                     ))}
                     <TableRow className="bg-muted/30 font-medium">
                       <TableCell>Total</TableCell>
-                      <TableCell className="text-muted-foreground text-right text-sm">
-                        $0.00
-                      </TableCell>
+                      <TableCell className="text-muted-foreground text-right text-sm">$0.00</TableCell>
                       <TableCell className="text-right text-sm">
-                        ${allocationsTotal.toFixed(2)}
+                        {formatCurrency(allocationsTotal)}
                       </TableCell>
                       <TableCell />
                     </TableRow>

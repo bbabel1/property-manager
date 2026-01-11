@@ -21,6 +21,7 @@ import {
   type LeaseAccountOption,
   type LeaseFormSuccessPayload,
 } from '@/components/leases/types';
+import { formatCurrency } from '@/lib/transactions/formatting';
 
 const EnterChargeSchema = z.object({
   date: z.string().min(1, 'Date required'),
@@ -477,7 +478,7 @@ export default function EnterChargeForm({
                     <TableRow className="bg-muted/30 font-medium">
                       <TableCell>Total</TableCell>
                       <TableCell className="text-right text-sm">
-                        ${allocationsTotal.toFixed(2)}
+                        {formatCurrency(allocationsTotal)}
                       </TableCell>
                       <TableCell />
                     </TableRow>
@@ -631,7 +632,7 @@ export default function EnterChargeForm({
                   <TableRow className="bg-muted/20 font-semibold">
                     <TableCell>Total</TableCell>
                     <TableCell className="text-right text-sm">
-                      ${allocationsTotal.toFixed(2)}
+                      {formatCurrency(allocationsTotal)}
                     </TableCell>
                     <TableCell />
                   </TableRow>
@@ -655,7 +656,9 @@ export default function EnterChargeForm({
             <div className="flex flex-col gap-3 pt-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-sm text-muted-foreground">
                 Total:{' '}
-                <span className="font-semibold text-foreground">${allocationsTotal.toFixed(2)}</span>
+                <span className="font-semibold text-foreground">
+                  {formatCurrency(allocationsTotal)}
+                </span>
               </div>
               <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
                 <Button type="button" variant="outline" onClick={onCancel}>

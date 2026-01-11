@@ -22,6 +22,7 @@ import {
   type LeaseAccountOption,
   type LeaseFormSuccessPayload,
 } from '@/components/leases/types';
+import { formatCurrency } from '@/lib/transactions/formatting';
 
 const WithholdDepositSchema = z.object({
   date: z.string().min(1, 'Date required'),
@@ -341,7 +342,7 @@ export default function WithholdDepositForm({
                         $0.00
                       </TableCell>
                       <TableCell className="text-right text-sm">
-                        ${allocationsTotal.toFixed(2)}
+                        {formatCurrency(allocationsTotal)}
                       </TableCell>
                       <TableCell />
                     </TableRow>

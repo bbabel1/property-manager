@@ -33,6 +33,7 @@ import { hasPermission } from '@/lib/permissions';
 import type { AppRole } from '@/lib/auth/roles';
 import { PaymentIntentStatus } from '@/components/payments/PaymentIntentStatus';
 import { PaymentEventsTimeline } from '@/components/payments/PaymentEventsTimeline';
+import { formatCurrency } from '@/lib/transactions/formatting';
 
 const ReceivePaymentSchema = z.object({
   date: z.string().min(1, 'Date required'),
@@ -694,7 +695,7 @@ export default function ReceivePaymentForm({
                     <TableRow className="bg-muted/30 font-medium">
                       <TableCell>Total</TableCell>
                       <TableCell className="text-right text-sm">
-                        ${allocationsTotal.toFixed(2)}
+                        {formatCurrency(allocationsTotal)}
                       </TableCell>
                       <TableCell />
                     </TableRow>

@@ -16,6 +16,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
+import { formatCurrency } from '@/lib/transactions/formatting';
 
 type ServiceOffering = {
   id: string;
@@ -96,7 +97,11 @@ function formatOfferingDefault(offering: ServiceOffering) {
   const freq = offering.default_freq || 'monthly';
   const feeType = (offering.fee_type || 'Flat Rate').toLowerCase();
   const formattedRate =
-    rate == null ? '—' : feeType.includes('percent') ? `${rate}%` : `$${Number(rate).toFixed(2)}`;
+    rate == null
+      ? '—'
+      : feeType.includes('percent')
+        ? `${rate}%`
+        : formatCurrency(Number(rate) || 0);
   return `${formattedRate} • ${String(freq).replace(/_/g, ' ')}`;
 }
 
@@ -489,7 +494,7 @@ export default function DraftAssignmentServicesEditor({
     isALaCarte
       ? 'No plan fee'
       : draft.resolved_plan_fee_amount != null
-        ? `$${Number(draft.resolved_plan_fee_amount).toFixed(2)} ${feeFrequency}`
+        ? `${formatCurrency(Number(draft.resolved_plan_fee_amount) || 0)} ${feeFrequency}`
         : draft.resolved_plan_fee_percent != null
           ? `${draft.resolved_plan_fee_percent}% ${feeFrequency}`
           : 'No fee configured';
@@ -553,7 +558,7 @@ export default function DraftAssignmentServicesEditor({
                         ? row.amount
                           ? isPercent
                             ? `${row.amount}%`
-                            : `$${Number(row.amount).toFixed(2)}`
+                            : formatCurrency(Number(row.amount) || 0)
                           : '—'
                         : formatOfferingDefault(offering).split(' • ')[0];
                       const displayFrequency = overridden

@@ -24,6 +24,7 @@ import {
   type LeaseFormSuccessPayload,
   type LeaseTenantOption,
 } from '@/components/leases/types';
+import { formatCurrency } from '@/lib/transactions/formatting';
 
 const IssueRefundSchema = z.object({
   date: z.string().min(1, 'Date required'),
@@ -478,14 +479,14 @@ export default function IssueRefundForm({
                             </Button>
                           </TableCell>
                         </TableRow>
-                      ))}
-                      <TableRow className="bg-muted/30 font-medium">
-                        <TableCell>Total</TableCell>
-                        <TableCell className="text-right text-sm">
-                          ${allocationsTotal.toFixed(2)}
-                        </TableCell>
-                        <TableCell />
-                      </TableRow>
+                    ))}
+                    <TableRow className="bg-muted/30 font-medium">
+                      <TableCell>Total</TableCell>
+                      <TableCell className="text-right text-sm">
+                        {formatCurrency(allocationsTotal)}
+                      </TableCell>
+                      <TableCell />
+                    </TableRow>
                     </TableBody>
                   </Table>
                 </div>
