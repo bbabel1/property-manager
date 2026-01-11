@@ -8,6 +8,7 @@ import { logger } from '@/lib/logger';
 import { assertTransactionBalanced, DOUBLE_ENTRY_TOLERANCE } from '@/lib/accounting-validation';
 import { hasPermission } from '@/lib/permissions';
 import { supabaseAdmin } from '@/lib/db';
+import { requireOrgMember } from '@/lib/auth/org-guards';
 import type { Database as DatabaseSchema } from '@/types/database';
 
 type TransactionLineInsert = DatabaseSchema['public']['Tables']['transaction_lines']['Insert'];
@@ -20,18 +21,34 @@ type BillLinePayload = {
 };
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
-  const { roles } = await requireAuth();
+  const { supabase, user, roles } = await requireAuth();
   if (!hasPermission(roles, 'bills.read')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
   const { id } = await context.params;
+  const { data: billHeader, error: headerErr } = await supabaseAdmin
+    .from('transactions')
+    .select('id, org_id, transaction_type')
+    .eq('id', id)
+    .eq('transaction_type', 'Bill')
+    .maybeSingle();
+  if (headerErr) return NextResponse.json({ error: headerErr.message }, { status: 500 });
+  if (!billHeader) return NextResponse.json({ error: 'Bill not found' }, { status: 404 });
+
+  await requireOrgMember({
+    client: supabase,
+    userId: user.id,
+    orgId: String((billHeader as any).org_id),
+  });
+
   const { data, error } = await supabaseAdmin
     .from('transactions')
     .select(
-      '*, bill_workflow:bill_workflow(*), bill_applications:bill_applications(id, applied_amount, source_transaction_id, source_type, applied_at, created_at, updated_at)',
+      '*, org_id, bill_workflow:bill_workflow(*), bill_applications:bill_applications(id, applied_amount, source_transaction_id, source_type, applied_at, created_at, updated_at)',
     )
     .eq('id', id)
+    .eq('org_id', (billHeader as any).org_id)
     .eq('transaction_type', 'Bill')
     .maybeSingle();
 
@@ -42,10 +59,17 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     return NextResponse.json({ error: 'Bill not found' }, { status: 404 });
   }
 
+  await requireOrgMember({ client: supabase, userId: user.id, orgId: String((data as any).org_id) });
+
   return NextResponse.json({ data });
 }
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
+  const { supabase, user, roles } = await requireAuth();
+  if (!hasPermission(roles, 'bills.write')) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
   const { id } = await context.params;
   const payload = await request.json().catch(() => null);
   if (!payload) return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
@@ -53,10 +77,22 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const admin = requireSupabaseAdmin('update bill');
   const nowIso = new Date().toISOString();
 
+  const { data: billRow, error: billErr } = await admin
+    .from('transactions')
+    .select('id, org_id, transaction_type')
+    .eq('id', id)
+    .eq('transaction_type', 'Bill')
+    .maybeSingle();
+  if (billErr) return NextResponse.json({ error: billErr.message }, { status: 500 });
+  if (!billRow) return NextResponse.json({ error: 'Bill not found' }, { status: 404 });
+  const orgId = String((billRow as any).org_id);
+  await requireOrgMember({ client: supabase, userId: user.id, orgId });
+
   const { data: workflowRow } = await admin
     .from('bill_workflow')
     .select('approval_state')
     .eq('bill_transaction_id', id)
+    .eq('org_id', orgId)
     .maybeSingle();
   const approvalState = (workflowRow as any)?.approval_state ?? 'draft';
   if (approvalState === 'approved') {
@@ -89,6 +125,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     .from('transactions')
     .update(update)
     .eq('id', id)
+    .eq('org_id', orgId)
     .select('id, date, due_date, vendor_id, reference_number, memo')
     .maybeSingle();
 
@@ -243,7 +280,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     await admin
       .from('transactions')
       .update({ total_amount: debitTotal, updated_at: nowIso })
-      .eq('id', id);
+      .eq('id', id)
+      .eq('org_id', orgId);
   }
 
   const { data: billSnapshot, error: billSnapshotError } = await admin
@@ -252,6 +290,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       '*, bill_workflow:bill_workflow(*), applications:bill_applications(applied_amount, source_transaction_id, source_type)',
     )
     .eq('id', id)
+    .eq('org_id', orgId)
     .maybeSingle();
 
   if (billSnapshotError) {

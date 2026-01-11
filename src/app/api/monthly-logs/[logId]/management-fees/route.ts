@@ -9,6 +9,7 @@ import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth/guards';
 import { hasPermission } from '@/lib/permissions';
 import { supabaseAdmin } from '@/lib/db';
+import { requireOrgMember } from '@/lib/auth/org-guards';
 
 type ServiceOfferingRow = { offering_id?: string | number | null; is_active?: boolean | null };
 type ServiceOfferingLookup = { id?: string | null; name?: string | null };
@@ -41,6 +42,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ logI
         { status: 404 },
       );
     }
+
+    await requireOrgMember({
+      client: auth.supabase,
+      userId: auth.user.id,
+      orgId: String(monthlyLog.org_id),
+    });
 
     // Fetch property with service_assignment to determine which assignment level should apply.
     const { data: property, error: propertyError } = await supabaseAdmin

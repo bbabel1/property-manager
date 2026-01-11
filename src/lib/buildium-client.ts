@@ -587,6 +587,42 @@ export class BuildiumClient {
     }
   }
 
+  async getFiles(params?: {
+    physicalFileName?: string;
+    entityType?: string;
+    entityId?: number | string;
+    pageSize?: number;
+    pageNumber?: number;
+  }): Promise<BuildiumFile[]> {
+    const qp = new URLSearchParams();
+    if (params?.physicalFileName) qp.append('physicalfilename', params.physicalFileName);
+    if (params?.entityType) qp.append('entitytype', params.entityType);
+    if (params?.entityId !== undefined && params?.entityId !== null) {
+      qp.append('entityid', String(params.entityId));
+    }
+    if (params?.pageSize) qp.append('pagesize', String(params.pageSize));
+    if (params?.pageNumber) qp.append('pagenumber', String(params.pageNumber));
+    const suffix = qp.toString() ? `?${qp.toString()}` : '';
+
+    const endpoints = [`/files${suffix}`, `/Files${suffix}`];
+    let lastError: Error | null = null;
+
+    for (const endpoint of endpoints) {
+      try {
+        return await this.makeRequest<BuildiumFile[]>(`GET`, endpoint);
+      } catch (error) {
+        lastError = error as Error;
+        const message = lastError?.message?.toLowerCase?.() || '';
+        const is404 = message.includes('404') || message.includes('not found');
+        if (is404) continue;
+        throw lastError;
+      }
+    }
+
+    if (lastError) throw lastError;
+    return [];
+  }
+
   async getFileCategories(params?: {
     pageSize?: number;
     pageNumber?: number;

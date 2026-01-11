@@ -60,6 +60,7 @@ export async function GET(request: NextRequest) {
     const { data: offerings, error } = await supabase
       .from('service_offerings')
       .select('*')
+      .eq('org_id', orgId)
       .order('category')
       .order('name');
 
@@ -113,10 +114,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await resolveOrgIdFromRequest(request, user.id, supabaseAdmin);
+    const orgId = await resolveOrgIdFromRequest(request, user.id, supabaseAdmin);
 
     const body = await request.json();
-    const requiredFields = ['code', 'name', 'category', 'default_freq', 'applies_to', 'bill_on'];
+    const requiredFields = ['name', 'category', 'default_freq'];
     const missing = requiredFields.filter((field) => {
       const value = body[field];
       return value === undefined || value === null || (typeof value === 'string' && !value.trim());
@@ -145,7 +146,6 @@ export async function POST(request: NextRequest) {
     const feeType = (normalizeFeeType(body.fee_type) ?? 'Flat Rate') as FeeType;
 
     const payload: ServiceOfferingInsert & Record<string, unknown> = {
-      code: String(body.code).trim(),
       name: String(body.name).trim(),
       category: body.category,
       description: body.description ? String(body.description).trim() : null,
@@ -157,9 +157,8 @@ export async function POST(request: NextRequest) {
       hourly_rate: parseNumber(body.hourly_rate),
       hourly_min_hours: parseNumber(body.hourly_min_hours),
       is_active: body.is_active ?? true,
+      org_id: orgId,
       updated_at: new Date().toISOString(),
-      applies_to: body.applies_to,
-      bill_on: body.bill_on,
     };
 
     const { data, error } = await supabaseAdmin
@@ -175,7 +174,7 @@ export async function POST(request: NextRequest) {
           {
             error: {
               code: 'CONFLICT',
-              message: 'A service offering with this code already exists',
+              message: 'A service offering with this name already exists for this organization',
             },
           },
           { status: 409 },

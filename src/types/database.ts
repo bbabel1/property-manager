@@ -6352,6 +6352,7 @@ export type Database = {
           markup_pct: number | null
           markup_pct_cap: number | null
           name: string
+          org_id: string
           public_id: number
           updated_at: string | null
         }
@@ -6369,6 +6370,7 @@ export type Database = {
           markup_pct?: number | null
           markup_pct_cap?: number | null
           name: string
+          org_id: string
           public_id?: number
           updated_at?: string | null
         }
@@ -6386,10 +6388,19 @@ export type Database = {
           markup_pct?: number | null
           markup_pct_cap?: number | null
           name?: string
+          org_id?: string
           public_id?: number
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "service_offerings_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       service_plan_assignments: {
         Row: {
@@ -8673,19 +8684,6 @@ export type Database = {
         }
         Relationships: []
       }
-      users_with_auth: {
-        Row: {
-          created_at: string | null
-          email: string | null
-          full_name: string | null
-          last_sign_in_at: string | null
-          memberships: Json | null
-          phone: string | null
-          providers: Json | null
-          user_id: string | null
-        }
-        Relationships: []
-      }
       v_active_work_orders_ranked: {
         Row: {
           actual_cost: number | null
@@ -9047,37 +9045,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_undeposited_payments"
             referencedColumns: ["transaction_id"]
-          },
-        ]
-      }
-      v_reconciliation_stale_alerts: {
-        Row: {
-          property_id: string | null
-          gl_account_id: string | null
-          last_reconciled_at: string | null
-          days_since: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "reconciliation_log_gl_account_id_fkey"
-            columns: ["gl_account_id"]
-            isOneToOne: false
-            referencedRelation: "gl_accounts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "reconciliation_log_property_id_fkey"
-            columns: ["property_id"]
-            isOneToOne: false
-            referencedRelation: "properties"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "reconciliation_log_property_id_fkey"
-            columns: ["property_id"]
-            isOneToOne: false
-            referencedRelation: "v_service_revenue_by_owner"
-            referencedColumns: ["property_id"]
           },
         ]
       }
@@ -9729,6 +9696,10 @@ export type Database = {
       }
     }
     Functions: {
+      _column_exists: {
+        Args: { p_column: string; p_schema: string; p_table: string }
+        Returns: boolean
+      }
       _parse_bool: { Args: { p_value: string }; Returns: boolean }
       _parse_date: { Args: { p_value: string }; Returns: string }
       _parse_timestamptz: { Args: { p_value: string }; Returns: string }
@@ -9848,10 +9819,7 @@ export type Database = {
         Args: { p_as_of?: string; p_property_id: string }
         Returns: Json
       }
-      get_property_summary: {
-        Args: { p_property_id: string }
-        Returns: Json
-      }
+      get_property_summary: { Args: { p_property_id: string }; Returns: Json }
       get_table_columns: {
         Args: { p_schema?: string; p_table_name: string }
         Returns: {
@@ -10157,14 +10125,23 @@ export type Database = {
         }
         Returns: undefined
       }
-      set_buildium_property_id: {
-        Args: {
-          p_buildium_property_id: number
-          p_entity_id: string
-          p_entity_type: string
-        }
-        Returns: undefined
-      }
+      set_buildium_property_id:
+        | {
+            Args: {
+              p_buildium_property_id: number
+              p_entity_id: string
+              p_entity_type: string
+            }
+            Returns: undefined
+          }
+        | {
+            Args: {
+              p_buildium_property_id: number
+              p_entity_id: string
+              p_entity_type: string
+            }
+            Returns: undefined
+          }
       update_all_owners_total_fields: { Args: never; Returns: undefined }
       update_all_properties_total_units: { Args: never; Returns: undefined }
       update_buildium_sync_status: {

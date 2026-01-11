@@ -13,6 +13,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuth } from '@/lib/auth/guards';
+import { requireOrgMember } from '@/lib/auth/org-guards';
 import { hasPermission } from '@/lib/permissions';
 import { supabaseAdmin } from '@/lib/db';
 import { PAYMENT_METHOD_VALUES } from '@/lib/enums/payment-method';
@@ -84,7 +85,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ logI
     // Fetch monthly log
     const { data: monthlyLog, error: logError } = await supabaseAdmin
       .from('monthly_logs')
-      .select('id, unit_id, property_id, period_start, tenant_id')
+      .select('id, unit_id, property_id, period_start, tenant_id, org_id')
       .eq('id', logId)
       .single();
 
@@ -94,6 +95,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ logI
         { status: 404 },
       );
     }
+
+    await requireOrgMember({ client: auth.supabase, userId: auth.user.id, orgId: String(monthlyLog.org_id) });
 
     const context = await fetchMonthlyLogContext(logId);
     const periodStart = monthlyLog.period_start;

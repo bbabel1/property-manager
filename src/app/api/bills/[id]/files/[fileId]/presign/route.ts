@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/auth/guards';
 import {
   hasSupabaseAdmin,
   requireSupabaseAdmin,
   SupabaseAdminUnavailableError,
 } from '@/lib/supabase-client';
 import { buildiumFetch } from '@/lib/buildium-http';
+import { requireOrgMember } from '@/lib/auth/org-guards';
 
 /**
  * GET /api/bills/[id]/files/[fileId]/presign
@@ -18,6 +20,7 @@ export async function GET(
   _request: Request,
   context: { params: Promise<{ id: string; fileId: string }> },
 ) {
+  const { supabase, user } = await requireAuth();
   const { id: billId, fileId } = await context.params;
 
   if (!billId || !fileId) {
@@ -48,6 +51,11 @@ export async function GET(
   if (!transaction) {
     return NextResponse.json({ error: 'Bill not found' }, { status: 404 });
   }
+  await requireOrgMember({
+    client: supabase,
+    userId: user.id,
+    orgId: String(transaction.org_id),
+  });
 
   // Resolve org_id from transaction or related entities (same pattern as file upload)
   let resolvedOrgId = transaction.org_id;
@@ -110,7 +118,7 @@ export async function GET(
   const { data: file, error: fileErr } = await admin
     .from('files')
     .select(
-      'id, storage_provider, bucket, storage_key, sha256, buildium_file_id, entity_type, entity_id',
+      'id, storage_provider, bucket, storage_key, sha256, buildium_file_id, entity_type, entity_id, buildium_entity_type, buildium_entity_id',
     )
     .eq('id', fileId)
     .eq('org_id', resolvedOrgId)
@@ -128,9 +136,40 @@ export async function GET(
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 
-  // Optionally verify the file is associated with this bill context
-  // (e.g., through vendor or other association)
-  // For now, we trust the org_id check above
+  // Ensure the file is tied to this bill context (same org already enforced)
+  const { data: firstLine } = await admin
+    .from('transaction_lines')
+    .select('property_id, unit_id, buildium_property_id, buildium_unit_id')
+    .eq('transaction_id', billId)
+    .limit(1)
+    .maybeSingle();
+
+  const propertyIds = new Set<string>();
+  const unitIds = new Set<string>();
+  if (transaction?.lease_id) {
+    const { data: leaseLine } = await admin
+      .from('lease')
+      .select('property_id, unit_id')
+      .eq('id', transaction.lease_id)
+      .maybeSingle();
+    if (leaseLine?.property_id) propertyIds.add(String(leaseLine.property_id));
+    if (leaseLine?.unit_id) unitIds.add(String(leaseLine.unit_id));
+  }
+  if (firstLine?.property_id) propertyIds.add(String(firstLine.property_id));
+  if (firstLine?.unit_id) unitIds.add(String(firstLine.unit_id));
+
+  const fileProperty = file?.entity_type === 'Properties' ? String(file.entity_id) : null;
+  const fileUnit = file?.entity_type === 'Units' ? String(file.entity_id) : null;
+  const buildiumBillId = Number(transaction.buildium_bill_id) || null;
+
+  const isBillFile =
+    (buildiumBillId && Number(file?.buildium_entity_id) === buildiumBillId) ||
+    (fileProperty && propertyIds.has(fileProperty)) ||
+    (fileUnit && unitIds.has(fileUnit));
+
+  if (!isBillFile) {
+    return NextResponse.json({ error: 'File does not belong to this bill' }, { status: 404 });
+  }
 
   if (file.storage_provider === 'supabase') {
     if (!file.bucket || !file.storage_key) {

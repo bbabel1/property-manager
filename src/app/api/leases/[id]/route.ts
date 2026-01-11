@@ -2,28 +2,63 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireSupabaseAdmin } from '@/lib/supabase-client'
 import { getOrgScopedBuildiumEdgeClient } from '@/lib/buildium-edge-client'
 import { logger } from '@/lib/logger'
+import { requireAuth } from '@/lib/auth/guards'
+import { requireOrgMember } from '@/lib/auth/org-guards'
+import { hasPermission } from '@/lib/permissions'
 
 type LeaseRouteContext = { params: Promise<{ id: string }> }
 
 export async function GET(_req: NextRequest, context: LeaseRouteContext) {
+  const { supabase, user, roles } = await requireAuth()
+  if (!hasPermission(roles, 'leases.read')) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
   const db = requireSupabaseAdmin('lease route GET')
   const { id } = await context.params
   const leaseId = Number(id)
-  const { data, error } = await db.from('lease').select('*').eq('id', leaseId).single()
+  const { data, error } = await db.from('lease').select('*').eq('id', leaseId).maybeSingle()
   if (error) return NextResponse.json({ error: error.message }, { status: 404 })
+  if (!data) return NextResponse.json({ error: 'Lease not found' }, { status: 404 })
+
+  await requireOrgMember({ client: supabase, userId: user.id, orgId: String((data as any).org_id) })
   return NextResponse.json(data)
 }
 
 export async function PUT(request: NextRequest, context: LeaseRouteContext) {
   try {
+    const { supabase, user, roles } = await requireAuth()
+    if (!hasPermission(roles, 'leases.write')) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
     const db = requireSupabaseAdmin('lease route PUT')
     const { id } = await context.params
     const leaseId = Number(id)
+    const { data: leaseRow, error: leaseErr } = await db
+      .from('lease')
+      .select('*')
+      .eq('id', leaseId)
+      .maybeSingle()
+    if (leaseErr) return NextResponse.json({ error: leaseErr.message }, { status: 404 })
+    if (!leaseRow) return NextResponse.json({ error: 'Lease not found' }, { status: 404 })
+    await requireOrgMember({
+      client: supabase,
+      userId: user.id,
+      orgId: String((leaseRow as any).org_id),
+    })
+
     const url = new URL(request.url)
     const syncBuildium = url.searchParams.get('syncBuildium') === 'true'
     const body = await request.json()
     const patch = { ...body, updated_at: new Date().toISOString() }
-    const { data: updated, error } = await db.from('lease').update(patch).eq('id', leaseId).select().single()
+    const { data: updated, error } = await db
+      .from('lease')
+      .update(patch)
+      .eq('id', leaseId)
+      .eq('org_id', (leaseRow as any).org_id)
+      .select()
+      .single()
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
     let buildiumSyncError: string | null = null

@@ -64,7 +64,11 @@ export default function TenantFilesPanel({
 }: TenantFilesPanelProps) {
   const tenantId = tenantIdProp ?? null;
   const [files, setFiles] = useState<ListedFile[]>(
-    (initialFiles ?? []).map((file) => ({ ...file, href: file.href ?? null })),
+    (initialFiles ?? []).map((file) => ({
+      ...file,
+      uploadedAt: file.uploadedAt instanceof Date ? file.uploadedAt : new Date(file.uploadedAt),
+      href: file.href ?? null,
+    })),
   );
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);

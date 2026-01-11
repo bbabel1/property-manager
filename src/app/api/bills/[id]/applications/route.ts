@@ -6,6 +6,7 @@ import { hasPermission } from '@/lib/permissions';
 import { requireSupabaseAdmin } from '@/lib/supabase-client';
 import { logger } from '@/lib/logger';
 import type { TablesInsert } from '@/types/database';
+import { requireOrgMember } from '@/lib/auth/org-guards';
 
 const ApplicationSchema = z.object({
   source_transaction_id: z.string().min(1),
@@ -14,24 +15,35 @@ const ApplicationSchema = z.object({
 });
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const { roles } = await requireAuth();
+  const { supabase, user, roles } = await requireAuth();
   if (!hasPermission(roles, 'bills.read')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
   const db = requireSupabaseAdmin('bill applications GET');
   const { id } = await params;
+  const { data: bill, error: billErr } = await db
+    .from('transactions')
+    .select('id, org_id, transaction_type')
+    .eq('id', id)
+    .eq('transaction_type', 'Bill')
+    .maybeSingle();
+  if (billErr) return NextResponse.json({ error: billErr.message }, { status: 500 });
+  if (!bill) return NextResponse.json({ error: 'Bill not found' }, { status: 404 });
+  await requireOrgMember({ client: supabase, userId: user.id, orgId: String((bill as any).org_id) });
+
   const { data, error } = await db
     .from('bill_applications')
     .select(
       'id, applied_amount, source_transaction_id, source_type, applied_at, created_at, updated_at, org_id',
     )
-    .eq('bill_transaction_id', id);
+    .eq('bill_transaction_id', id)
+    .eq('org_id', (bill as any).org_id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ data });
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const { user, roles } = await requireAuth();
+  const { supabase, user, roles } = await requireAuth();
   if (!hasPermission(roles, 'bills.write')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
@@ -56,11 +68,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!bill || bill.transaction_type !== 'Bill') {
     return NextResponse.json({ error: 'Bill not found' }, { status: 404 });
   }
+  await requireOrgMember({ client: supabase, userId: user.id, orgId: String((bill as any).org_id) });
 
   const { data: sourceTransaction, error: sourceErr } = await db
     .from('transactions')
     .select('id, org_id, is_reconciled')
     .eq('id', body.source_transaction_id)
+    .eq('org_id', (bill as any).org_id)
     .maybeSingle();
   if (sourceErr) {
     return NextResponse.json({ error: sourceErr.message }, { status: 500 });

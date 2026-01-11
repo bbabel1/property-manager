@@ -2,6 +2,25 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
+import ActionButton from '@/components/ui/ActionButton';
 import TenantFileUploadDialog, { TenantFileRow } from '@/components/tenants/TenantFileUploadDialog';
 import { fetchWithSupabaseAuth } from '@/lib/supabase/fetch';
 
@@ -35,6 +54,8 @@ export default function RecentFilesSection({
   const [files, setFiles] = useState<ListedFile[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fileToDelete, setFileToDelete] = useState<ListedFile | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const resolveHref = useCallback((file: FileApiRow): string | null => {
     if (typeof file?.buildium_href === 'string' && file.buildium_href.trim()) {
@@ -93,6 +114,34 @@ export default function RecentFilesSection({
     void loadFiles();
   }, [loadFiles]);
 
+  const handleDelete = useCallback(async () => {
+    const file = fileToDelete;
+    if (!file) return;
+
+    setIsDeleting(true);
+    try {
+      const response = await fetch(`/api/files/${file.id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to delete file');
+      }
+
+      toast.success('File deleted successfully');
+      setFileToDelete(null);
+      void loadFiles();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to delete file';
+      toast.error(message);
+      console.error('Error deleting file:', err);
+    } finally {
+      setIsDeleting(false);
+    }
+  }, [fileToDelete, loadFiles]);
+
   const emptyCopy = useMemo(() => {
     if (!orgId) return 'Files require an organization context.';
     if (!buildiumTenantId) return 'Files require a Buildium tenant id.';
@@ -147,17 +196,35 @@ export default function RecentFilesSection({
                       <div className="text-muted-foreground text-sm">{file.description}</div>
                     ) : null}
                   </div>
-                  {file.href ? (
-                    <Button asChild variant="outline" className="min-h-[2.75rem] px-4">
-                      <a href={file.href} target="_blank" rel="noreferrer">
-                        Download
-                      </a>
-                    </Button>
-                  ) : (
-                    <Button variant="outline" className="min-h-[2.75rem] px-4" disabled>
-                      No download link
-                    </Button>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {file.href ? (
+                      <Button asChild variant="outline" className="min-h-[2.75rem] px-4">
+                        <a href={file.href} target="_blank" rel="noreferrer">
+                          Download
+                        </a>
+                      </Button>
+                    ) : (
+                      <Button variant="outline" className="min-h-[2.75rem] px-4" disabled>
+                        No download link
+                      </Button>
+                    )}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <ActionButton aria-label="File actions" />
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-44">
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive"
+                          onSelect={(e) => {
+                            e.preventDefault();
+                            setFileToDelete(file);
+                          }}
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" /> Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 </div>
               ))}
             </div>
@@ -173,6 +240,38 @@ export default function RecentFilesSection({
         uploaderName={uploaderName || undefined}
         onSaved={loadFiles}
       />
+
+      <AlertDialog
+        open={!!fileToDelete}
+        onOpenChange={(open) => {
+          if (!open && !isDeleting) {
+            setFileToDelete(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete file?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action will permanently delete the file &quot;{fileToDelete?.title}&quot;. This
+              cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={(e) => {
+                e.preventDefault();
+                void handleDelete();
+              }}
+            >
+              {isDeleting ? 'Deleting…' : 'Delete file'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

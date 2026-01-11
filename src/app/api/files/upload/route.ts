@@ -760,6 +760,10 @@ async function uploadFileToBuildiumEntity(options: {
 
   const ticketFileId = extractBuildiumFileIdFromPayload(ticket as Record<string, unknown>);
   const ticketHref = typeof ticket?.Href === 'string' ? String(ticket.Href) : null;
+  const physicalFileName =
+    typeof (ticket as Record<string, unknown>)?.['PhysicalFileName'] === 'string'
+      ? String((ticket as Record<string, unknown>)['PhysicalFileName'])
+      : null;
 
   const formData = new FormData();
   Object.entries(ticket.FormData ?? {}).forEach(([key, value]) => {
@@ -794,9 +798,37 @@ async function uploadFileToBuildiumEntity(options: {
     return { buildiumFile: null, error: message };
   }
 
-  let buildiumFileId: number | null = ticketFileId ?? null;
-  if (!buildiumFileId && ticket.PhysicalFileName) {
-    const parsed = Number(ticket.PhysicalFileName);
+  const locateUploadedFile = async (): Promise<BuildiumFile | null> => {
+    if (!physicalFileName) return null;
+    const attempts = 6;
+    for (let attempt = 0; attempt < attempts; attempt++) {
+      try {
+        const files = await buildiumClient
+          .getFiles({
+            physicalFileName,
+            entityId: buildiumEntityId ?? undefined,
+            entityType: buildiumEntityType,
+          })
+          .catch(() => []);
+        const match = Array.isArray(files)
+          ? files.find((entry) => extractBuildiumFileIdFromPayload(entry) != null)
+          : null;
+        if (match) return match as BuildiumFile;
+      } catch {
+        // ignore and retry
+      }
+      await new Promise((resolve) => setTimeout(resolve, 400 * (attempt + 1)));
+    }
+    return null;
+  };
+
+  const buildiumFile =
+    (await locateUploadedFile().catch(() => null)) ??
+    (ticketFileId ? ({ Id: ticketFileId, Href: ticketHref ?? undefined } as BuildiumFile) : null);
+
+  let buildiumFileId: number | null = extractBuildiumFileIdFromPayload(buildiumFile) ?? null;
+  if (!buildiumFileId && physicalFileName) {
+    const parsed = Number(physicalFileName);
     if (Number.isFinite(parsed) && parsed > 0) {
       buildiumFileId = parsed;
     }
@@ -825,7 +857,12 @@ async function uploadFileToBuildiumEntity(options: {
 
   const updates: Record<string, unknown> = {
     buildium_file_id: buildiumFileId,
-    buildium_href: ticketHref ?? null,
+    buildium_href:
+      (buildiumFile && typeof (buildiumFile as { Href?: unknown }).Href === 'string'
+        ? (buildiumFile as { Href: string }).Href
+        : null) ??
+      ticketHref ??
+      null,
   };
   const { data: updatedFile, error: updateError } = await admin
     .from('files')
@@ -840,11 +877,13 @@ async function uploadFileToBuildiumEntity(options: {
       'File uploaded to Buildium but local record update failed',
     );
     return {
-      buildiumFile: {
-        Id: buildiumFileId,
-        Href: ticketHref ?? undefined,
-        UsedCategoryId: usedCategoryId,
-      } as Record<string, unknown>,
+      buildiumFile: buildiumFile
+        ? (buildiumFile as Record<string, unknown>)
+        : ({
+            Id: buildiumFileId,
+            Href: ticketHref ?? undefined,
+            UsedCategoryId: usedCategoryId,
+          } as Record<string, unknown>),
       error: 'File uploaded to Buildium but local record update failed',
     };
   }
@@ -861,11 +900,13 @@ async function uploadFileToBuildiumEntity(options: {
   );
 
   return {
-    buildiumFile: {
-      Id: buildiumFileId,
-      Href: ticket.Href ?? null,
-      UsedCategoryId: usedCategoryId,
-    } as Record<string, unknown>,
+    buildiumFile: buildiumFile
+      ? ({ ...buildiumFile, UsedCategoryId: usedCategoryId } as Record<string, unknown>)
+      : ({
+          Id: buildiumFileId,
+          Href: ticket.Href ?? null,
+          UsedCategoryId: usedCategoryId,
+        } as Record<string, unknown>),
     updatedFile: (updatedFile ?? undefined) as FileRow | undefined,
   };
 }

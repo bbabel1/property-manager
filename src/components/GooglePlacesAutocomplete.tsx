@@ -532,27 +532,30 @@ export default function GooglePlacesAutocomplete({
       autocompleteRef.current.addListener('place_changed', () => {
         const autocomplete = autocompleteRef.current;
         if (!autocomplete) return;
-        const place = autocomplete.getPlace() as GooglePlaceResult & { place_id?: string };
-        if (place.address_components && place.address_components.length) {
-          applyPlace(place);
-          return;
-        }
+        
+        // Small delay to ensure Google has fully populated the place object
+        // Sometimes getPlace() returns incomplete data immediately after place_changed fires
+        setTimeout(() => {
+          const place = autocomplete.getPlace() as GooglePlaceResult & { place_id?: string };
+          
+          if (place.address_components && place.address_components.length > 0) {
+            applyPlace(place);
+            return;
+          }
 
-        const placeId = place?.place_id;
-        if (!placeId || !placesServiceRef.current) {
-          setError('Unable to retrieve address details for the selected place');
-          return;
-        }
-        placesServiceRef.current.getDetails(
-          { placeId, fields: ['address_components', 'formatted_address', 'geometry', 'place_id'] },
-          (details, status) => {
-            if (status === 'OK' && details?.address_components) {
-              applyPlace(details);
-              return;
-            }
-            setError('Unable to retrieve address details for the selected place');
-          },
-        );
+          const placeId = place?.place_id;
+          if (!placeId || !placesServiceRef.current) {
+            return;
+          }
+          placesServiceRef.current.getDetails(
+            { placeId, fields: ['address_components', 'formatted_address', 'geometry', 'place_id'] },
+            (details, status) => {
+              if (status === 'OK' && details?.address_components) {
+                applyPlace(details);
+              }
+            },
+          );
+        }, 0);
       });
     } catch {
       setError('Failed to initialize autocomplete');
