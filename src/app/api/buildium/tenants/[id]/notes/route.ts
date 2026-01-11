@@ -35,7 +35,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (orderby) queryParams.orderby = orderby;
 
     // Make request to Buildium API
-    const response = await buildiumFetch('GET', `/rentals/tenants/${id}/notes`, queryParams, undefined, undefined);
+    // Per Buildium API documentation: GET /v1/leases/tenants/{tenantId}/notes
+    const response = await buildiumFetch('GET', `/leases/tenants/${id}/notes`, queryParams, undefined, undefined);
 
     if (!response.ok) {
       const errorData = response.json ?? {};
@@ -93,12 +94,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // Validate request body against schema
     const validatedData = sanitizeAndValidate(body, BuildiumTenantNoteCreateSchema);
 
+    // Log the request for debugging
+    logger.info({ tenantId: id, payload: validatedData }, 'Creating tenant note in Buildium');
+
     // Make request to Buildium API
-    const response = await buildiumFetch('POST', `/rentals/tenants/${id}/notes`, undefined, validatedData, undefined);
+    // Per Buildium API documentation: POST /v1/leases/tenants/{tenantId}/notes
+    // Note: id should be the Buildium tenant ID (not local tenant ID)
+    const response = await buildiumFetch('POST', `/leases/tenants/${id}/notes`, undefined, validatedData, undefined);
 
     if (!response.ok) {
       const errorData = response.json ?? {};
-      logger.error(`Buildium tenant note creation failed`);
+      logger.error({ tenantId: id, status: response.status, error: errorData }, `Buildium tenant note creation failed`);
 
       return NextResponse.json(
         { 

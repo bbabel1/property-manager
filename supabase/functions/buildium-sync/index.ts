@@ -462,8 +462,9 @@ class BuildiumClient {
       headers: {
         'Content-Type': 'application/json',
         Accept: 'application/json',
-        'x-buildium-client-id': this.clientId,
-        'x-buildium-client-secret': this.clientSecret,
+        // Buildium header names are case-sensitive
+        'X-Buildium-Client-Id': this.clientId,
+        'X-Buildium-Client-Secret': this.clientSecret,
       },
       signal: AbortSignal.timeout(this.timeout),
     };
@@ -1019,18 +1020,27 @@ class BuildiumClient {
     const qs = params
       ? `?${new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)]))}`
       : '';
-    return this.makeRequest<any[]>('GET', `/rentals/tenants${qs}`);
+    // Per Buildium API documentation: GET /v1/leases/tenants
+    // Use exact endpoint path from documentation - no fallback to rentals
+    return this.makeRequest<any[]>('GET', `/leases/tenants${qs}`);
   }
   async getTenant(id: number): Promise<any> {
-    return this.makeRequest<any>('GET', `/rentals/tenants/${id}`);
+    // Per Buildium API documentation: GET /v1/leases/tenants/{tenantId}
+    // Use exact endpoint path from documentation - no fallback to rentals
+    console.log(`[buildium-sync] GET leases/tenants/${id}`);
+    return this.makeRequest<any>('GET', `/leases/tenants/${id}`);
   }
   async createTenant(data: any): Promise<any> {
-    // Use /rentals/tenants for creating standalone tenants (before lease exists)
-    // /leases/tenants requires LeaseId and is for adding tenants to existing leases
-    return this.makeRequest<any>('POST', `/rentals/tenants`, data);
+    // Per Buildium API documentation: POST /v1/leases/tenants
+    // Use exact endpoint path from documentation - no fallback to rentals
+    return this.makeRequest<any>('POST', `/leases/tenants`, data);
   }
   async updateTenant(id: number, data: any): Promise<any> {
-    return this.makeRequest<any>('PUT', `/rentals/tenants/${id}`, data);
+    // Per Buildium API documentation: PUT /v1/leases/tenants/{tenantId}
+    // Use exact endpoint path from documentation - no fallback to rentals
+    const endpoint = `/leases/tenants/${id}`;
+    console.log(`[buildium-sync] updateTenant called with endpoint: ${endpoint}, id: ${id}`);
+    return this.makeRequest<any>('PUT', endpoint, data);
   }
   async listTenantNotes(
     tenantId: number,
@@ -1039,16 +1049,24 @@ class BuildiumClient {
     const qs = params
       ? `?${new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)]))}`
       : '';
-    return this.makeRequest<any[]>('GET', `/rentals/tenants/${tenantId}/notes${qs}`);
+    // Per Buildium API documentation: GET /v1/leases/tenants/{tenantId}/notes
+    // Use exact endpoint path from documentation - no fallback to rentals
+    return this.makeRequest<any[]>('GET', `/leases/tenants/${tenantId}/notes${qs}`);
   }
   async getTenantNote(tenantId: number, noteId: number): Promise<any> {
-    return this.makeRequest<any>('GET', `/rentals/tenants/${tenantId}/notes/${noteId}`);
+    // Per Buildium API documentation: GET /v1/leases/tenants/{tenantId}/notes/{noteId}
+    // Use exact endpoint path from documentation - no fallback to rentals
+    return this.makeRequest<any>('GET', `/leases/tenants/${tenantId}/notes/${noteId}`);
   }
   async createTenantNote(tenantId: number, data: any): Promise<any> {
-    return this.makeRequest<any>('POST', `/rentals/tenants/${tenantId}/notes`, data);
+    // Per Buildium API documentation: POST /v1/leases/tenants/{tenantId}/notes
+    // Use exact endpoint path from documentation - no fallback to rentals
+    return this.makeRequest<any>('POST', `/leases/tenants/${tenantId}/notes`, data);
   }
   async updateTenantNote(tenantId: number, noteId: number, data: any): Promise<any> {
-    return this.makeRequest<any>('PUT', `/rentals/tenants/${tenantId}/notes/${noteId}`, data);
+    // Per Buildium API documentation: PUT /v1/leases/tenants/{tenantId}/notes/{noteId}
+    // Use exact endpoint path from documentation - no fallback to rentals
+    return this.makeRequest<any>('PUT', `/leases/tenants/${tenantId}/notes/${noteId}`, data);
   }
 
   // Leases
@@ -2853,9 +2871,10 @@ serve(async (req) => {
 
     const buildiumCreds = resolveBuildiumCredentials(body?.credentials as Partial<BuildiumCredentials> | undefined);
     if (!buildiumCreds.clientId || !buildiumCreds.clientSecret) {
+      // Return 200 so Supabase client does not treat this as transport failure
       return new Response(JSON.stringify({ success: false, error: 'Buildium credentials missing' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400,
+        status: 200,
       });
     }
 
@@ -3492,59 +3511,107 @@ serve(async (req) => {
         }
 
         case 'tenant': {
-          if (operation === 'create') {
-            const payload = sanitizeForBuildium(entityData || {});
-            const t = await buildiumClient.createTenant(payload);
-            try {
-              const contactId = await findOrCreateContactForTenant(supabase, t);
-              await findOrCreateTenantRow(supabase, contactId, t);
-            } catch (_) {}
-            return new Response(JSON.stringify({ success: true, data: t }), {
-              headers: { 'Content-Type': 'application/json' },
-            });
-          } else if (operation === 'update') {
-            const id = Number(entityData?.buildium_tenant_id || entityData?.Id);
-            if (!id) throw new Error('buildium_tenant_id or Id is required for tenant update');
-            const t = await buildiumClient.updateTenant(id, sanitizeForBuildium(entityData));
-            try {
-              const contactId = await findOrCreateContactForTenant(supabase, t);
-              await findOrCreateTenantRow(supabase, contactId, t);
-            } catch (_) {}
-            return new Response(JSON.stringify({ success: true, data: t }), {
-              headers: { 'Content-Type': 'application/json' },
-            });
-          } else if (operation === 'syncFromBuildium' || operation === 'list') {
-            const params = entityData || {};
-            const items = await buildiumClient.listTenants(params);
-            if (operation === 'syncFromBuildium') {
-              let synced = 0;
-              const updated = 0;
-              const errors: string[] = [];
-              for (const t of items) {
+          try {
+            if (operation === 'create') {
+              const payload = sanitizeForBuildium(entityData || {});
+              const t = await buildiumClient.createTenant(payload);
+              try {
+                const contactId = await findOrCreateContactForTenant(supabase, t);
+                await findOrCreateTenantRow(supabase, contactId, t);
+              } catch (_) {}
+              return new Response(JSON.stringify({ success: true, data: t }), {
+                headers: { 'Content-Type': 'application/json' },
+              });
+            } else if (operation === 'update') {
+              const id = Number(entityData?.buildium_tenant_id || entityData?.Id);
+              if (!id) throw new Error('buildium_tenant_id or Id is required for tenant update');
+              
+              // Deep clone and sanitize payload to handle nested objects correctly
+              let payload: any;
+              try {
+                payload = sanitizeForBuildium(JSON.parse(JSON.stringify(entityData || {})));
+              } catch (cloneError) {
+                throw new Error(`Failed to clone payload: ${cloneError instanceof Error ? cloneError.message : String(cloneError)}`);
+              }
+              
+              // Strip local-only identifiers; Buildium rejects unknown fields on update
+              delete payload.buildium_tenant_id;
+              delete payload.Id;
+              
+              // Deep sanitize nested objects like EmergencyContact
+              if (payload.EmergencyContact && typeof payload.EmergencyContact === 'object' && !Array.isArray(payload.EmergencyContact)) {
                 try {
-                  const contactId = await findOrCreateContactForTenant(supabase, t);
-                  await findOrCreateTenantRow(supabase, contactId, t);
-                  synced++;
-                } catch (e) {
-                  errors.push((e as Error)?.message || 'Unknown error');
+                  const sanitizedContact = sanitizeForBuildium(payload.EmergencyContact);
+                  if (Object.keys(sanitizedContact).length > 0) {
+                    payload.EmergencyContact = sanitizedContact;
+                  } else {
+                    // If EmergencyContact has no valid fields after sanitization, remove it
+                    delete payload.EmergencyContact;
+                  }
+                } catch (contactError) {
+                  console.error('[buildium-sync] Error sanitizing EmergencyContact:', contactError);
+                  // Remove invalid EmergencyContact instead of failing
+                  delete payload.EmergencyContact;
                 }
               }
-              return new Response(
-                JSON.stringify({ success: true, synced, updated, errors, count: items.length }),
-                { headers: { 'Content-Type': 'application/json' } },
-              );
+              
+              console.log('[buildium-sync] Updating tenant with payload:', {
+                id,
+                payload: JSON.stringify(payload, null, 2)
+              });
+              
+              const t = await buildiumClient.updateTenant(id, payload);
+              try {
+                const contactId = await findOrCreateContactForTenant(supabase, t);
+                await findOrCreateTenantRow(supabase, contactId, t);
+              } catch (_) {}
+              return new Response(JSON.stringify({ success: true, data: t }), {
+                headers: { 'Content-Type': 'application/json' },
+              });
+            } else if (operation === 'syncFromBuildium' || operation === 'list') {
+              const params = entityData || {};
+              const items = await buildiumClient.listTenants(params);
+              if (operation === 'syncFromBuildium') {
+                let synced = 0;
+                const updated = 0;
+                const errors: string[] = [];
+                for (const t of items) {
+                  try {
+                    const contactId = await findOrCreateContactForTenant(supabase, t);
+                    await findOrCreateTenantRow(supabase, contactId, t);
+                    synced++;
+                  } catch (e) {
+                    errors.push((e as Error)?.message || 'Unknown error');
+                  }
+                }
+                return new Response(
+                  JSON.stringify({ success: true, synced, updated, errors, count: items.length }),
+                  { headers: { 'Content-Type': 'application/json' } },
+                );
+              }
+              return new Response(JSON.stringify({ success: true, data: items }), {
+                headers: { 'Content-Type': 'application/json' },
+              });
+            } else if (operation === 'get') {
+              const id = Number(entityData?.buildium_tenant_id || entityData?.Id);
+              const t = await buildiumClient.getTenant(id);
+              return new Response(JSON.stringify({ success: true, data: t }), {
+                headers: { 'Content-Type': 'application/json' },
+              });
+            } else {
+              throw new Error(`Unsupported operation for tenant: ${operation}`);
             }
-            return new Response(JSON.stringify({ success: true, data: items }), {
-              headers: { 'Content-Type': 'application/json' },
+          } catch (tenantErr) {
+            const message = tenantErr instanceof Error ? tenantErr.message : String(tenantErr);
+            console.error('[buildium-sync] Tenant operation error:', {
+              operation,
+              error: message,
+              entityData: operation === 'update' ? { id: entityData?.buildium_tenant_id || entityData?.Id, payload: JSON.stringify(entityData, null, 2) } : undefined
             });
-          } else if (operation === 'get') {
-            const id = Number(entityData?.buildium_tenant_id || entityData?.Id);
-            const t = await buildiumClient.getTenant(id);
-            return new Response(JSON.stringify({ success: true, data: t }), {
+            return new Response(JSON.stringify({ success: false, error: message }), {
               headers: { 'Content-Type': 'application/json' },
+              status: 200,
             });
-          } else {
-            throw new Error(`Unsupported operation for tenant: ${operation}`);
           }
         }
 
@@ -4603,9 +4670,9 @@ serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({ error: 'Method not supported' }), {
+    return new Response(JSON.stringify({ success: false, error: 'Method not supported' }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 405,
+      status: 200,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Internal server error';
@@ -4622,7 +4689,7 @@ serve(async (req) => {
           'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
           'Content-Type': 'application/json',
         },
-        status: 500,
+        status: 200,
       },
     );
   }

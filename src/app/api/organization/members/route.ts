@@ -22,18 +22,47 @@ export async function GET(request: NextRequest) {
     const orgId = await resolveOrgIdFromRequest(request, user.id)
     const supabaseAdmin = requireSupabaseAdmin('list organization members')
 
-    const { data, error } = await supabaseAdmin
+    const { data: memberships, error: membershipError } = await supabaseAdmin
       .from('org_memberships')
-      .select('id, user_id, role, created_at, updated_at')
+      .select('id, org_id, user_id, created_at, updated_at')
       .eq('org_id', orgId)
       .order('created_at', { ascending: true })
 
-    if (error) {
-      logger.error({ error, orgId }, 'Failed to list organization members')
-      return NextResponse.json({ error: error.message }, { status: 500 })
+    if (membershipError) {
+      logger.error({ error: membershipError, orgId }, 'Failed to list organization members')
+      return NextResponse.json({ error: membershipError.message }, { status: 500 })
     }
 
-    return NextResponse.json({ members: data || [] })
+    const { data: membershipRoles, error: membershipRolesError } = await supabaseAdmin
+      .from('membership_roles')
+      .select('user_id, org_id, role_id, roles(name)')
+      .eq('org_id', orgId)
+
+    if (membershipRolesError) {
+      logger.warn({ error: membershipRolesError, orgId }, 'Failed to load membership roles for organization members')
+    }
+
+    const rolesByUser = new Map<string, string[]>()
+    for (const row of membershipRoles || []) {
+      const roleName =
+        (row as { roles?: { name?: string | null } | null })?.roles?.name ??
+        (row as { role_id?: string | null }).role_id
+      if (row?.user_id && typeof roleName === 'string') {
+        const list = rolesByUser.get(row.user_id) ?? []
+        rolesByUser.set(row.user_id, [...list, roleName])
+      }
+    }
+
+    const members = (memberships ?? []).map((member) => {
+      const roles = rolesByUser.get(member.user_id) ?? []
+      return {
+        ...member,
+        role: roles[0] ?? null,
+        roles,
+      }
+    })
+
+    return NextResponse.json({ members })
   } catch (error) {
     return handleError(error)
   }

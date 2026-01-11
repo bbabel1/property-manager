@@ -10,6 +10,7 @@ import { requireUser } from '@/lib/auth';
 import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
 import { supabaseAdmin } from '@/lib/db';
 import { duplicateEmailTemplate } from '@/lib/email-template-service';
+import { requireOrgAdmin } from '@/lib/auth/org-guards';
 
 const DuplicateSchema = z.object({
   template_key: z.string().min(1).max(255).optional(),
@@ -24,18 +25,7 @@ export async function POST(
     const orgId = await resolveOrgIdFromRequest(request, user.id, supabaseAdmin);
     const { id } = await params;
 
-    // Check user role
-    const { data: membership } = await supabaseAdmin
-      .from('org_memberships')
-      .select('role')
-      .eq('user_id', user.id)
-      .eq('org_id', orgId)
-      .single();
-
-    const role = membership && 'role' in membership ? (membership as { role?: string }).role : undefined;
-    if (!role || !['org_admin', 'org_manager', 'platform_admin'].includes(role)) {
-      return NextResponse.json({ error: 'Forbidden: Admin or Manager role required' }, { status: 403 });
-    }
+    await requireOrgAdmin({ client: supabaseAdmin, userId: user.id, orgId });
 
     const body = await request.json().catch(() => ({}));
     const validated = DuplicateSchema.parse(body);

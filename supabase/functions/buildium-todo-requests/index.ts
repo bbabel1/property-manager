@@ -272,9 +272,10 @@ serve(async (req) => {
         if (v) qp.append(p, v)
       })
 
+      // Header names are case-sensitive per Buildium API documentation
       const resp = await fetch(`${baseUrl}/todorequests?${qp.toString()}`, {
         method: 'GET',
-        headers: { 'Accept': 'application/json', 'x-buildium-client-id': clientId, 'x-buildium-client-secret': clientSecret }
+        headers: { 'Accept': 'application/json', 'X-Buildium-Client-Id': clientId, 'X-Buildium-Client-Secret': clientSecret }
       })
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({}))
@@ -302,9 +303,10 @@ serve(async (req) => {
 
     if (req.method === 'POST') {
       const body = bodyMaybe
+      // Header names are case-sensitive per Buildium API documentation
       const resp = await fetch(`${baseUrl}/todorequests`, {
         method: 'POST',
-        headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'x-buildium-client-id': clientId, 'x-buildium-client-secret': clientSecret },
+        headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-Buildium-Client-Id': clientId, 'X-Buildium-Client-Secret': clientSecret },
         body: JSON.stringify(body)
       })
       if (!resp.ok) {

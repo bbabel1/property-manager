@@ -14,8 +14,9 @@ function buildiumHeaders(creds: BuildiumCredentials) {
   return {
     'Accept': 'application/json',
     'Content-Type': 'application/json',
-    'x-buildium-client-id': creds.clientId,
-    'x-buildium-client-secret': creds.clientSecret,
+    // Header names are case-sensitive per Buildium API documentation
+    'X-Buildium-Client-Id': creds.clientId,
+    'X-Buildium-Client-Secret': creds.clientSecret,
   }
 }
 

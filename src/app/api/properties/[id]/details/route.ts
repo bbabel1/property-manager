@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
-import { supabaseAdmin, type TypedSupabaseClient } from '@/lib/db'
+import { requireAuth } from '@/lib/auth/guards'
+import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id'
 import type { Database } from '@/types/database'
 
 type PropertyRow = Database['public']['Tables']['properties']['Row']
@@ -94,31 +94,20 @@ type PropertySelection = Pick<
 > & { service_assignment: PropertyRow['service_assignment'] }
 
 // GET /api/properties/:id/details
-// Returns enriched property details with admin privileges to bypass RLS for joins
+// Returns enriched property details scoped to the caller's org membership
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { supabase, user } = await requireAuth()
     const { id } = await params
     const { searchParams } = new URL(req.url)
     const includeRaw = searchParams.get('include') || ''
     const include = new Set(includeRaw.split(',').map(s => s.trim().toLowerCase()).filter(Boolean))
     const includeUnits = include.has('units') || include.has('all')
-    // Prefer service role if configured; else bind user session from cookies
-    const db: TypedSupabaseClient =
-      supabaseAdmin ||
-      createServerClient<Database>(
-        process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
-        {
-          cookies: {
-            get: (name: string) => req.cookies.get(name)?.value,
-            set: () => {},
-            remove: () => {},
-          },
-        }
-      )
+
+    const orgId = await resolveOrgIdFromRequest(req, user.id, supabase)
 
     // Base property with aggregate unit counts and occupancy_rate. Avoid deep joins.
-    const { data: property, error } = await db
+    const { data: property, error } = await supabase
       .from('properties')
       .select(`
         id, org_id, buildium_property_id, building_id, name, address_line1, address_line2, address_line3, city, state, postal_code, country,
@@ -130,6 +119,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         operating_bank_gl_account_id, deposit_trust_gl_account_id
       `)
       .eq('id', id)
+      .eq('org_id', orgId)
       .single<PropertySelection>()
 
     if (error || !property) {
@@ -139,7 +129,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     let building: BuildingRow | null = null
     if (property.building_id) {
       try {
-        const { data: bldg } = await db
+        const { data: bldg } = await supabase
           .from('buildings')
           .select('*')
           .eq('id', property.building_id)
@@ -161,7 +151,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       | 'primary'
     >
     try {
-      const { data: poc } = await db
+      const { data: poc } = await supabase
         .from('property_ownerships_cache')
         .select('owner_id, contact_id, display_name, primary_email, ownership_percentage, disbursement_percentage, primary')
         .eq('property_id', id)
@@ -182,12 +172,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     // Fallback: derive owners from ownerships → owners → contacts if cache is empty
     if (!owners.length) {
       try {
-        const { data: ownerships } = await db
+        const { data: ownerships } = await supabase
           .from('ownerships')
           .select(
             'owner_id, primary, ownership_percentage, disbursement_percentage, owners ( id, contact_id, contacts ( display_name, company_name, first_name, last_name ) )',
           )
           .eq('property_id', id)
+          .eq('org_id', orgId)
         const list = (Array.isArray(ownerships) ? ownerships : []) as OwnershipWithContact[]
         owners = list.map((o) => {
           const contact = o?.owners?.contacts || null
@@ -226,21 +217,23 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     let deposit_trust_account: MinimalAccount | undefined
     const [opRes, depRes, unitsRes] = await Promise.all([
       property.operating_bank_gl_account_id
-        ? db
+        ? supabase
             .from('gl_accounts')
             .select('id, name, bank_account_number')
             .eq('id', property.operating_bank_gl_account_id)
+            .eq('org_id', orgId)
             .maybeSingle<Pick<GlAccountRow, 'id' | 'name' | 'bank_account_number'>>()
         : Promise.resolve({ data: null } as { data: Pick<GlAccountRow, 'id' | 'name' | 'bank_account_number'> | null }),
       property.deposit_trust_gl_account_id
-        ? db
+        ? supabase
             .from('gl_accounts')
             .select('id, name, bank_account_number')
             .eq('id', property.deposit_trust_gl_account_id)
+            .eq('org_id', orgId)
             .maybeSingle<Pick<GlAccountRow, 'id' | 'name' | 'bank_account_number'>>()
         : Promise.resolve({ data: null } as { data: Pick<GlAccountRow, 'id' | 'name' | 'bank_account_number'> | null }),
       includeUnits
-        ? db.from('units').select('*').eq('property_id', id).order('unit_number')
+        ? supabase.from('units').select('*').eq('property_id', id).eq('org_id', orgId).order('unit_number')
         : Promise.resolve({ data: [] as UnitRow[] }),
     ])
     const op = opRes.data
@@ -263,19 +256,45 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     }
 
     // Resolve property manager (id + basic contact)
-    const property_manager_id: number | null = null
-    const property_manager_name: string | undefined = undefined
-    const property_manager_email: string | undefined = undefined
-    const property_manager_phone: string | undefined = undefined
+    let property_manager_id: number | null = null
+    let property_manager_name: string | undefined = undefined
+    let property_manager_email: string | undefined = undefined
+    let property_manager_phone: string | undefined = undefined
+    try {
+      const { data: managerAssignment } = await supabase
+        .from('property_staff')
+        .select('staff_id, staff:staff_id(id, first_name, last_name, email, phone)')
+        .eq('property_id', id)
+        .eq('role', 'Property Manager')
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const staffId = (managerAssignment as { staff_id?: number | null } | null)?.staff_id ?? null;
+      if (typeof staffId === 'number') {
+        property_manager_id = staffId;
+        const staff = (managerAssignment as { staff?: { first_name?: string | null; last_name?: string | null; email?: string | null; phone?: string | null } | null } | null)?.staff;
+        const nameParts = [staff?.first_name, staff?.last_name].filter(
+          (value): value is string => Boolean(value && String(value).trim().length),
+        );
+        const displayName = nameParts.join(' ').trim();
+        property_manager_name = displayName || staff?.email || undefined;
+        property_manager_email = staff?.email ?? undefined;
+        property_manager_phone = staff?.phone ?? undefined;
+      }
+    } catch (managerError) {
+      console.warn('Failed to resolve property manager', managerError);
+    }
 
     let service_plan: string | null = null
     try {
       const serviceAssignment = property?.service_assignment ?? null
       if (serviceAssignment === 'Property Level') {
-        const { data: assignment } = await db
+        const { data: assignment } = await supabase
           .from('service_plan_assignments')
           .select('plan_id, service_plans(name)')
           .eq('property_id', id)
+          .eq('org_id', orgId)
           .is('unit_id', null)
           .is('effective_end', null)
           .order('effective_start', { ascending: false })
@@ -315,6 +334,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       }
     })
   } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === 'UNAUTHENTICATED') {
+        return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+      }
+      if (error.message === 'ORG_CONTEXT_REQUIRED') {
+        return NextResponse.json({ error: 'Organization context required' }, { status: 400 })
+      }
+      if (error.message === 'ORG_FORBIDDEN') {
+        return NextResponse.json({ error: 'Property not found' }, { status: 404 })
+      }
+    }
     console.error('Failed to fetch property details', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

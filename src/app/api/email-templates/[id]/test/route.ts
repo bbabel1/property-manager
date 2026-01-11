@@ -20,6 +20,7 @@ import { getAvailableVariables } from '@/lib/email-templates/variable-definition
 import { sendEmailViaGmail } from '@/lib/gmail/send-email';
 import { getStaffGmailIntegration } from '@/lib/gmail/token-manager';
 import { z, ZodError } from 'zod';
+import { requireOrgAdmin } from '@/lib/auth/org-guards';
 
 const TestEmailSchema = TemplateRenderSchema.extend({
   to: z.string().email(),
@@ -58,18 +59,7 @@ export async function POST(
     const orgId = await resolveOrgIdFromRequest(request, user.id, supabaseAdmin);
     const { id } = await params;
 
-    // Check user role (admin/manager required)
-    const { data: membership } = await supabaseAdmin
-      .from('org_memberships')
-      .select('role')
-      .eq('user_id', user.id)
-      .eq('org_id', orgId)
-      .single();
-
-    const role = membership && 'role' in membership ? (membership as { role?: string }).role : undefined;
-    if (!role || !['org_admin', 'org_manager', 'platform_admin'].includes(role)) {
-      return NextResponse.json({ error: 'Forbidden: Admin or Manager role required' }, { status: 403 });
-    }
+    await requireOrgAdmin({ client: supabaseAdmin, userId: user.id, orgId });
 
     // Rate limiting
     if (!checkRateLimit(user.id)) {

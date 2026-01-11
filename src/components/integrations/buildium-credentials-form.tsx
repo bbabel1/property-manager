@@ -16,6 +16,7 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import DestructiveActionModal from '@/components/common/DestructiveActionModal';
 
 type BuildiumIntegrationStatus = {
   is_enabled: boolean;
@@ -53,6 +54,7 @@ export function BuildiumCredentialsForm({
   const [isTesting, setIsTesting] = useState(false);
   const [testError, setTestError] = useState<string | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
   // Load initial status when dialog opens
   useEffect(() => {
@@ -191,14 +193,6 @@ export function BuildiumCredentialsForm({
   };
 
   const handleDelete = async () => {
-    if (
-      !confirm(
-        'Are you sure you want to delete the Buildium integration? This action cannot be undone.',
-      )
-    ) {
-      return;
-    }
-
     setIsLoading(true);
     try {
       const response = await fetch('/api/buildium/integration', {
@@ -221,6 +215,7 @@ export function BuildiumCredentialsForm({
       });
     } finally {
       setIsLoading(false);
+      setConfirmDeleteOpen(false);
     }
   };
 
@@ -234,12 +229,13 @@ export function BuildiumCredentialsForm({
   };
 
   return (
-    <Dialog
-      open={isOpen}
-      onOpenChange={(open) => {
-        if (!open) onClose();
-      }}
-    >
+    <>
+      <Dialog
+        open={isOpen}
+        onOpenChange={(open) => {
+          if (!open) onClose();
+        }}
+      >
       <DialogContent className="max-h-[90vh] w-[680px] max-w-[680px] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Buildium Integration Settings</DialogTitle>
@@ -386,7 +382,7 @@ export function BuildiumCredentialsForm({
                 <Button
                   type="button"
                   variant="destructive"
-                  onClick={handleDelete}
+                  onClick={() => setConfirmDeleteOpen(true)}
                   disabled={isLoading || isTesting}
                 >
                   Delete
@@ -417,5 +413,17 @@ export function BuildiumCredentialsForm({
         </form>
       </DialogContent>
     </Dialog>
+      <DestructiveActionModal
+        open={confirmDeleteOpen}
+        onOpenChange={(open) => {
+          if (!isLoading && !isTesting) setConfirmDeleteOpen(open);
+        }}
+        title="Delete Buildium integration?"
+        description="This will remove credentials and disable Buildium sync."
+        confirmLabel={isLoading ? 'Deleting…' : 'Delete'}
+        isProcessing={isLoading}
+        onConfirm={() => void handleDelete()}
+      />
+    </>
   );
 }

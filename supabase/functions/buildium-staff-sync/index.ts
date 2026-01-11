@@ -74,8 +74,9 @@ serve(async (req) => {
       const res = await fetch(ep, {
         headers: {
           'Accept': 'application/json',
-          'x-buildium-client-id': BUILDIUM_CLIENT_ID,
-          'x-buildium-client-secret': BUILDIUM_CLIENT_SECRET,
+          // Header names are case-sensitive per Buildium API documentation
+          'X-Buildium-Client-Id': BUILDIUM_CLIENT_ID,
+          'X-Buildium-Client-Secret': BUILDIUM_CLIENT_SECRET,
         }
       })
       if (!res.ok) {
@@ -130,8 +131,10 @@ serve(async (req) => {
       for (let p = 0; p < 200; p++) {
         const purl1 = `${BUILDIUM_BASE.replace(/\/$/, '')}/rentals/properties?limit=${plimit}&offset=${poffset}`
         const purl2 = `${BUILDIUM_BASE.replace(/\/$/, '')}/properties?limit=${plimit}&offset=${poffset}`
-        let pres = await fetch(purl1, { headers: { 'Accept':'application/json','x-buildium-client-id':BUILDIUM_CLIENT_ID,'x-buildium-client-secret':BUILDIUM_CLIENT_SECRET } })
-        if (!pres.ok) pres = await fetch(purl2, { headers: { 'Accept':'application/json','x-buildium-client-id':BUILDIUM_CLIENT_ID,'x-buildium-client-secret':BUILDIUM_CLIENT_SECRET } })
+        // Header names are case-sensitive per Buildium API documentation
+        const headers = { 'Accept':'application/json','X-Buildium-Client-Id':BUILDIUM_CLIENT_ID,'X-Buildium-Client-Secret':BUILDIUM_CLIENT_SECRET }
+        let pres = await fetch(purl1, { headers })
+        if (!pres.ok) pres = await fetch(purl2, { headers })
         if (!pres.ok) { summary.errors.push(`Buildium properties fetch failed: ${pres.status}`); break }
         const props = await pres.json().catch(()=>[] as any[])
         if (!Array.isArray(props) || props.length === 0) break

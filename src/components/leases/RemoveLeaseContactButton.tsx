@@ -1,8 +1,10 @@
 "use client"
 
-import { useTransition } from 'react'
+import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button, type ButtonProps } from '@/components/ui/button'
+import { toast } from 'sonner'
+import DestructiveActionModal from '@/components/common/DestructiveActionModal'
 
 type RemoveLeaseContactButtonProps = {
   contactId: string
@@ -23,9 +25,9 @@ export default function RemoveLeaseContactButton({
 }: RemoveLeaseContactButtonProps) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
+  const [confirmOpen, setConfirmOpen] = useState(false)
 
   const handleRemove = () => {
-    if (!window.confirm(confirmationMessage)) return
     startTransition(async () => {
       try {
         const res = await fetch(`/api/lease-contacts/${contactId}`, { method: 'DELETE' })
@@ -33,25 +35,41 @@ export default function RemoveLeaseContactButton({
           const data = await res.json().catch(() => ({}))
           throw new Error(data?.error || 'Failed to remove tenant from lease')
         }
+        toast.success('Person removed from lease')
         router.refresh()
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to remove tenant from lease'
-        alert(message)
+        toast.error(message)
+      } finally {
+        setConfirmOpen(false)
       }
     })
   }
 
   return (
-    <Button
-      type="button"
-      variant={variant}
-      size={size}
-      className={className}
-      onClick={handleRemove}
-      disabled={pending}
-      aria-disabled={pending}
-    >
-      {children}
-    </Button>
+    <>
+      <Button
+        type="button"
+        variant={variant}
+        size={size}
+        className={className}
+        onClick={() => setConfirmOpen(true)}
+        disabled={pending}
+        aria-disabled={pending}
+      >
+        {children}
+      </Button>
+      <DestructiveActionModal
+        open={confirmOpen}
+        onOpenChange={(open) => {
+          if (!pending) setConfirmOpen(open)
+        }}
+        title="Remove person from lease?"
+        description={confirmationMessage}
+        confirmLabel={pending ? 'Removing…' : 'Remove'}
+        isProcessing={pending}
+        onConfirm={handleRemove}
+      />
+    </>
   )
 }

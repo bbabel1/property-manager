@@ -70,8 +70,9 @@ export async function buildiumFetch(
       headers: {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
-        'x-buildium-client-id': config.clientId,
-        'x-buildium-client-secret': config.clientSecret,
+        // Header names are case-sensitive per Buildium API documentation
+        'X-Buildium-Client-Id': config.clientId,
+        'X-Buildium-Client-Secret': config.clientSecret,
       },
       body: payload && method !== 'GET' ? JSON.stringify(payload) : undefined
     })

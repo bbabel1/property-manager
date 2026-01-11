@@ -23,8 +23,9 @@ async function buildium<T>(method: string, path: string, body?: any): Promise<T>
   const headers: HeadersInit = {
     'Accept': 'application/json',
     'Content-Type': 'application/json',
-    'x-buildium-client-id': creds.clientId,
-    'x-buildium-client-secret': creds.clientSecret
+    // Header names are case-sensitive per Buildium API documentation
+    'X-Buildium-Client-Id': creds.clientId,
+    'X-Buildium-Client-Secret': creds.clientSecret
   }
   const res = await fetch(`${baseUrl}${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined })
   if (!res.ok) {

@@ -30,6 +30,8 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Plus, Edit, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
+import DestructiveActionModal from '@/components/common/DestructiveActionModal';
 
 interface AutomationRule {
   id: string;
@@ -50,6 +52,8 @@ export default function AutomationRulesAdmin() {
   const [error, setError] = useState<string | null>(null);
   const [editingRule, setEditingRule] = useState<AutomationRule | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [ruleToDelete, setRuleToDelete] = useState<AutomationRule | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -110,15 +114,15 @@ export default function AutomationRulesAdmin() {
       loadData();
     } catch (err) {
       console.error('Error saving rule:', err);
-      alert('Failed to save automation rule');
+      toast.error('Failed to save automation rule');
     }
   };
 
-  const handleDeleteRule = async (ruleId: string) => {
-    if (!confirm('Are you sure you want to delete this automation rule?')) return;
-
+  const handleDeleteRule = async () => {
+    if (!ruleToDelete) return;
+    setIsDeleting(true);
     try {
-      const response = await fetch(`/api/services/automation-rules/${ruleId}`, {
+      const response = await fetch(`/api/services/automation-rules/${ruleToDelete.id}`, {
         method: 'DELETE',
       });
 
@@ -129,7 +133,10 @@ export default function AutomationRulesAdmin() {
       loadData();
     } catch (err) {
       console.error('Error deleting rule:', err);
-      alert('Failed to delete automation rule');
+      toast.error('Failed to delete automation rule');
+    } finally {
+      setIsDeleting(false);
+      setRuleToDelete(null);
     }
   };
 
@@ -159,7 +166,8 @@ export default function AutomationRulesAdmin() {
   }
 
   return (
-    <div className="space-y-6">
+    <>
+      <div className="space-y-6">
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -244,7 +252,7 @@ export default function AutomationRulesAdmin() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleDeleteRule(rule.id)}
+                            onClick={() => setRuleToDelete(rule)}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -258,7 +266,19 @@ export default function AutomationRulesAdmin() {
           )}
         </CardContent>
       </Card>
-    </div>
+      </div>
+      <DestructiveActionModal
+        open={!!ruleToDelete}
+        onOpenChange={(open) => {
+          if (!isDeleting && !open) setRuleToDelete(null);
+        }}
+        title="Delete automation rule?"
+        description="This rule will be permanently removed."
+        confirmLabel={isDeleting ? 'Deleting…' : 'Delete'}
+        isProcessing={isDeleting}
+        onConfirm={() => void handleDeleteRule()}
+      />
+    </>
   );
 }
 
@@ -283,11 +303,11 @@ function AutomationRuleForm({ rule, offerings, onSave, onCancel }: AutomationRul
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (ruleType === 'recurring_task' && !taskTemplate.trim()) {
-      alert('Task template is required for recurring tasks.');
+      toast.error('Task template is required for recurring tasks.');
       return;
     }
     if (ruleType === 'recurring_charge' && !chargeTemplate.trim()) {
-      alert('Charge template is required for recurring charges.');
+      toast.error('Charge template is required for recurring charges.');
       return;
     }
     setSaving(true);

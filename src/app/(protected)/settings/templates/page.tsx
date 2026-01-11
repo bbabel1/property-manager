@@ -19,6 +19,8 @@ import { Plus, Edit, Eye, Copy, Archive } from 'lucide-react';
 import type { EmailTemplate, EmailTemplateStatus } from '@/types/email-templates';
 import type { TemplateRenderResult } from '@/types/email-templates';
 import { TemplatePreview } from '@/components/email-templates/template-preview';
+import { toast } from 'sonner';
+import DestructiveActionModal from '@/components/common/DestructiveActionModal';
 
 export default function TemplatesPage() {
   const router = useRouter();
@@ -29,6 +31,8 @@ export default function TemplatesPage() {
   const [preview, setPreview] = useState<TemplateRenderResult | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [templateToArchive, setTemplateToArchive] = useState<EmailTemplate | null>(null);
+  const [isArchiving, setIsArchiving] = useState(false);
 
   const fetchTemplates = useCallback(async () => {
     try {
@@ -93,7 +97,7 @@ export default function TemplatesPage() {
       setPreviewOpen(true);
     } catch (err) {
       console.error('Error previewing template:', err);
-      alert('Failed to preview template');
+      toast.error('Failed to preview template');
     } finally {
       setPreviewLoading(false);
     }
@@ -119,17 +123,15 @@ export default function TemplatesPage() {
       await fetchTemplates();
     } catch (err) {
       console.error('Error duplicating template:', err);
-      alert(err instanceof Error ? err.message : 'Failed to duplicate template');
+      toast.error(err instanceof Error ? err.message : 'Failed to duplicate template');
     }
   };
 
-  const handleArchive = async (id: string) => {
-    if (!confirm('Are you sure you want to archive this template?')) {
-      return;
-    }
-
+  const handleArchive = async () => {
+    if (!templateToArchive) return;
+    setIsArchiving(true);
     try {
-      const response = await fetch(`/api/email-templates/${id}`, {
+      const response = await fetch(`/api/email-templates/${templateToArchive.id}`, {
         method: 'DELETE',
       });
 
@@ -140,12 +142,16 @@ export default function TemplatesPage() {
       await fetchTemplates();
     } catch (err) {
       console.error('Error archiving template:', err);
-      alert('Failed to archive template');
+      toast.error('Failed to archive template');
+    } finally {
+      setIsArchiving(false);
+      setTemplateToArchive(null);
     }
   };
 
   return (
-    <PageShell>
+    <>
+      <PageShell>
       <PageHeader
         title="Email Templates"
         description="Manage email templates for statements and notifications"
@@ -230,14 +236,14 @@ export default function TemplatesPage() {
                             <Copy className="h-4 w-4" />
                           </Button>
                           {template.status !== 'archived' && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleArchive(template.id)}
-                            >
-                              <Archive className="h-4 w-4" />
-                            </Button>
-                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setTemplateToArchive(template)}
+                          >
+                            <Archive className="h-4 w-4" />
+                          </Button>
+                        )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -254,6 +260,18 @@ export default function TemplatesPage() {
           loading={previewLoading}
         />
       </PageBody>
-    </PageShell>
+      </PageShell>
+      <DestructiveActionModal
+        open={!!templateToArchive}
+        onOpenChange={(open) => {
+          if (!isArchiving && !open) setTemplateToArchive(null);
+        }}
+        title="Archive template?"
+        description="This template will be archived and hidden from active use."
+        confirmLabel={isArchiving ? 'Archiving…' : 'Archive'}
+        isProcessing={isArchiving}
+        onConfirm={() => void handleArchive()}
+      />
+    </>
   );
 }

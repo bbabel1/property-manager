@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import { requireAuth } from '@/lib/auth/guards';
@@ -8,6 +8,7 @@ import { buildiumFetch } from '@/lib/buildium-http';
 import { logger } from '@/lib/logger';
 import { hasPermission } from '@/lib/permissions';
 import { supabaseAdmin } from '@/lib/db';
+import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
 import type { Database as DatabaseSchema } from '@/types/database';
 
 const DebitLineSchema = z.object({
@@ -53,37 +54,57 @@ const APPROVAL_STATES: ApprovalState[] = ['draft', 'pending_approval', 'approved
 const isApprovalState = (value: string): value is ApprovalState =>
   APPROVAL_STATES.includes(value as ApprovalState);
 
-export async function GET(request: Request) {
-  const { roles } = await requireAuth();
-  if (!hasPermission(roles, 'bills.read')) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
-
-  const searchParams = new URL(request.url).searchParams;
-  const approvalStateRaw = searchParams.get('approval_state');
-  const approvalStateValue = approvalStateRaw?.trim() || null;
-
-  let query = supabaseAdmin
-    .from('transactions')
-    .select(
-      '*, bill_workflow:bill_workflow(approval_state, submitted_at, approved_at, rejected_at, voided_at), bill_applications:bill_applications(id, applied_amount, source_transaction_id, source_type, applied_at)',
-    )
-    .eq('transaction_type', 'Bill');
-
-  if (approvalStateValue) {
-    if (!isApprovalState(approvalStateValue)) {
-      return NextResponse.json({ error: 'Invalid approval_state' }, { status: 400 });
+export async function GET(request: NextRequest) {
+  try {
+    const { supabase, user, roles } = await requireAuth();
+    if (!hasPermission(roles, 'bills.read')) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
-    const approvalState: ApprovalState = approvalStateValue;
-    query = query.eq('bill_workflow.approval_state', approvalState);
-  }
 
-  const { data, error } = await query;
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
+    const orgId = await resolveOrgIdFromRequest(request, user.id, supabase);
 
-  return NextResponse.json({ data });
+    const searchParams = new URL(request.url).searchParams;
+    const approvalStateRaw = searchParams.get('approval_state');
+    const approvalStateValue = approvalStateRaw?.trim() || null;
+
+    let query = supabase
+      .from('transactions')
+      .select(
+        '*, bill_workflow:bill_workflow(approval_state, submitted_at, approved_at, rejected_at, voided_at), bill_applications:bill_applications(id, applied_amount, source_transaction_id, source_type, applied_at)',
+      )
+      .eq('transaction_type', 'Bill')
+      .eq('org_id', orgId);
+
+    if (approvalStateValue) {
+      if (!isApprovalState(approvalStateValue)) {
+        return NextResponse.json({ error: 'Invalid approval_state' }, { status: 400 });
+      }
+      const approvalState: ApprovalState = approvalStateValue;
+      query = query.eq('bill_workflow.approval_state', approvalState);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      logger.error({ error, orgId, userId: user.id }, 'Failed to fetch bills');
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ data });
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === 'UNAUTHENTICATED') {
+        return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+      }
+      if (error.message === 'ORG_CONTEXT_REQUIRED') {
+        return NextResponse.json({ error: 'Organization context required' }, { status: 400 });
+      }
+      if (error.message === 'ORG_FORBIDDEN') {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+    }
+    logger.error({ error }, 'Unexpected error fetching bills');
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
 }
 
 export async function POST(request: Request) {

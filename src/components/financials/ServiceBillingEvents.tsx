@@ -10,6 +10,8 @@ import { Input } from '@/components/ui/input';
 import { formatCurrency } from '@/lib/format-currency';
 import Link from 'next/link';
 import { ExternalLink, X, CheckCircle } from 'lucide-react';
+import { toast } from 'sonner';
+import DestructiveActionModal from '@/components/common/DestructiveActionModal';
 
 interface BillingEvent {
   id: string;
@@ -41,6 +43,8 @@ export default function ServiceBillingEvents({ propertyId, unitId }: ServiceBill
   const [filterOffering, setFilterOffering] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<'all' | 'invoiced' | 'pending'>('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [voidCandidate, setVoidCandidate] = useState<BillingEvent | null>(null);
+  const [isVoiding, setIsVoiding] = useState(false);
 
   const loadEvents = useCallback(async () => {
     try {
@@ -72,11 +76,12 @@ export default function ServiceBillingEvents({ propertyId, unitId }: ServiceBill
     void loadEvents();
   }, [filterOffering, filterStatus, loadEvents, propertyId, unitId]);
 
-  const handleVoidEvent = async (eventId: string) => {
-    if (!confirm('Are you sure you want to void this billing event?')) return;
+  const handleVoidEvent = async () => {
+    if (!voidCandidate) return;
+    setIsVoiding(true);
 
     try {
-      const response = await fetch(`/api/services/billing-events/${eventId}/void`, {
+      const response = await fetch(`/api/services/billing-events/${voidCandidate.id}/void`, {
         method: 'POST',
       });
 
@@ -84,10 +89,14 @@ export default function ServiceBillingEvents({ propertyId, unitId }: ServiceBill
         throw new Error('Failed to void billing event');
       }
 
+      toast.success('Billing event voided');
       loadEvents();
     } catch (err) {
       console.error('Error voiding event:', err);
-      alert('Failed to void billing event');
+      toast.error('Failed to void billing event');
+    } finally {
+      setIsVoiding(false);
+      setVoidCandidate(null);
     }
   };
 
@@ -140,7 +149,8 @@ export default function ServiceBillingEvents({ propertyId, unitId }: ServiceBill
   const pendingAmount = totalAmount - invoicedAmount;
 
   return (
-    <div className="space-y-6">
+    <>
+      <div className="space-y-6">
       {/* Summary Cards */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <Card>
@@ -293,7 +303,7 @@ export default function ServiceBillingEvents({ propertyId, unitId }: ServiceBill
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleVoidEvent(event.id)}
+                            onClick={() => setVoidCandidate(event)}
                           >
                             <X className="h-4 w-4" />
                           </Button>
@@ -308,5 +318,17 @@ export default function ServiceBillingEvents({ propertyId, unitId }: ServiceBill
         </CardContent>
       </Card>
     </div>
+      <DestructiveActionModal
+        open={!!voidCandidate}
+        onOpenChange={(open) => {
+          if (!isVoiding && !open) setVoidCandidate(null);
+        }}
+        title="Void billing event?"
+        description="This will mark the billing event as void. This cannot be undone."
+        confirmLabel={isVoiding ? 'Voiding…' : 'Void'}
+        isProcessing={isVoiding}
+        onConfirm={() => void handleVoidEvent()}
+      />
+    </>
   );
 }

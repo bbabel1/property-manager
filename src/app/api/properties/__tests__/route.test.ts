@@ -11,7 +11,9 @@ vi.mock('@/lib/csrf', () => ({
 
 const tableData: Record<string, any[]> = {
   properties: [],
-  org_memberships: [{ org_id: 'org-1', user_id: 'user-1', role: 'org_admin' }],
+  membership_roles: [
+    { org_id: 'org-1', user_id: 'user-1', role_id: 'org_admin', roles: { name: 'org_admin' } },
+  ],
 };
 
 class QueryBuilder {
@@ -42,6 +44,16 @@ class QueryBuilder {
   update(patch: Record<string, any>) {
     this.patch = patch;
     return this;
+  }
+
+  then<TResult1 = any, TResult2 = never>(
+    onfulfilled?:
+      | ((value: { data: any[]; error: null }) => TResult1 | PromiseLike<TResult1>)
+      | undefined
+      | null,
+    onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null,
+  ) {
+    return Promise.resolve({ data: this.applyFilters(), error: null }).then(onfulfilled, onrejected);
   }
 
   private applyFilters() {
@@ -81,6 +93,9 @@ const makeRequest = (body: unknown) =>
 describe('PUT /api/properties/[id]', () => {
   beforeEach(() => {
     tableData.properties = [{ id: 'prop-1', org_id: 'org-1' }];
+    tableData.membership_roles = [
+      { org_id: 'org-1', user_id: 'user-1', role_id: 'org_admin', roles: { name: 'org_admin' } },
+    ];
   });
 
   it('returns 404 when property is not found', async () => {

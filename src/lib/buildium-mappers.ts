@@ -875,6 +875,11 @@ export function mapCountryToBuildium(databaseCountry: string | null | undefined)
     reverseMap[databaseValue] = buildiumKey;
   }
 
+  // If the value is already a Buildium key, return it as-is
+  if (Object.prototype.hasOwnProperty.call(BUILDIUM_TO_DATABASE_COUNTRY_MAP, databaseCountry)) {
+    return databaseCountry;
+  }
+
   // Check if we have a direct reverse mapping
   const mappedCountry = reverseMap[databaseCountry];
   if (mappedCountry) {

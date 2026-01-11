@@ -31,7 +31,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import {
@@ -41,6 +40,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import AddNoteModal from '@/components/tenants/AddNoteModal';
+import { fetchWithSupabaseAuth } from '@/lib/supabase/fetch';
 
 type Note = Database['public']['Tables']['tenant_notes']['Row'];
 
@@ -58,6 +58,7 @@ export default function TenantNotesTable({ tenantId }: TenantNotesTableProps) {
   const [formNote, setFormNote] = useState('');
   const [saving, setSaving] = useState(false);
   const [addModalOpen, setAddModalOpen] = useState(false);
+  const [noteToDelete, setNoteToDelete] = useState<Note | null>(null);
 
   const fetchNotes = useCallback(async () => {
     try {
@@ -123,9 +124,20 @@ export default function TenantNotesTable({ tenantId }: TenantNotesTableProps) {
     // optimistic remove
     setNotes((prev) => prev.filter((n) => n.id !== id));
     try {
-      const { error } = await supabase.from('tenant_notes').delete().eq('id', id);
-      if (error) throw error;
-      toast.success('Note deleted');
+      const res = await fetchWithSupabaseAuth(`/api/tenants/${tenantId}/notes/${id}`, {
+        method: 'DELETE',
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(json?.error || 'Failed to delete');
+      }
+      if (json?.buildium_sync_error) {
+        toast.warning('Note deleted locally, but Buildium removal failed', {
+          description: json.buildium_sync_error,
+        });
+      } else {
+        toast.success('Note deleted');
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to delete');
       // restore
@@ -242,30 +254,21 @@ export default function TenantNotesTable({ tenantId }: TenantNotesTableProps) {
                         <DropdownMenuItem onClick={() => openEdit(note)}>
                           <PencilLine className="mr-2 h-4 w-4" /> Edit
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => alert(note.note || '')}>
+                        <DropdownMenuItem
+                          onClick={() =>
+                            toast.info('Note preview', {
+                              description: note.note || 'No content',
+                            })
+                          }
+                        >
                           <Eye className="mr-2 h-4 w-4" /> View
                         </DropdownMenuItem>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <DropdownMenuItem className="text-destructive focus:text-destructive">
-                              <Trash2 className="mr-2 h-4 w-4" /> Delete
-                            </DropdownMenuItem>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Delete note?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                This action cannot be undone.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => deleteNote(note.id)}>
-                                Delete
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive"
+                          onSelect={() => setNoteToDelete(note)}
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" /> Delete
+                        </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
@@ -323,6 +326,33 @@ export default function TenantNotesTable({ tenantId }: TenantNotesTableProps) {
           setNotes((prev) => [newNote, ...prev]);
         }}
       />
+
+      <AlertDialog
+        open={!!noteToDelete}
+        onOpenChange={(open) => {
+          if (!open) setNoteToDelete(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete note?</AlertDialogTitle>
+            <AlertDialogDescription>This action cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (noteToDelete) {
+                  void deleteNote(noteToDelete.id);
+                }
+                setNoteToDelete(null);
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

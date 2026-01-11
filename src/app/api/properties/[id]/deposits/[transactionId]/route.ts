@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseServerClient } from '@/lib/supabase/server';
+import { requireAuth } from '@/lib/auth/guards';
+import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
 import { resolvePropertyIdentifier } from '@/lib/public-id-utils';
 import { supabaseAdmin } from '@/lib/db';
 import { resolveUndepositedFundsGlAccountId } from '@/lib/buildium-mappers';
@@ -36,13 +37,28 @@ export async function PATCH(
   try {
     const { id: slug, transactionId } = await params;
     const { internalId: propertyId } = await resolvePropertyIdentifier(slug);
-    const db = await getSupabaseServerClient();
+    const { supabase: db, user } = await requireAuth();
+    const orgId = await resolveOrgIdFromRequest(request, user.id, db);
+
+    const { data: property, error: propertyError } = await db
+      .from('properties')
+      .select('id')
+      .eq('id', propertyId)
+      .eq('org_id', orgId)
+      .maybeSingle();
+    if (propertyError) {
+      return NextResponse.json({ error: 'Failed to verify property' }, { status: 500 });
+    }
+    if (!property) {
+      return NextResponse.json({ error: 'Property not found' }, { status: 404 });
+    }
 
     // Verify transaction exists and is a Deposit
     const { data: transaction, error: txError } = await db
       .from('transactions')
       .select('id, transaction_type, property_id, bank_gl_account_id')
       .eq('id', transactionId)
+      .eq('org_id', orgId)
       .maybeSingle<TransactionRow>();
 
     if (txError) {
@@ -103,6 +119,7 @@ export async function PATCH(
           .from('gl_accounts')
           .select('id, is_bank_account')
           .eq('id', normalizedBankGlAccountId)
+          .eq('org_id', orgId)
           .maybeSingle<BankAccountRow>();
 
         if (glAccountError) {
@@ -154,7 +171,8 @@ export async function PATCH(
     const { error: updateError } = await (db as any)
       .from('transactions')
       .update(updateData)
-      .eq('id', transactionId);
+      .eq('id', transactionId)
+      .eq('org_id', orgId);
 
     if (updateError) {
       return NextResponse.json({ error: 'Failed to update deposit' }, { status: 500 });
@@ -162,6 +180,17 @@ export async function PATCH(
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === 'UNAUTHENTICATED') {
+        return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+      }
+      if (error.message === 'ORG_CONTEXT_REQUIRED') {
+        return NextResponse.json({ error: 'Organization context required' }, { status: 400 });
+      }
+      if (error.message === 'ORG_FORBIDDEN') {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+    }
     console.error('Error updating deposit:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to update deposit' },
@@ -177,13 +206,28 @@ export async function DELETE(
   try {
     const { id: slug, transactionId } = await params;
     const { internalId: propertyId } = await resolvePropertyIdentifier(slug);
-    const db = await getSupabaseServerClient();
+    const { supabase: db, user } = await requireAuth();
+    const orgId = await resolveOrgIdFromRequest(request, user.id, db);
+
+    const { data: property, error: propertyError } = await db
+      .from('properties')
+      .select('id')
+      .eq('id', propertyId)
+      .eq('org_id', orgId)
+      .maybeSingle();
+    if (propertyError) {
+      return NextResponse.json({ error: 'Failed to verify property' }, { status: 500 });
+    }
+    if (!property) {
+      return NextResponse.json({ error: 'Property not found' }, { status: 404 });
+    }
 
     // Verify transaction exists and is a Deposit
     const { data: transaction, error: txError } = await db
       .from('transactions')
       .select('id, transaction_type, property_id, bank_gl_account_id')
       .eq('id', transactionId)
+      .eq('org_id', orgId)
       .maybeSingle<TransactionRow>();
 
     if (txError) {
@@ -220,6 +264,7 @@ export async function DELETE(
       .from('transactions')
       .select('id, org_id, bank_gl_account_id')
       .eq('id', transactionId)
+      .eq('org_id', orgId)
       .maybeSingle<{ id: string; org_id: string | null; bank_gl_account_id: string | null }>();
     if (depositError) {
       return NextResponse.json({ error: 'Failed to load deposit' }, { status: 500 });
@@ -276,6 +321,7 @@ export async function DELETE(
         const { data: paymentTxs, error: paymentTxError } = await supabaseAdmin
           .from('transactions')
           .select('id')
+          .eq('org_id', orgId)
           .in('buildium_transaction_id', paymentBuildiumIds)
           .limit(1000);
         if (paymentTxError) {
@@ -306,6 +352,7 @@ export async function DELETE(
         const { error: updatePaymentsError } = await supabaseAdmin
           .from('transactions')
           .update({ bank_gl_account_id: udfGlAccountId, updated_at: nowIso })
+          .eq('org_id', orgId)
           .in('id', paymentIds);
         if (updatePaymentsError) {
           return NextResponse.json({ error: 'Failed to reclassify payments' }, { status: 500 });
@@ -368,6 +415,7 @@ export async function DELETE(
           const { data: paymentTxs } = await supabaseAdmin
             .from('transactions')
             .select('id, bank_gl_account_id')
+            .eq('org_id', orgId)
             .in('buildium_transaction_id', paymentBuildiumIds)
             .limit(100);
 
@@ -384,6 +432,7 @@ export async function DELETE(
                   bank_gl_account_id: udfGlAccountId,
                   updated_at: new Date().toISOString(),
                 })
+                .eq('org_id', orgId)
                 .in('id', paymentIds);
             }
           }
@@ -393,6 +442,17 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === 'UNAUTHENTICATED') {
+        return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+      }
+      if (error.message === 'ORG_CONTEXT_REQUIRED') {
+        return NextResponse.json({ error: 'Organization context required' }, { status: 400 });
+      }
+      if (error.message === 'ORG_FORBIDDEN') {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+    }
     console.error('Error deleting deposit:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to delete deposit' },

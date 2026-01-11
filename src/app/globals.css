@@ -199,6 +199,51 @@
   }
 }
 
+/* Global toast styling */
+.app-toaster [data-sonner-toast] {
+  border-radius: var(--border-radius, 12px);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+  padding: 14px 16px;
+  border-width: 1px;
+  border-style: solid;
+  min-width: 260px;
+  gap: 10px;
+}
+
+.app-toaster [data-sonner-toast] [data-title] {
+  font-weight: 600;
+  color: inherit;
+}
+
+.app-toaster [data-sonner-toast] [data-description] {
+  color: inherit;
+  opacity: 0.9;
+  font-size: 13px;
+}
+
+.app-toaster [data-sonner-toast] [data-icon],
+.app-toaster [data-sonner-toast] [data-icon] svg {
+  color: inherit;
+  width: 18px;
+  height: 18px;
+}
+
+.app-toaster [data-sonner-toast] [data-close-button] {
+  background: transparent;
+  border: 1px solid currentColor;
+  color: inherit;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  opacity: 0.9;
+}
+
+.app-toaster [data-sonner-toast] [data-close-button]:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.04);
+}
+
 @layer base {
   .bill-tab-link,
   [data-slot="tabs-trigger"] {

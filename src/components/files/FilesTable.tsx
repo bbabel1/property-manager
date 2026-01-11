@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { toast } from 'sonner';
 import {
   Table,
   TableBody,
@@ -30,6 +31,7 @@ import ActionButton from '@/components/ui/ActionButton';
 import Link from 'next/link';
 import FileThumbnail from '@/components/files/FileThumbnail';
 import { cn } from '@/components/ui/utils';
+import DestructiveActionModal from '@/components/common/DestructiveActionModal';
 
 interface FileRow {
   id: string;
@@ -97,6 +99,8 @@ export default function FilesTable({
   const [internalSelectedFiles, setInternalSelectedFiles] = useState<Set<string>>(new Set());
   const selectedFiles = externalSelectedFiles ?? internalSelectedFiles;
   const setSelectedFiles = onSelectionChange ?? setInternalSelectedFiles;
+  const [fileToDelete, setFileToDelete] = useState<FileRow | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const handleRowClick = (file: FileRow) => {
     if (onFileClick) {
@@ -115,12 +119,10 @@ export default function FilesTable({
     }
   };
 
-  const handleDelete = async (file: FileRow, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!confirm(`Are you sure you want to delete "${file.title || file.file_name}"?`)) {
-      return;
-    }
-
+  const handleDelete = async () => {
+    const file = fileToDelete;
+    if (!file) return;
+    setIsDeleting(true);
     try {
       const response = await fetch(`/api/files/${file.id}`, {
         method: 'DELETE',
@@ -137,10 +139,24 @@ export default function FilesTable({
       if (onFilesChanged) {
         onFilesChanged();
       }
+      if (selectedFiles.has(file.id)) {
+        const next = new Set(selectedFiles);
+        next.delete(file.id);
+        setSelectedFiles(next);
+      }
+      toast.success('File deleted');
     } catch (error) {
       console.error('Error deleting file:', error);
-      alert(error instanceof Error ? error.message : 'Failed to delete file');
+      toast.error(error instanceof Error ? error.message : 'Failed to delete file');
+    } finally {
+      setIsDeleting(false);
+      setFileToDelete(null);
     }
+  };
+
+  const confirmDelete = (file: FileRow, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setFileToDelete(file);
   };
 
   const handleResync = async (file: FileRow, e: React.MouseEvent) => {
@@ -157,13 +173,13 @@ export default function FilesTable({
         throw new Error(data.error || 'Failed to resync file to Buildium');
       }
 
-      alert('File synced to Buildium successfully');
+      toast.success('File synced to Buildium successfully');
       if (onFilesChanged) {
         onFilesChanged();
       }
     } catch (error) {
       console.error('Error resyncing file:', error);
-      alert(error instanceof Error ? error.message : 'Failed to resync file to Buildium');
+      toast.error(error instanceof Error ? error.message : 'Failed to resync file to Buildium');
     }
   };
 
@@ -225,174 +241,187 @@ export default function FilesTable({
   }
 
   return (
-    <div className={containerClass}>
-      <div className="overflow-x-auto" role="region" aria-label="Files table">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-12 px-6 py-3">
-                <input
-                  type="checkbox"
-                  className="rounded border-gray-300"
-                  aria-label="Select all files"
-                  checked={selectedFiles.size === files.length && files.length > 0}
-                  onChange={(e) => handleSelectAll(e.target.checked)}
-                />
-              </TableHead>
-              <TableHead className="px-6 py-3">Title</TableHead>
-              <TableHead className="px-6 py-3">Category</TableHead>
-              <TableHead className="px-6 py-3">Location</TableHead>
-              <TableHead className="px-6 py-3">Uploaded</TableHead>
-              <TableHead className="px-6 py-3 text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {files.map((file) => (
-              <TableRow
-                key={file.id}
-                className="hover:bg-muted/50 cursor-pointer"
-                onClick={() => handleRowClick(file)}
-                role="button"
-                tabIndex={0}
-                aria-label={`File: ${file.title || file.file_name}`}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    handleRowClick(file);
-                  }
-                }}
-              >
-                <TableCell className="px-6" onClick={(e) => e.stopPropagation()}>
+    <>
+      <div className={containerClass}>
+        <div className="overflow-x-auto" role="region" aria-label="Files table">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-12 px-6 py-3">
                   <input
                     type="checkbox"
                     className="rounded border-gray-300"
-                    aria-label={`Select file ${file.title || file.file_name}`}
-                    checked={selectedFiles.has(file.id)}
-                    onChange={(e) => {
-                      e.stopPropagation();
-                      handleSelectFile(file.id, e.target.checked);
-                    }}
+                    aria-label="Select all files"
+                    checked={selectedFiles.size === files.length && files.length > 0}
+                    onChange={(e) => handleSelectAll(e.target.checked)}
                   />
-                </TableCell>
-                <TableCell className="px-6 py-4">
-                  <div className="flex items-start gap-2">
-                    <FileThumbnail
-                      fileId={file.id}
-                      fileName={file.file_name}
-                      mimeType={file.mime_type}
-                      size="sm"
-                      className="shrink-0"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="text-foreground truncate font-medium">
-                        {file.title || file.file_name}
-                      </div>
-                      {file.description && (
-                        <div className="text-muted-foreground mt-0.5 truncate text-sm">
-                          {file.description}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </TableCell>
-                <TableCell className="px-6 py-4">
-                  <Badge variant="outline" className="font-normal">
-                    {file.category_name}
-                  </Badge>
-                </TableCell>
-                <TableCell className="px-6 py-4">
-                  {file.entity_url ? (
-                    <Link
-                      href={file.entity_url}
-                      onClick={(e) => e.stopPropagation()}
-                      className="text-primary block max-w-xs truncate text-sm hover:underline"
-                    >
-                      {file.location}
-                    </Link>
-                  ) : (
-                    <span className="text-muted-foreground block max-w-xs truncate text-sm">
-                      {file.location}
-                    </span>
-                  )}
-                </TableCell>
-                <TableCell className="px-6 py-4">
-                  <div className="text-foreground text-sm">{formatDateTime(file.created_at)}</div>
-                </TableCell>
-                <TableCell className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <ActionButton aria-label="File actions" />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-44">
-                      <DropdownMenuItem
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (onFileView) {
-                            onFileView(file);
-                          } else {
-                            handleRowClick(file);
-                          }
-                        }}
-                      >
-                        <Eye className="mr-2 h-4 w-4" />
-                        View
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={(e) => handleDownload(file, e)}>
-                        <Download className="mr-2 h-4 w-4" />
-                        Download
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (onFileEdit) {
-                            onFileEdit(file);
-                          }
-                        }}
-                      >
-                        <Edit className="mr-2 h-4 w-4" />
-                        Edit
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (onFileShare) {
-                            onFileShare(file);
-                          }
-                        }}
-                      >
-                        <Share2 className="mr-2 h-4 w-4" />
-                        Share
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (onFileEmail) {
-                            onFileEmail(file);
-                          }
-                        }}
-                      >
-                        <Mail className="mr-2 h-4 w-4" />
-                        Email
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={(e) => handleResync(file, e)}>
-                        <RefreshCw className="mr-2 h-4 w-4" />
-                        Resync to Buildium
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        className="text-destructive focus:text-destructive"
-                        onClick={(e) => handleDelete(file, e)}
-                      >
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TableCell>
+                </TableHead>
+                <TableHead className="px-6 py-3">Title</TableHead>
+                <TableHead className="px-6 py-3">Category</TableHead>
+                <TableHead className="px-6 py-3">Location</TableHead>
+                <TableHead className="px-6 py-3">Uploaded</TableHead>
+                <TableHead className="px-6 py-3 text-right">Actions</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {files.map((file) => (
+                <TableRow
+                  key={file.id}
+                  className="hover:bg-muted/50 cursor-pointer"
+                  onClick={() => handleRowClick(file)}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`File: ${file.title || file.file_name}`}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      handleRowClick(file);
+                    }
+                  }}
+                >
+                  <TableCell className="px-6" onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="checkbox"
+                      className="rounded border-gray-300"
+                      aria-label={`Select file ${file.title || file.file_name}`}
+                      checked={selectedFiles.has(file.id)}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        handleSelectFile(file.id, e.target.checked);
+                      }}
+                    />
+                  </TableCell>
+                  <TableCell className="px-6 py-4">
+                    <div className="flex items-start gap-2">
+                      <FileThumbnail
+                        fileId={file.id}
+                        fileName={file.file_name}
+                        mimeType={file.mime_type}
+                        size="sm"
+                        className="shrink-0"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="text-foreground truncate font-medium">
+                          {file.title || file.file_name}
+                        </div>
+                        {file.description && (
+                          <div className="text-muted-foreground mt-0.5 truncate text-sm">
+                            {file.description}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell className="px-6 py-4">
+                    <Badge variant="outline" className="font-normal">
+                      {file.category_name}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="px-6 py-4">
+                    {file.entity_url ? (
+                      <Link
+                        href={file.entity_url}
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-primary block max-w-xs truncate text-sm hover:underline"
+                      >
+                        {file.location}
+                      </Link>
+                    ) : (
+                      <span className="text-muted-foreground block max-w-xs truncate text-sm">
+                        {file.location}
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell className="px-6 py-4">
+                    <div className="text-foreground text-sm">{formatDateTime(file.created_at)}</div>
+                  </TableCell>
+                  <TableCell className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <ActionButton aria-label="File actions" />
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-44">
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (onFileView) {
+                              onFileView(file);
+                            } else {
+                              handleRowClick(file);
+                            }
+                          }}
+                        >
+                          <Eye className="mr-2 h-4 w-4" />
+                          View
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={(e) => handleDownload(file, e)}>
+                          <Download className="mr-2 h-4 w-4" />
+                          Download
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (onFileEdit) {
+                              onFileEdit(file);
+                            }
+                          }}
+                        >
+                          <Edit className="mr-2 h-4 w-4" />
+                          Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (onFileShare) {
+                              onFileShare(file);
+                            }
+                          }}
+                        >
+                          <Share2 className="mr-2 h-4 w-4" />
+                          Share
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (onFileEmail) {
+                              onFileEmail(file);
+                            }
+                          }}
+                        >
+                          <Mail className="mr-2 h-4 w-4" />
+                          Email
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={(e) => handleResync(file, e)}>
+                          <RefreshCw className="mr-2 h-4 w-4" />
+                          Resync to Buildium
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive"
+                          onClick={(e) => confirmDelete(file, e)}
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       </div>
-    </div>
+      <DestructiveActionModal
+        open={!!fileToDelete}
+        onOpenChange={(open) => {
+          if (!isDeleting) setFileToDelete(open ? fileToDelete : null);
+        }}
+        title="Delete file?"
+        description={`This will permanently delete "${fileToDelete?.title || fileToDelete?.file_name || 'this file'}".`}
+        confirmLabel={isDeleting ? 'Deleting…' : 'Delete'}
+        isProcessing={isDeleting}
+        onConfirm={() => void handleDelete()}
+      />
+    </>
   );
 }

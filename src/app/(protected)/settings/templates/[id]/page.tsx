@@ -25,6 +25,7 @@ import type {
   TemplateRenderResult,
 } from '@/types/email-templates';
 import { getAvailableVariables } from '@/lib/email-templates/variable-definitions';
+import { toast } from 'sonner';
 
 export default function TemplateEditorPage() {
   const router = useRouter();
@@ -176,7 +177,7 @@ export default function TemplateEditorPage() {
       setShowPreview(true);
     } catch (err) {
       console.error('Error previewing template:', err);
-      alert('Failed to preview template');
+      toast.error('Failed to preview template');
     } finally {
       setPreviewLoading(false);
     }
@@ -184,7 +185,7 @@ export default function TemplateEditorPage() {
 
   const handleSendTest = async () => {
     if (isNew) {
-      alert('Please save the template before sending a test email.');
+      toast.info('Please save the template before sending a test email.');
       return;
     }
 
@@ -204,11 +205,11 @@ export default function TemplateEditorPage() {
         throw new Error(errorData.error?.message || 'Failed to send test email');
       }
 
-      alert('Test email sent');
+      toast.success('Test email sent');
     } catch (err) {
       console.error('Error sending test email:', err);
       const message = err instanceof Error ? err.message : 'Failed to send test email';
-      alert(message);
+      toast.error(message);
     } finally {
       setTestSending(false);
     }

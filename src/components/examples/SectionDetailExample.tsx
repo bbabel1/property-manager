@@ -5,9 +5,7 @@ import { SectionDetail, ContactInfoSection } from '@/components/ui/section-detai
 
 // Example usage of the new SectionDetail component
 export function SectionDetailExample() {
-  const handleEdit = () => {
-    console.log('Edit clicked')
-  }
+  const handleEdit = () => {}
 
   return (
     <div className="space-y-6 p-6">
@@ -98,7 +96,6 @@ export function SectionDetailExample() {
     </div>
   )
 }
-
 
 
 

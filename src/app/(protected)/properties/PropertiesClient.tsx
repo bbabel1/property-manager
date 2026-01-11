@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import { EmptyState, ErrorState, LoadingState } from '@/components/ui/state'
 import {
   Select,
   SelectContent,
@@ -51,7 +52,11 @@ interface Property {
   primaryOwnerName?: string
   propertyManagerName?: string | null
   operatingBankAccountId?: string | null
+  operatingBankAccountName?: string | null
+  operatingBankAccountLast4?: string | null
   depositTrustAccountId?: string | null
+  depositTrustAccountName?: string | null
+  depositTrustAccountLast4?: string | null
 }
 
 interface PropertiesResponse {
@@ -270,47 +275,30 @@ export default function PropertiesClient({
 
   let mainContent: ReactNode
   if (loading) {
-    mainContent = (
-      <Card className="overflow-hidden">
-        <CardContent className="flex flex-col items-center justify-center gap-3 py-16">
-          <Loader2 className="h-6 w-6 animate-spin text-primary" aria-hidden="true" />
-          <p className="text-sm text-muted-foreground">Loading properties…</p>
-        </CardContent>
-      </Card>
-    )
+    mainContent = <LoadingState title="Loading properties…" />
   } else if (error) {
     mainContent = (
-      <Card className="overflow-hidden">
-        <CardContent className="flex flex-col items-center gap-4 py-16 text-center">
-          <div className="text-destructive">
-            <Building className="h-10 w-10" aria-hidden="true" />
-          </div>
-          <div>
-            <h3 className="text-lg font-semibold text-foreground">Unable to load properties</h3>
-            <p className="text-sm text-muted-foreground">{error}</p>
-          </div>
-          <Button onClick={() => void fetchProperties({ page })}>Try again</Button>
-        </CardContent>
-      </Card>
+      <ErrorState
+        title="Unable to load properties"
+        description={error}
+        onRetry={() => void fetchProperties({ page })}
+        icon={<Building className="h-10 w-10 text-destructive" aria-hidden="true" />}
+      />
     )
   } else if (properties.length === 0) {
     mainContent = (
-      <Card className="overflow-hidden">
-        <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
-          <Building2 className="h-12 w-12 text-muted-foreground" aria-hidden="true" />
-          <div>
-            <h3 className="text-lg font-semibold text-foreground">No properties found</h3>
-            <p className="text-sm text-muted-foreground">
-              Adjust your filters or try a different search.
-            </p>
-          </div>
-          {total === 0 ? (
+      <EmptyState
+        title="No properties found"
+        description="Adjust your filters or try a different search."
+        icon={<Building2 className="h-12 w-12 text-muted-foreground" aria-hidden="true" />}
+        action={
+          total === 0 ? (
             <Button onClick={() => setIsAddPropertyModalOpen(true)} size="sm">
               Add your first property
             </Button>
-          ) : null}
-        </CardContent>
-      </Card>
+          ) : null
+        }
+      />
     )
   } else {
     mainContent = (
@@ -443,10 +431,17 @@ export default function PropertiesClient({
                   const additionalOwners = ownersCount > 1 ? ownersCount - 1 : 0
 
                   const renderAccountStatus = (
-                    accountId: string | null | undefined,
-                    label: string,
+                    account: {
+                      id?: string | null
+                      name?: string | null
+                      last4?: string | null
+                    },
                   ) => {
-                    const hasAccount = Boolean(accountId)
+                    const hasAccount = Boolean(account?.id)
+                    const accountName = account?.name?.trim()
+                    const last4 = account?.last4 ? `•••• ${String(account.last4).slice(-4)}` : null
+                    const displayLabel =
+                      accountName || last4 ? [accountName, last4].filter(Boolean).join(' · ') : 'Configured'
                     const textClass = hasAccount
                       ? 'text-sm font-medium text-foreground'
                       : 'text-sm font-medium text-primary'
@@ -462,7 +457,7 @@ export default function PropertiesClient({
                             </span>
                           </Cluster>
                         ) : null}
-                        <span className={textClass}>{hasAccount ? label : 'Setup'}</span>
+                        <span className={textClass}>{hasAccount ? displayLabel : 'Setup'}</span>
                       </Stack>
                     )
                   }
@@ -514,10 +509,18 @@ export default function PropertiesClient({
                         {property.propertyType ?? '—'}
                       </td>
                       <td className="px-6 py-5 align-top">
-                        {renderAccountStatus(property.operatingBankAccountId, 'Trust account')}
+                        {renderAccountStatus({
+                          id: property.operatingBankAccountId,
+                          name: property.operatingBankAccountName,
+                          last4: property.operatingBankAccountLast4,
+                        })}
                       </td>
                       <td className="px-6 py-5 align-top">
-                        {renderAccountStatus(property.depositTrustAccountId, 'Deposit account')}
+                        {renderAccountStatus({
+                          id: property.depositTrustAccountId,
+                          name: property.depositTrustAccountName,
+                          last4: property.depositTrustAccountLast4,
+                        })}
                       </td>
                     </tr>
                   )

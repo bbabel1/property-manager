@@ -27,6 +27,7 @@ import { Textarea } from '@/components/ui/textarea';
 import TransactionFileUploadDialog, {
   type TransactionAttachmentDraft,
 } from '@/components/files/TransactionFileUploadDialog';
+import DestructiveActionModal from '@/components/common/DestructiveActionModal';
 import type { DepositStatus } from '@/types/deposits';
 import { Lock, Paperclip } from 'lucide-react';
 
@@ -151,6 +152,7 @@ export default function EditDepositForm(props: EditDepositFormProps): JSX.Elemen
   const [attachments, setAttachments] = useState<AttachmentDraft[]>([]);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
   const status: DepositStatus = (props.deposit.status as DepositStatus | undefined) ?? 'posted';
   const isReconciled = status === 'reconciled';
@@ -352,7 +354,6 @@ export default function EditDepositForm(props: EditDepositFormProps): JSX.Elemen
       setError('This deposit is reconciled or voided and cannot be deleted.');
       return;
     }
-    if (!confirm('Are you sure you want to delete this deposit?')) return;
     setIsSaving(true);
     setError(null);
     try {
@@ -370,6 +371,7 @@ export default function EditDepositForm(props: EditDepositFormProps): JSX.Elemen
       setError(err instanceof Error ? err.message : 'Failed to delete deposit');
     } finally {
       setIsSaving(false);
+      setConfirmDeleteOpen(false);
     }
   }, [canDelete, props.deleteUrl, props.returnHref, router]);
 
@@ -651,7 +653,7 @@ export default function EditDepositForm(props: EditDepositFormProps): JSX.Elemen
           <Button
             type="button"
             variant="outline"
-            onClick={handleDelete}
+            onClick={() => setConfirmDeleteOpen(true)}
             disabled={isSaving || !canDelete}
             className="text-destructive"
           >
@@ -659,6 +661,17 @@ export default function EditDepositForm(props: EditDepositFormProps): JSX.Elemen
           </Button>
         </div>
       </form>
+      <DestructiveActionModal
+        open={confirmDeleteOpen}
+        onOpenChange={(open) => {
+          if (!isSaving) setConfirmDeleteOpen(open);
+        }}
+        title="Delete deposit?"
+        description="This deposit will be permanently removed."
+        confirmLabel={isSaving ? 'Deleting…' : 'Delete'}
+        isProcessing={isSaving}
+        onConfirm={() => void handleDelete()}
+      />
     </div>
   );
 }

@@ -17,6 +17,7 @@ import {
 } from '@/lib/email-template-service';
 import { EmailTemplateUpdateSchema } from '@/types/email-templates';
 import { supabaseAdmin } from '@/lib/db';
+import { requireOrgAdmin } from '@/lib/auth/org-guards';
 
 /**
  * GET /api/email-templates/[id]
@@ -83,18 +84,7 @@ export async function PUT(
     const orgId = await resolveOrgIdFromRequest(request, user.id, supabaseAdmin);
     const { id } = await params;
 
-    // Check user role
-    const { data: membership } = await supabaseAdmin
-      .from('org_memberships')
-      .select('role')
-      .eq('user_id', user.id)
-      .eq('org_id', orgId)
-      .single();
-
-    const role = membership && 'role' in membership ? (membership as { role?: string }).role : undefined;
-    if (!role || !['org_admin', 'org_manager', 'platform_admin'].includes(role)) {
-      return NextResponse.json({ error: 'Forbidden: Admin or Manager role required' }, { status: 403 });
-    }
+    await requireOrgAdmin({ client: supabaseAdmin, userId: user.id, orgId });
 
     const body = await request.json();
     const validated = EmailTemplateUpdateSchema.parse(body);
@@ -205,18 +195,7 @@ export async function DELETE(
     const orgId = await resolveOrgIdFromRequest(request, user.id, supabaseAdmin);
     const { id } = await params;
 
-    // Check user role
-    const { data: membership } = await supabaseAdmin
-      .from('org_memberships')
-      .select('role')
-      .eq('user_id', user.id)
-      .eq('org_id', orgId)
-      .single();
-
-    const role = membership && 'role' in membership ? (membership as { role?: string }).role : undefined;
-    if (!role || !['org_admin', 'org_manager', 'platform_admin'].includes(role)) {
-      return NextResponse.json({ error: 'Forbidden: Admin or Manager role required' }, { status: 403 });
-    }
+    await requireOrgAdmin({ client: supabaseAdmin, userId: user.id, orgId });
 
     const success = await archiveEmailTemplate(orgId, id, user.id);
 

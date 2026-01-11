@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase, supabaseAdmin } from '@/lib/db';
+import { requireAuth } from '@/lib/auth/guards';
 import { getServerSupabaseClient } from '@/lib/supabase-client';
 import { logger } from '@/lib/logger';
 import { getOrgScopedBuildiumEdgeClient } from '@/lib/buildium-edge-client';
@@ -13,6 +14,7 @@ import { Pool, type PoolClient } from 'pg';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database, Json } from '@/types/database';
 import type { BuildiumLease } from '@/types/buildium';
+import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
 
 type ContactRow = Database['public']['Tables']['contacts']['Row'];
 type LeaseContactRow = Database['public']['Tables']['lease_contacts']['Row'];
@@ -563,6 +565,9 @@ async function createContactsForNewPeople(
 
 export async function GET(request: NextRequest) {
   try {
+    const { supabase: serverSupabase, user } = await requireAuth();
+    const orgId = await resolveOrgIdFromRequest(request, user.id, serverSupabase);
+
     const requestUrl = new URL(request.url);
     const { searchParams } = requestUrl;
     const status = searchParams.get('status');
@@ -570,9 +575,13 @@ export async function GET(request: NextRequest) {
     const unitId = searchParams.get('unitId');
 
     const baseSelect = `*, lease_contacts(role, tenants( id, contact:contacts(display_name, first_name, last_name, company_name, is_company) ))`;
-    const db = supabaseAdmin || supabase;
+    const db = serverSupabase;
 
-    let query = db.from('lease').select(baseSelect).order('updated_at', { ascending: false });
+    let query = db
+      .from('lease')
+      .select(baseSelect)
+      .eq('org_id', orgId)
+      .order('updated_at', { ascending: false });
     if (status) query = query.eq('status', status);
     if (propertyId) query = query.eq('property_id', propertyId);
     if (unitId) query = query.eq('unit_id', unitId);
@@ -638,7 +647,8 @@ export async function GET(request: NextRequest) {
       const { data: properties, error: propertyError } = await db
         .from('properties')
         .select('id, name, address_line1, city, state, postal_code')
-        .in('id', propertyIds);
+        .in('id', propertyIds)
+        .eq('org_id', orgId);
       if (propertyError) {
         logger.warn(
           { error: propertyError, propertyIds },
@@ -655,7 +665,8 @@ export async function GET(request: NextRequest) {
       const { data: units, error: unitError } = await db
         .from('units')
         .select('id, unit_number, unit_name')
-        .in('id', unitIds);
+        .in('id', unitIds)
+        .eq('org_id', orgId);
       if (unitError) {
         logger.warn({ error: unitError, unitIds }, 'Failed to load units for lease list');
       } else {
@@ -690,7 +701,8 @@ export async function GET(request: NextRequest) {
             )
           `,
           )
-          .in('lease_id', leaseIds);
+          .in('lease_id', leaseIds)
+          .eq('org_id', orgId);
 
         if (txError) {
           logger.warn({ error: txError }, 'Failed to load lease transactions for balances');
@@ -746,6 +758,17 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(enriched);
   } catch (e) {
+    if (e instanceof Error) {
+      if (e.message === 'UNAUTHENTICATED') {
+        return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+      }
+      if (e.message === 'ORG_CONTEXT_REQUIRED') {
+        return NextResponse.json({ error: 'Organization context required' }, { status: 400 });
+      }
+      if (e.message === 'ORG_FORBIDDEN') {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+    }
     logger.error({ error: e }, 'Error listing leases from DB');
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }

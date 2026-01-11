@@ -108,24 +108,154 @@ export class BuildiumEdgeClient {
 
   async updateTenantInBuildium(id: number, payload: Record<string, unknown>): Promise<EdgeResult<BuildiumTenant>> {
     try {
-      const { data, error } = await supabase.functions.invoke('buildium-sync', {
+      const response = await supabase.functions.invoke('buildium-sync', {
         body: this.withCreds({ entityType: 'tenant', operation: 'update', entityData: { ...payload, Id: id, buildium_tenant_id: id } }),
       })
-      if (error) return { success: false, error: error.message }
-      if (!data?.success) return { success: false, error: data?.error || 'Unknown error' }
+      
+      const { data, error } = response
+      
+      // If there's an error, try to extract the actual error message from the response body
+      if (error) {
+        let errorMessage = 'Edge Function returned a non-2xx status code'
+        
+        // Try to read the error response body using the same pattern as uploadPropertyImage
+        if (error instanceof FunctionsHttpError) {
+          try {
+            const details = await error.context.json()
+            errorMessage = details?.error || details?.message || JSON.stringify(details)
+          } catch (jsonError) {
+            // If JSON parsing fails, try reading as text
+            try {
+              const text = await error.context.text()
+              errorMessage = text || errorMessage
+            } catch (textError) {
+              // If we can't read the body, use the error message
+              errorMessage = error.message || errorMessage
+            }
+          }
+        } else if (data) {
+          // Fallback: check if data contains error information
+          if (typeof data === 'string') {
+            errorMessage = data
+          } else if (data?.error) {
+            errorMessage = typeof data.error === 'string' ? data.error : JSON.stringify(data.error)
+          } else if (data?.message) {
+            errorMessage = String(data.message)
+          }
+        }
+        
+        console.error('Edge function invocation error:', {
+          errorMessage,
+          error: error.message,
+          status: error instanceof FunctionsHttpError ? error.context.status : undefined,
+          payload: { id, ...payload }
+        })
+        
+        return { success: false, error: errorMessage }
+      }
+      
+      // Check if data indicates failure
+      if (!data) {
+        console.error('Edge function returned no data:', { response, payload: { id, ...payload } })
+        return { success: false, error: 'Edge function returned no data' }
+      }
+      
+      if (!data.success) {
+        const errorMessage = data?.error || data?.message || 'Unknown error from edge function'
+        console.error('Edge function returned unsuccessful response:', {
+          errorMessage,
+          data,
+          payload: { id, ...payload }
+        })
+        return { success: false, error: errorMessage }
+      }
+      
       return { success: true, data: data.data }
-    } catch (e) { return { success: false, error: (e as Error).message } }
+    } catch (e) {
+      const errorMessage = e instanceof Error ? e.message : 'Unknown error'
+      console.error('Exception in updateTenantInBuildium:', {
+        error: errorMessage,
+        stack: e instanceof Error ? e.stack : undefined,
+        payload: { id, ...payload }
+      })
+      return { success: false, error: errorMessage }
+    }
   }
 
   async getTenantFromBuildium(id: number): Promise<EdgeResult<BuildiumTenant>> {
     try {
-      const { data, error } = await supabase.functions.invoke('buildium-sync', {
+      const response = await supabase.functions.invoke('buildium-sync', {
         body: this.withCreds({ method: 'GET', entityType: 'tenant', entityId: id }),
       })
-      if (error) return { success: false, error: error.message }
-      if (!data?.success) return { success: false, error: data?.error || 'Unknown error' }
+      
+      const { data, error } = response
+      
+      // If there's an error, try to extract the actual error message from the response body
+      if (error) {
+        let errorMessage = 'Edge Function returned a non-2xx status code'
+        
+        // Try to read the error response body using the same pattern as updateTenantInBuildium
+        if (error instanceof FunctionsHttpError) {
+          try {
+            const details = await error.context.json()
+            errorMessage = details?.error || details?.message || JSON.stringify(details)
+          } catch (jsonError) {
+            // If JSON parsing fails, try reading as text
+            try {
+              const text = await error.context.text()
+              errorMessage = text || errorMessage
+            } catch (textError) {
+              // If we can't read the body, use the error message
+              errorMessage = error.message || errorMessage
+            }
+          }
+        } else if (data) {
+          // Fallback: check if data contains error information
+          if (typeof data === 'string') {
+            errorMessage = data
+          } else if (data?.error) {
+            errorMessage = typeof data.error === 'string' ? data.error : JSON.stringify(data.error)
+          } else if (data?.message) {
+            errorMessage = String(data.message)
+          }
+        }
+        
+        console.error('Edge function getTenant invocation error:', {
+          errorMessage,
+          error: error.message,
+          status: error instanceof FunctionsHttpError ? error.context.status : undefined,
+          tenantId: id
+        })
+        
+        return { success: false, error: errorMessage }
+      }
+      
+      // Check if data indicates failure
+      if (!data) {
+        console.error('Edge function returned no data for getTenant:', { response, tenantId: id })
+        return { success: false, error: 'Edge function returned no data' }
+      }
+      
+      if (!data.success) {
+        const errorMessage = data?.error || data?.message || 'Unknown error from edge function'
+        console.error('Edge function returned unsuccessful response for getTenant:', {
+          errorMessage,
+          data,
+          tenantId: id
+        })
+        return { success: false, error: errorMessage }
+      }
+      
       return { success: true, data: data.data }
-    } catch (e) { return { success: false, error: (e as Error).message } }
+    } catch (e) {
+      const errorMessage = e instanceof Error ? e.message : 'Unknown error'
+      console.error('Exception in getTenantFromBuildium:', {
+        error: errorMessage,
+        stack: e instanceof Error ? e.stack : undefined,
+        tenantId: id
+      })
+      return { success: false, error: errorMessage }
+    }
   }
 
   async listTenantNotesFromBuildium(tenantId: number, params?: { limit?: number; offset?: number; orderby?: string }): Promise<EdgeListResult<BuildiumTenantNote>> {

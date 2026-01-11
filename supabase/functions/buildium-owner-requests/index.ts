@@ -89,7 +89,8 @@ serve(async (req) => {
     if (req.method === 'GET') {
       const qp = new URLSearchParams()
       ;['limit','offset','orderby','status','ownerId','propertyId','unitId','dateFrom','dateTo'].forEach(p => { const v = searchParams.get(p); if (v) qp.append(p, v) })
-      const resp = await fetch(`${baseUrl}/rentals/ownerrequests?${qp.toString()}`, { method: 'GET', headers: { 'Accept': 'application/json', 'x-buildium-client-id': clientId, 'x-buildium-client-secret': clientSecret } })
+      // Header names are case-sensitive per Buildium API documentation
+      const resp = await fetch(`${baseUrl}/rentals/ownerrequests?${qp.toString()}`, { method: 'GET', headers: { 'Accept': 'application/json', 'X-Buildium-Client-Id': clientId, 'X-Buildium-Client-Secret': clientSecret } })
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({}))
         return new Response(JSON.stringify({ error: 'Failed to fetch owner requests', details: err }), { headers: { ...headers, 'Content-Type': 'application/json' }, status: resp.status })
@@ -107,7 +108,8 @@ serve(async (req) => {
 
     if (req.method === 'POST') {
       const body = bodyMaybe
-      const resp = await fetch(`${baseUrl}/rentals/ownerrequests`, { method: 'POST', headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'x-buildium-client-id': clientId, 'x-buildium-client-secret': clientSecret }, body: JSON.stringify(body) })
+      // Header names are case-sensitive per Buildium API documentation
+      const resp = await fetch(`${baseUrl}/rentals/ownerrequests`, { method: 'POST', headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-Buildium-Client-Id': clientId, 'X-Buildium-Client-Secret': clientSecret }, body: JSON.stringify(body) })
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({}))
         return new Response(JSON.stringify({ error: 'Failed to create owner request', details: err }), { headers: { ...headers, 'Content-Type': 'application/json' }, status: resp.status })

@@ -83,12 +83,18 @@ const fetchProfile = async (userId: string) => {
 
 const fetchOrgMemberships = async (userId: string) => {
   const { data, error } = await supabaseAdmin
-    .from('org_memberships')
-    .select('org_id, role')
+    .from('membership_roles')
+    .select('org_id, role_id, roles(name)')
     .eq('user_id', userId)
 
   if (error) throw error
-  return data ?? []
+  return (data ?? []).map((row) => ({
+    org_id: (row as { org_id?: string | null })?.org_id ?? null,
+    role:
+      (row as { roles?: { name?: string | null } | null })?.roles?.name ??
+      (row as { role_id?: string | null })?.role_id ??
+      null,
+  }))
 }
 
 const ensureContact = async (userId: string, payload: ProfilePayload & { email?: string | null }) => {

@@ -674,18 +674,44 @@ export const BuildiumTenantCreateSchema = z.object({
 export const BuildiumTenantUpdateSchema = BuildiumTenantCreateSchema.partial();
 
 // Buildium Tenant Note Create Schema
-export const BuildiumTenantNoteCreateSchema = z.object({
-  Subject: z.string().min(1, 'Subject is required'),
-  Body: z.string().min(1, 'Body is required'),
-  IsPrivate: z.boolean().default(false),
-});
+export const BuildiumTenantNoteCreateSchema = z
+  .object({
+    Subject: z.string().min(1, 'Subject is required'),
+    Note: z.string().min(1, 'Note is required').optional(),
+    Body: z.string().min(1, 'Body is required').optional(),
+    IsPrivate: z.boolean().default(false),
+  })
+  .superRefine((value, ctx) => {
+    const note = (value.Note ?? value.Body ?? '').trim();
+    if (!note) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Note is required',
+        path: ['Note'],
+      });
+    }
+  })
+  .transform(({ Subject, Note, Body, IsPrivate }) => {
+    const note = (Note ?? Body ?? '').trim();
+    return { Subject, Note: note, IsPrivate };
+  });
 
 // Buildium Tenant Note Update Schema
-export const BuildiumTenantNoteUpdateSchema = z.object({
-  Subject: z.string().min(1, 'Subject is required').optional(),
-  Body: z.string().min(1, 'Body is required').optional(),
-  IsPrivate: z.boolean().optional(),
-});
+export const BuildiumTenantNoteUpdateSchema = z
+  .object({
+    Subject: z.string().min(1, 'Subject is required').optional(),
+    Note: z.string().min(1, 'Note is required').optional(),
+    Body: z.string().min(1, 'Body is required').optional(),
+    IsPrivate: z.boolean().optional(),
+  })
+  .transform(({ Subject, Note, Body, IsPrivate }) => {
+    const payload: Record<string, unknown> = {};
+    if (Subject !== undefined) payload.Subject = Subject;
+    const note = (Note ?? Body)?.trim();
+    if (note !== undefined) payload.Note = note;
+    if (IsPrivate !== undefined) payload.IsPrivate = IsPrivate;
+    return payload;
+  });
 
 // Buildium Lease Creation Schema
 // Based on: https://developer.buildium.com/#tag/Leases

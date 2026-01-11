@@ -1,6 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database'
 import type { AppRole } from '@/lib/auth/roles'
+import { supabaseAdminMaybe } from '@/lib/db'
+
+const ADMIN_ROLE_SET = new Set<AppRole>(['org_admin', 'org_manager', 'platform_admin'])
 
 type Client = SupabaseClient<Database, 'public', any>
 
@@ -103,18 +106,74 @@ export async function requireOrgAdmin(params: {
   client: Client
   userId: string
   orgId: string
+  orgRoles?: Record<string, AppRole[]>
+  roles?: AppRole[]
+  adminClient?: Client
 }) {
-  const { client, userId, orgId } = params
-  const { data, error } = await client
-    .from('org_memberships')
-    .select('role')
-    .eq('user_id', userId)
-    .eq('org_id', orgId)
-    .maybeSingle()
-  if (error) throw new Error(error.message)
-  const role = data?.role as AppRole | undefined
-  if (!role || !['org_admin', 'org_manager', 'platform_admin'].includes(role)) {
-    throw new Error('ORG_FORBIDDEN')
+  const { client, userId, orgId, orgRoles, roles: claimedRoles, adminClient } = params
+
+  const collected = new Set<AppRole>()
+  const addRoles = (list: (AppRole | null | undefined)[]) => {
+    list.forEach((role) => {
+      if (role && ADMIN_ROLE_SET.has(role)) collected.add(role)
+    })
   }
-  return { orgId, role }
+
+  const orgClaimRoles = orgRoles?.[orgId] ?? []
+  addRoles(orgClaimRoles)
+  if (collected.size) {
+    const role = collected.values().next().value as AppRole
+    return { orgId, role, roles: Array.from(collected) }
+  }
+
+  addRoles(claimedRoles ?? [])
+  if (collected.size) {
+    const role = collected.values().next().value as AppRole
+    return { orgId, role, roles: Array.from(collected) }
+  }
+
+  const fetchRoles = async (supabaseClient: Client) => {
+    try {
+      const { data, error } = await supabaseClient
+        .from('membership_roles')
+        .select('role_id, roles(name)')
+        .eq('user_id', userId)
+        .eq('org_id', orgId)
+      if (error) throw error
+      return (
+        data?.map((row: { role_id?: string | null; roles?: { name?: string | null } | null }) => {
+          const roleName = row?.roles?.name ?? row?.role_id
+          return typeof roleName === 'string' ? (roleName as AppRole) : null
+        }).filter(Boolean) ?? []
+      )
+    } catch (error) {
+      console.warn('requireOrgAdmin: failed to load membership roles', error)
+      return []
+    }
+  }
+
+  const candidates: AppRole[] = []
+
+  const maybeAddFromClient = async (supabaseClient: Client | undefined) => {
+    if (!supabaseClient) return
+    const fetched = await fetchRoles(supabaseClient)
+    fetched.forEach((role) => {
+      if (role) {
+        candidates.push(role)
+        if (ADMIN_ROLE_SET.has(role)) collected.add(role)
+      }
+    })
+  }
+
+  await maybeAddFromClient(client)
+  if (!collected.size) {
+    await maybeAddFromClient(adminClient)
+  }
+  if (!collected.size && supabaseAdminMaybe && supabaseAdminMaybe !== client && supabaseAdminMaybe !== adminClient) {
+    await maybeAddFromClient(supabaseAdminMaybe)
+  }
+
+  const adminRole = collected.values().next().value as AppRole | undefined
+  if (!adminRole) throw new Error('ORG_FORBIDDEN')
+  return { orgId, role: adminRole, roles: candidates.length ? candidates : Array.from(collected) }
 }

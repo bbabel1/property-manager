@@ -1,17 +1,7 @@
 'use client';
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-// import { Textarea } from '@/components/ui/textarea'
 import {
   Table,
   TableBody,
@@ -28,19 +18,28 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Mail, Trash2, Download, Eye } from 'lucide-react';
 import ActionButton from '@/components/ui/ActionButton';
-import { CheckCircle2 } from 'lucide-react';
+import TenantFileUploadDialog, { TenantFileRow } from '@/components/tenants/TenantFileUploadDialog';
+import { fetchWithSupabaseAuth } from '@/lib/supabase/fetch';
 
-interface TenantFileRow {
-  id: string;
-  title: string;
-  category: string;
-  description: string | null;
-  uploadedAt: Date;
-  uploadedBy: string;
-}
+type ListedFile = TenantFileRow & { href: string | null };
+type FileApiRow = {
+  id?: string | number;
+  title?: string | null;
+  file_name?: string | null;
+  category_name?: string | null;
+  description?: string | null;
+  created_at?: string | null;
+  created_by?: string | null;
+  buildium_href?: string | null;
+  external_url?: string | null;
+  bucket?: string | null;
+  storage_key?: string | null;
+};
 
 interface TenantFilesPanelProps {
   tenantId?: string | null;
+  buildiumTenantId?: number | null;
+  orgId?: string | null;
   uploaderName?: string | null;
   initialFiles?: TenantFileRow[];
 }
@@ -57,74 +56,96 @@ const formatDateTime = (date: Date): string =>
   }).format(date);
 
 export default function TenantFilesPanel({
-  tenantId: _tenantId,
+  tenantId: tenantIdProp,
+  buildiumTenantId = null,
+  orgId = null,
   uploaderName = 'Team member',
   initialFiles = [],
 }: TenantFilesPanelProps) {
-  const [files, setFiles] = useState<TenantFileRow[]>(initialFiles);
+  const tenantId = tenantIdProp ?? null;
+  const [files, setFiles] = useState<ListedFile[]>(
+    (initialFiles ?? []).map((file) => ({ ...file, href: file.href ?? null })),
+  );
   const [isOpen, setIsOpen] = useState(false);
-  const [step, setStep] = useState<'select' | 'details'>('select');
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [title, setTitle] = useState('');
-  const [category, setCategory] = useState(DEFAULT_CATEGORY);
-  const [description, setDescription] = useState('');
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const matchesLabel = useMemo(() => {
     const count = files.length;
     return `${count} match${count === 1 ? '' : 'es'}`;
   }, [files.length]);
 
-  const resetState = useCallback(() => {
-    setStep('select');
-    setSelectedFile(null);
-    setTitle('');
-    setCategory(DEFAULT_CATEGORY);
-    setDescription('');
+  const resolveHref = useCallback((file: FileApiRow): string | null => {
+    if (typeof file?.buildium_href === 'string' && file.buildium_href.trim()) {
+      return file.buildium_href;
+    }
+    if (typeof file?.external_url === 'string' && file.external_url.trim()) {
+      return file.external_url;
+    }
+    if (file?.bucket && file?.storage_key && process.env.NEXT_PUBLIC_SUPABASE_URL) {
+      const base = process.env.NEXT_PUBLIC_SUPABASE_URL.replace(/\/$/, '');
+      return `${base}/storage/v1/object/${file.bucket}/${file.storage_key}`;
+    }
+    return null;
   }, []);
 
-  const closeModal = useCallback(() => {
-    setIsOpen(false);
-    resetState();
-  }, [resetState]);
+  const loadFiles = useCallback(async () => {
+    if (!orgId || !buildiumTenantId) {
+      setFiles([]);
+      return;
+    }
+    try {
+      setLoading(true);
+      setError(null);
+      const url = `/api/files?entityType=Tenants&entityId=${buildiumTenantId}&orgId=${orgId}`;
+      let res: Response;
+      try {
+        res = await fetchWithSupabaseAuth(url, { cache: 'no-store' });
+      } catch {
+        res = await fetch(url, { cache: 'no-store', credentials: 'include' });
+      }
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || json?.error) {
+        throw new Error(json?.error || 'Failed to load files');
+      }
+      const rows: FileApiRow[] = Array.isArray(json?.data) ? json.data : [];
+      const mapped: ListedFile[] = rows.map((file) => ({
+        id: String(file.id),
+        title: file.title || file.file_name || 'File',
+        category: file.category_name || DEFAULT_CATEGORY,
+        description: file.description || null,
+        uploadedAt: new Date(file.created_at || Date.now()),
+        uploadedBy: file.created_by || '—',
+        href: resolveHref(file),
+      }));
+      setFiles(mapped);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to load files';
+      setError(message);
+      setFiles([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [buildiumTenantId, orgId, resolveHref]);
 
-  const openModal = () => {
-    setIsOpen(true);
-    resetState();
+  useEffect(() => {
+    void loadFiles();
+  }, [loadFiles]);
+
+  const handleSaved = useCallback(() => {
+    void loadFiles();
+  }, [loadFiles]);
+
+  const handleDownload = (file: ListedFile) => {
+    if (!file.href) return;
+    window.open(file.href, '_blank', 'noopener,noreferrer');
   };
 
-  const handleFiles = (fileList: FileList | null) => {
-    if (!fileList || !fileList.length) return;
-    const file = fileList[0];
-    setSelectedFile(file);
-    setTitle(file.name);
-    setStep('details');
-  };
-
-  const onFileInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    handleFiles(event.target.files);
-  };
-
-  const onDrop = (event: React.DragEvent<HTMLLabelElement>) => {
-    event.preventDefault();
-    handleFiles(event.dataTransfer.files);
-  };
-
-  const saveFile = () => {
-    if (!selectedFile) return;
-    const id =
-      typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`;
-    const newRow: TenantFileRow = {
-      id,
-      title: title.trim() || selectedFile.name,
-      category: category.trim() || DEFAULT_CATEGORY,
-      description: description.trim() || null,
-      uploadedAt: new Date(),
-      uploadedBy: uploaderName || 'Team member',
-    };
-    setFiles((prev) => [newRow, ...prev]);
-    closeModal();
-  };
+  const emptyCopy = useMemo(() => {
+    if (!orgId) return 'Files require an organization context.';
+    if (!buildiumTenantId) return 'Files require a Buildium tenant id.';
+    return "You don't have any files for this tenant right now.";
+  }, [buildiumTenantId, orgId]);
 
   return (
     <div className="space-y-4">
@@ -142,7 +163,7 @@ export default function TenantFilesPanel({
             </button>
           </div>
           <div className="flex items-center gap-3">
-            <Button type="button" onClick={openModal}>
+            <Button type="button" onClick={() => setIsOpen(true)} disabled={!tenantId}>
               Upload file
             </Button>
             <Button variant="outline" type="button">
@@ -152,13 +173,18 @@ export default function TenantFilesPanel({
         </div>
         <div className="text-muted-foreground px-4 py-3 text-xs">{matchesLabel}</div>
 
-        {files.length === 0 ? (
+        {loading ? (
+          <div className="border-border text-muted-foreground border-t px-4 py-6 text-center text-sm">
+            Loading files…
+          </div>
+        ) : files.length === 0 ? (
           <div className="border-border text-muted-foreground border-t px-4 py-6 text-sm">
-            You don't have any files for this tenant right now.{' '}
+            {emptyCopy}{' '}
             <button
               type="button"
-              onClick={openModal}
+              onClick={() => setIsOpen(true)}
               className="text-primary align-baseline text-sm font-normal hover:underline"
+              disabled={!tenantId}
             >
               Upload your first file.
             </button>
@@ -185,7 +211,7 @@ export default function TenantFilesPanel({
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <div className="border-muted-foreground/40 bg-muted/40 text-muted-foreground flex h-10 w-10 items-center justify-center rounded-md border border-dashed text-xs font-semibold">
-                          PDF
+                          {file.title?.split('.').pop() || 'FILE'}
                         </div>
                         <div className="space-y-1">
                           <div className="text-foreground font-medium">{file.title}</div>
@@ -213,10 +239,22 @@ export default function TenantFilesPanel({
                           <DropdownMenuItem>
                             <Mail className="mr-2 h-4 w-4" /> Email
                           </DropdownMenuItem>
-                          <DropdownMenuItem>
+                          <DropdownMenuItem
+                            disabled={!file.href}
+                            onSelect={(event) => {
+                              event.preventDefault();
+                              handleDownload(file);
+                            }}
+                          >
                             <Download className="mr-2 h-4 w-4" /> Download
                           </DropdownMenuItem>
-                          <DropdownMenuItem>
+                          <DropdownMenuItem
+                            disabled={!file.href}
+                            onSelect={(event) => {
+                              event.preventDefault();
+                              handleDownload(file);
+                            }}
+                          >
                             <Eye className="mr-2 h-4 w-4" /> View
                           </DropdownMenuItem>
                         </DropdownMenuContent>
@@ -228,107 +266,16 @@ export default function TenantFilesPanel({
             </Table>
           </div>
         )}
+        {error ? <div className="text-destructive px-4 py-2 text-sm">{error}</div> : null}
       </div>
 
-      <Dialog open={isOpen} onOpenChange={(value) => (value ? setIsOpen(true) : closeModal())}>
-        <DialogContent className="top-[35%] w-[680px] max-w-[680px] translate-y-[-35%]">
-          <DialogHeader>
-            <DialogTitle>Upload File</DialogTitle>
-            <DialogDescription>
-              {step === 'select'
-                ? 'Choose a file to upload to this tenant record.'
-                : 'Review file details before saving.'}
-            </DialogDescription>
-          </DialogHeader>
-
-          {step === 'select' ? (
-            <div className="space-y-4">
-              <label
-                onDrop={onDrop}
-                onDragOver={(event) => event.preventDefault()}
-                className="border-muted-foreground/40 bg-muted/40 text-muted-foreground hover:border-primary hover:text-primary flex h-40 cursor-pointer items-center justify-center rounded-md border-2 border-dashed text-sm transition"
-              >
-                <div className="text-center">
-                  Drag &amp; drop files here or{' '}
-                  <span className="text-primary underline">Browse</span>
-                </div>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  className="hidden"
-                  onChange={onFileInputChange}
-                  accept="application/pdf,image/*"
-                />
-              </label>
-              <div className="text-muted-foreground text-xs">
-                Supported formats include PDF and common image types. Maximum size 25 MB.
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="overflow-hidden rounded-md border">
-                <div className="bg-muted/60 text-muted-foreground grid grid-cols-12 text-xs font-semibold tracking-wide uppercase">
-                  <div className="col-span-4 px-4 py-2">Title</div>
-                  <div className="col-span-3 px-4 py-2">Category</div>
-                  <div className="col-span-5 px-4 py-2">Description</div>
-                </div>
-                <div className="bg-background grid grid-cols-12 items-center gap-3 border-t px-3 py-3">
-                  <div className="col-span-4 flex items-center gap-3">
-                    <CheckCircle2 className="h-5 w-5 text-[var(--color-action-600)]" />
-                    <Input
-                      id="tenant-file-title"
-                      value={title}
-                      onChange={(event) => setTitle(event.target.value)}
-                    />
-                  </div>
-                  <div className="col-span-3">
-                    <select
-                      id="tenant-file-category"
-                      value={category}
-                      onChange={(event) => setCategory(event.target.value)}
-                      className="border-input bg-background focus-visible:ring-primary w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:outline-none"
-                      aria-label="Select file category"
-                    >
-                      <option value="Uncategorized">Uncategorized</option>
-                      <option value="Lease">Lease</option>
-                      <option value="Statement">Statement</option>
-                      <option value="Other">Other</option>
-                    </select>
-                  </div>
-                  <div className="col-span-5">
-                    <Input
-                      id="tenant-file-description"
-                      value={description}
-                      onChange={(event) => setDescription(event.target.value)}
-                      placeholder="Add an optional description"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <DialogFooter className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-            {step === 'details' ? (
-              <>
-                <Button type="button" onClick={saveFile}>
-                  Save
-                </Button>
-                <Button type="button" variant="secondary" onClick={saveFile}>
-                  Save and share
-                </Button>
-                <Button type="button" variant="ghost" onClick={closeModal}>
-                  Cancel
-                </Button>
-              </>
-            ) : (
-              <Button type="button" variant="ghost" onClick={closeModal}>
-                Cancel
-              </Button>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <TenantFileUploadDialog
+        open={isOpen}
+        onOpenChange={setIsOpen}
+        tenantId={tenantId}
+        uploaderName={uploaderName || undefined}
+        onSaved={handleSaved}
+      />
     </div>
   );
 }

@@ -76,6 +76,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       .from('properties')
       .select('*')
       .eq('id', id)
+      .eq('org_id', orgId)
       .single<PropertyRow>();
     if (propErr || !property) {
       return NextResponse.json({ error: 'Property not found' }, { status: 404 });
@@ -91,6 +92,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         .from('gl_accounts')
         .select('id, buildium_gl_account_id, is_bank_account')
         .eq('id', operatingGlId)
+        .eq('org_id', orgId)
         .maybeSingle();
 
       if (gl) {
@@ -117,13 +119,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       const { data: ownerships } = await db
         .from('ownerships')
         .select('owner_id')
-        .eq('property_id', id);
+        .eq('property_id', id)
+        .eq('org_id', orgId);
       const ownerIds = (ownerships || []).map((o) => String(o.owner_id));
       if (ownerIds.length) {
         const { data: owners } = await db
           .from('owners')
           .select('*, contacts!inner(*)')
-          .in('id', ownerIds);
+          .in('id', ownerIds)
+          .eq('org_id', orgId);
         for (const rawOwner of owners || []) {
           const owner = rawOwner as OwnerRow;
           const contactSource = Array.isArray(owner.contacts)

@@ -78,8 +78,9 @@ class BuildiumClient {
       'Content-Type': 'application/json',
       Accept: 'application/json',
       // Buildium Open API authentication (client id + secret headers).
-      'x-buildium-client-id': this.clientId,
-      'x-buildium-client-secret': this.clientSecret,
+      // Header names are case-sensitive per Buildium API documentation
+      'X-Buildium-Client-Id': this.clientId,
+      'X-Buildium-Client-Secret': this.clientSecret,
     };
 
     const response = await fetch(url, { method, headers });

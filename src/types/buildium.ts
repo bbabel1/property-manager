@@ -1323,11 +1323,13 @@ export interface BuildiumTenantNote {
   Note?: string;
   CreatedDateTime?: string;
   LastUpdatedDateTime?: string;
+  IsPrivate?: boolean;
 }
 
 export interface BuildiumTenantNoteCreate {
   Subject: string;
   Note: string;
+  IsPrivate?: boolean;
 }
 
 export type BuildiumTenantNoteUpdate = Partial<BuildiumTenantNoteCreate>;

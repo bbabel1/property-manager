@@ -59,15 +59,24 @@ export async function POST(request: Request) {
     }
 
     const { data: memberships, error: membershipError } = await supabaseAdmin
-      .from('org_memberships')
-      .select('org_id, role')
+      .from('membership_roles')
+      .select('org_id, role_id, roles(name)')
       .eq('user_id', user.id)
     if (membershipError) {
       console.error('Membership fetch failed', membershipError)
       return NextResponse.json({ error: membershipError.message }, { status: 500 })
     }
 
-    return NextResponse.json({ profile, memberships })
+    const normalizedMemberships =
+      memberships?.map((row) => ({
+        org_id: (row as { org_id?: string | null })?.org_id ?? null,
+        role:
+          (row as { roles?: { name?: string | null } | null })?.roles?.name ??
+          (row as { role_id?: string | null })?.role_id ??
+          null,
+      })) ?? []
+
+    return NextResponse.json({ profile, memberships: normalizedMemberships })
   } catch (error) {
     console.error('Avatar upload error', error)
     return NextResponse.json(

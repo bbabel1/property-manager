@@ -4,6 +4,7 @@ import { Trash2 } from 'lucide-react';
 import { fetchWithSupabaseAuth } from '@/lib/supabase/fetch';
 import { toast } from 'sonner';
 import { cn } from '@/components/ui/utils';
+import DestructiveActionModal from '@/components/common/DestructiveActionModal';
 
 export interface BulkActionsBarProps {
   selectedFiles: Set<string>;
@@ -21,11 +22,10 @@ export function BulkActionsBar({
   className,
 }: BulkActionsBarProps) {
   const [isDeleting, setIsDeleting] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const handleBulkDelete = async () => {
     if (selectedFiles.size === 0 || isDeleting) return;
-    const confirmed = window.confirm(`Delete ${selectedFiles.size} selected file(s)?`);
-    if (!confirmed) return;
 
     setIsDeleting(true);
     const fileIds = Array.from(selectedFiles);
@@ -85,29 +85,51 @@ export function BulkActionsBar({
       : 'bg-primary/5 border-primary/20 flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between';
 
   return (
-    <div
-      className={cn(containerClass, className)}
-      role="region"
-      aria-label="Bulk actions"
-    >
-      <div className="text-primary text-sm font-medium">
-        {selectedFiles.size} {selectedFiles.size === 1 ? 'file' : 'files'} selected
+    <>
+      <div
+        className={cn(containerClass, className)}
+        role="region"
+        aria-label="Bulk actions"
+      >
+        <div className="text-primary text-sm font-medium">
+          {selectedFiles.size} {selectedFiles.size === 1 ? 'file' : 'files'} selected
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setConfirmOpen(true)}
+            disabled={isDeleting}
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            {isDeleting ? 'Deleting…' : 'Delete Selected'}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onSelectionChange(new Set())}
+            disabled={isDeleting}
+          >
+            Clear Selection
+          </Button>
+        </div>
       </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <Button variant="outline" size="sm" onClick={handleBulkDelete} disabled={isDeleting}>
-          <Trash2 className="mr-2 h-4 w-4" />
-          {isDeleting ? 'Deleting…' : 'Delete Selected'}
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => onSelectionChange(new Set())}
-          disabled={isDeleting}
-        >
-          Clear Selection
-        </Button>
-      </div>
-    </div>
+
+      <DestructiveActionModal
+        open={confirmOpen}
+        onOpenChange={(open) => {
+          if (!isDeleting) setConfirmOpen(open);
+        }}
+        title="Delete selected files?"
+        description={`This will permanently delete ${selectedFiles.size} file${selectedFiles.size === 1 ? '' : 's'}.`}
+        confirmLabel={isDeleting ? 'Deleting…' : 'Delete'}
+        isProcessing={isDeleting}
+        onConfirm={async () => {
+          await handleBulkDelete();
+          setConfirmOpen(false);
+        }}
+      />
+    </>
   );
 }
 

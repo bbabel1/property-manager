@@ -62,7 +62,8 @@
     "verify:bank-cutover": "tsx scripts/verify-bank-cutover.ts",
     "verify:bank-cutover:accounts": "tsx scripts/verify-bank-cutover.ts verify_bank_accounts_backfill",
     "verify:bank-cutover:properties": "tsx scripts/verify-bank-cutover.ts verify_property_links",
-    "verify:bank-cutover:payload": "tsx scripts/verify-bank-cutover.ts verify_buildium_payload_shape"
+    "verify:bank-cutover:payload": "tsx scripts/verify-bank-cutover.ts verify_buildium_payload_shape",
+    "check:rls": "tsx scripts/check-rls-policies.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

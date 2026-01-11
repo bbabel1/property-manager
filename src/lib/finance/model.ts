@@ -440,7 +440,7 @@ export function rollupFinances(params: FinanceRollupParams): FinanceRollupResult
   let depositsHeld = baseDeposits;
   let prepayments = basePrepayments;
   let usedBankBalance = false;
-  let usedArFallback = false;
+  const usedArFallback = false;
 
   if (depositTotal) depositsHeld = depositTotal;
   if (prepayTotal) prepayments = prepayTotal;

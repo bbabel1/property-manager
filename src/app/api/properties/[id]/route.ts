@@ -74,57 +74,20 @@ export async function PUT(
       error: membershipRolesError,
     } = await adminClient
       .from('membership_roles')
-      .select('org_id, role_id')
+      .select('org_id, role_id, roles(name)')
       .eq('user_id', user.id)
 
     if (membershipRolesError) {
       console.error('Error loading membership roles for property update:', membershipRolesError)
     }
 
-    const fetchOrgMemberships = async () => {
-      try {
-        const query = adminClient
-          .from('org_memberships')
-          .select('org_id, role')
-          .eq('user_id', user.id)
-        if (typeof (query as any)?.maybeSingle === 'function') {
-          const { data, error } = await (query as any).maybeSingle()
-          if (error) return { data: [], error }
-          return { data: data ? [data] : [], error: null }
-        }
-        if (typeof (query as any)?.then === 'function') {
-          return (await query) as { data?: any[]; error?: any }
-        }
-        return { data: [], error: null }
-      } catch (error) {
-        return { data: [], error }
-      }
-    }
-
-    const resolvedMembershipRecords =
-      membershipRoles && membershipRoles.length > 0
-        ? membershipRoles
-        : (() => {
-            return fetchOrgMemberships().then(({ data, error }) => {
-              if (error) {
-                console.error('Error loading org memberships for property update:', error)
-                return []
-              }
-              return (data || []).map((m: any) => ({
-                org_id: m?.org_id ?? null,
-                role_id: m?.role ?? m?.role_id ?? null,
-              }))
-            })
-          })()
-
     const rolesByOrg = new Map<string, string[]>()
-    const membershipRows =
-      resolvedMembershipRecords instanceof Promise
-        ? await resolvedMembershipRecords
-        : resolvedMembershipRecords
+    const membershipRows = membershipRoles ?? []
 
     for (const row of membershipRows || []) {
-      const roleName = (row as { role_id?: string | null }).role_id
+      const roleName =
+        (row as { roles?: { name?: string | null } | null })?.roles?.name ??
+        (row as { role_id?: string | null }).role_id
       if (row?.org_id && roleName) {
         const list = rolesByOrg.get(row.org_id) ?? []
         rolesByOrg.set(row.org_id, [...list, String(roleName)])

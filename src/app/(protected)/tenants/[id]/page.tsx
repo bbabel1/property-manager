@@ -25,6 +25,7 @@ import {
   NavTabsTrigger,
   NavTabsContent,
 } from '@/components/ui/nav-tabs';
+import { resolveLeaseBalances } from '@/lib/lease-balance';
 
 type ContactDetails = {
   first_name?: string | null;
@@ -82,6 +83,93 @@ type LeaseContactRow = {
         property_id: string | number | null;
         unit_id: string | number | null;
       }>;
+};
+
+type UnknownRow = Record<string, any>;
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
+
+const toNumber = (value: unknown): number | null => {
+  const num = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(num) ? num : null;
+};
+
+const extractTransactionLines = (tx: unknown) => {
+  if (!isRecord(tx)) return [];
+  const candidates = [
+    (tx as { transaction_lines?: unknown[] }).transaction_lines,
+    (tx as { Lines?: unknown[] }).Lines,
+    (tx as { Journal?: { Lines?: unknown[] | null } }).Journal?.Lines,
+  ];
+  const lines = candidates.find((c) => Array.isArray(c) && c.length) as unknown[] | undefined;
+  return Array.isArray(lines) ? lines.filter(Boolean) : [];
+};
+
+const normalizePostingType = (line: unknown) => {
+  if (!isRecord(line)) return '';
+  const raw =
+    line.posting_type ??
+    line.PostingType ??
+    line.LineType ??
+    line.postingType ??
+    line.posting_type_enum ??
+    '';
+  return typeof raw === 'string' ? raw.toLowerCase() : '';
+};
+
+const normalizeTransactionType = (tx: unknown) => {
+  if (!isRecord(tx)) return '';
+  const raw =
+    (tx as { TransactionTypeEnum?: unknown })?.TransactionTypeEnum ??
+    (tx as { TransactionType?: unknown })?.TransactionType ??
+    (tx as { transaction_type?: unknown })?.transaction_type ??
+    (tx as { type?: unknown })?.type ??
+    '';
+  return typeof raw === 'string' ? raw.toLowerCase() : '';
+};
+
+const isChargeLikeTransaction = (type: string) => {
+  const normalized = type.toLowerCase();
+  return normalized.includes('charge') || normalized.includes('invoice') || normalized.includes('bill');
+};
+
+const pickString = (obj: UnknownRow | null | undefined, keys: string[]) => {
+  if (!obj) return '';
+  for (const key of keys) {
+    const val = obj[key];
+    if (typeof val === 'string') return val;
+  }
+  return '';
+};
+
+const extractAccountFromLine = (line: unknown) => {
+  if (!isRecord(line)) {
+    return {
+      account: null,
+      displayName: '',
+      name: '',
+      type: '',
+      subType: '',
+      isDeposit: false,
+    };
+  }
+  const accountRaw =
+    (line.gl_accounts && isRecord(line.gl_accounts) ? line.gl_accounts : null) ||
+    (line.GLAccount && isRecord(line.GLAccount) ? line.GLAccount : null) ||
+    (line.Account && isRecord(line.Account) ? line.Account : null);
+  const rawName = pickString(accountRaw, ['name', 'Name']);
+  const rawType = pickString(accountRaw, ['type', 'Type']);
+  const rawSubType = pickString(accountRaw, ['sub_type', 'SubType']);
+
+  return {
+    account: accountRaw,
+    displayName: rawName || '',
+    name: rawName.toLowerCase(),
+    type: rawType.toLowerCase(),
+    subType: rawSubType.toLowerCase(),
+    isDeposit: Boolean(accountRaw && isRecord(accountRaw) && accountRaw.is_security_deposit_liability),
+  };
 };
 
 function fmtDate(value?: string | null) {
@@ -272,6 +360,97 @@ export default async function TenantDetailsPage({ params }: { params: Promise<{ 
         .filter(Boolean)
         .join(', ')} ${contactInfo?.primary_postal_code || ''}`.trim();
 
+  let primaryLeaseBalances = { balance: 0, prepayments: 0, depositsHeld: 0 };
+  if (primaryLease?.id != null) {
+    try {
+      const { data: txRows } = await db
+        .from('transactions')
+        .select(
+          `
+          id,
+          transaction_type,
+          total_amount,
+          tenant_id,
+          transaction_lines (
+            amount,
+            posting_type,
+            gl_account_id,
+            gl_accounts ( id, name, type, sub_type, is_security_deposit_liability )
+          )
+        `,
+        )
+        .eq('lease_id', primaryLease.id);
+
+      const transactions = (Array.isArray(txRows) ? txRows : []) as UnknownRow[];
+
+      let balances = resolveLeaseBalances(
+        { balance: 0, prepayments: 0, depositsHeld: 0 },
+        transactions,
+      );
+
+      const needsDeposits = !balances.depositsHeld;
+      const needsPrepayments = !balances.prepayments;
+
+      if ((needsDeposits || needsPrepayments) && transactions.length) {
+        let depositBalance = 0;
+        let prepaymentBalance = 0;
+
+        const readAmount = (line: unknown) => {
+          if (!isRecord(line)) return 0;
+          const val = line.amount ?? (isRecord(line) ? line.Amount : null);
+          return toNumber(val) ?? 0;
+        };
+
+        for (const tx of transactions) {
+          const lines = extractTransactionLines(tx);
+          if (!lines.length) continue;
+          const txType = normalizeTransactionType(tx);
+          const isChargeLike = isChargeLikeTransaction(txType);
+
+          for (const line of lines) {
+            const amountRaw = readAmount(line);
+            const amount = Math.abs(amountRaw);
+            if (!amount) continue;
+
+            const postingType = normalizePostingType(line);
+            const isCredit = postingType === 'credit' || postingType === 'cr';
+            const signed = postingType ? (isCredit ? amount : -amount) : amountRaw;
+
+            const { name, type, subType, isDeposit } = extractAccountFromLine(line);
+            const depositFlag =
+              isDeposit ||
+              (type === 'liability' && (name.includes('deposit') || subType.includes('deposit')));
+            if (depositFlag) {
+              if (!isChargeLike) depositBalance += signed;
+              continue;
+            }
+
+            const prepayFlag =
+              name.includes('prepay') ||
+              subType.includes('prepay') ||
+              (type === 'liability' && !depositFlag);
+            if (prepayFlag && !isChargeLike) prepaymentBalance += signed;
+          }
+        }
+
+        if (needsDeposits && depositBalance) {
+          balances = { ...balances, depositsHeld: depositBalance };
+        }
+        if (needsPrepayments && prepaymentBalance) {
+          balances = { ...balances, prepayments: prepaymentBalance };
+        }
+      }
+
+      primaryLeaseBalances = balances;
+    } catch (err) {
+      console.error('Failed to load primary lease balances for tenant', {
+        tenantId: id,
+        leaseId: primaryLease.id,
+        error: err,
+      });
+    }
+  }
+
   return (
     <NavTabs defaultValue="summary" className="space-y-6 p-6">
       <div className="flex items-start justify-between">
@@ -360,15 +539,19 @@ export default async function TenantDetailsPage({ params }: { params: Promise<{ 
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-foreground">Balance:</span>
-                      <span className="text-foreground font-semibold">{fmtUsd(0)}</span>
+                      <span className="text-foreground font-semibold">
+                        {fmtUsd(primaryLeaseBalances.balance)}
+                      </span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-foreground">Prepayments:</span>
-                      <span className="font-medium">{fmtUsd(0)}</span>
+                      <span className="font-medium">{fmtUsd(primaryLeaseBalances.prepayments)}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-foreground">Deposits held:</span>
-                      <span className="font-medium">{fmtUsd(0)}</span>
+                      <span className="font-medium">
+                        {fmtUsd(Math.abs(primaryLeaseBalances.depositsHeld))}
+                      </span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-foreground">Rent:</span>

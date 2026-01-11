@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowRight } from 'lucide-react';
+import { toast } from 'sonner';
 import TransactionDetailShell from '@/components/transactions/TransactionDetailShell';
 import WithholdDepositForm from '@/components/leases/WithholdDepositForm';
 import EditTransactionForm from '@/components/leases/EditTransactionForm';
@@ -29,6 +30,7 @@ import {
 import { formatCurrency, getTransactionTypeLabel } from '@/lib/transactions/formatting';
 import type { LeaseAccountOption, LeaseTenantOption } from '@/components/leases/types';
 import type { BuildiumLeaseTransaction } from '@/types/buildium';
+import DestructiveActionModal from '@/components/common/DestructiveActionModal';
 
 type LedgerDetailLine = {
   Amount?: unknown;
@@ -113,6 +115,8 @@ export default function LeaseLedgerPanel({
     | { status: 'error'; row: LedgerRow | null; message: string }
     | { status: 'ready'; row: LedgerRow; detail: LedgerDetail }
   >({ status: 'idle', row: null });
+  const [pendingDeleteRow, setPendingDeleteRow] = useState<LedgerRow | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const overlayActive = mode !== 'none';
   const detailOpen = detailState.status !== 'idle';
@@ -257,14 +261,11 @@ export default function LeaseLedgerPanel({
 
   const rowIsCharge = (row: LedgerRow) => String(row.type || '').toLowerCase().includes('charge');
 
-  const handleDeleteTransaction = async (row: LedgerRow) => {
-    const txParam = getTransactionReference(row);
+  const handleDeleteTransaction = useCallback(async () => {
+    if (!pendingDeleteRow) return;
+    const txParam = getTransactionReference(pendingDeleteRow);
     if (!txParam) return;
-    const confirmed =
-      typeof window !== 'undefined'
-        ? window.confirm('Delete this transaction? This cannot be undone.')
-        : true;
-    if (!confirmed) return;
+    setIsDeleting(true);
     try {
       const res = await fetch(
         `/api/leases/${leaseId}/transactions/${encodeURIComponent(txParam)}`,
@@ -277,9 +278,12 @@ export default function LeaseLedgerPanel({
       closeDetailDialog();
       router.refresh();
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Failed to delete transaction');
+      toast.error(e instanceof Error ? e.message : 'Failed to delete transaction');
+    } finally {
+      setIsDeleting(false);
+      setPendingDeleteRow(null);
     }
-  };
+  }, [closeDetailDialog, leaseId, pendingDeleteRow, router]);
 
   const handleEditTransaction = (row: LedgerRow) => {
     const typeLabel = typeof row.type === 'string' ? row.type : '';
@@ -302,6 +306,10 @@ export default function LeaseLedgerPanel({
     closeDetailDialog();
     setEditingTransaction({ id: Number(transactionIdRaw), typeLabel });
     setMode('edit');
+  };
+
+  const requestDeleteTransaction = (row: LedgerRow) => {
+    setPendingDeleteRow(row);
   };
 
   const openDetailDialog = (row: LedgerRow) => {
@@ -480,7 +488,7 @@ export default function LeaseLedgerPanel({
         actions={{
           hint: canEdit ? 'Edit or delete this transaction.' : 'Only charge transactions can be edited here.',
           onEdit: canEdit ? () => handleEditTransaction(row) : undefined,
-          onDelete: () => handleDeleteTransaction(row),
+          onDelete: () => requestDeleteTransaction(row),
           editDisabledReason: canEdit ? null : 'Only charge transactions can be edited here.',
           editLabel: 'Edit',
           deleteLabel: 'Delete',
@@ -673,7 +681,7 @@ export default function LeaseLedgerPanel({
                         >
                           <DropdownMenuItem
                             className="text-destructive cursor-pointer"
-                            onSelect={() => handleDeleteTransaction(row)}
+                            onSelect={() => requestDeleteTransaction(row)}
                           >
                             Delete
                           </DropdownMenuItem>
@@ -710,6 +718,19 @@ export default function LeaseLedgerPanel({
       <Dialog open={detailOpen} onOpenChange={(open) => (!open ? closeDetailDialog() : undefined)}>
         <TransactionModalContent>{renderDetailContent()}</TransactionModalContent>
       </Dialog>
+      <DestructiveActionModal
+        open={!!pendingDeleteRow}
+        onOpenChange={(open) => {
+          if (!open && !isDeleting) {
+            setPendingDeleteRow(null);
+          }
+        }}
+        title="Delete transaction?"
+        description="This action cannot be undone."
+        confirmLabel={isDeleting ? 'Deleting…' : 'Delete'}
+        isProcessing={isDeleting}
+        onConfirm={() => void handleDeleteTransaction()}
+      />
     </div>
   );
 }

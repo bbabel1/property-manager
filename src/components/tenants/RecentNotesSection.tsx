@@ -4,11 +4,23 @@ import { useCallback, useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from '@/components/ui/alert-dialog'
 import { PencilLine, Trash2, Eye } from 'lucide-react'
 import ActionButton from '@/components/ui/ActionButton'
 import AddNoteModal from '@/components/tenants/AddNoteModal'
 import { getSupabaseBrowserClient } from '@/lib/supabase/client'
 import type { Database } from '@/types/database'
+import { toast } from 'sonner'
+import { fetchWithSupabaseAuth } from '@/lib/supabase/fetch'
 
 type Note = Database['public']['Tables']['tenant_notes']['Row']
 
@@ -31,6 +43,7 @@ export default function RecentNotesSection({ tenantId }: RecentNotesSectionProps
   const [notes, setNotes] = useState<Note[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [noteToDelete, setNoteToDelete] = useState<Note | null>(null)
   const supabase = getSupabaseBrowserClient()
 
   const fetchRecentNotes = useCallback(async () => {
@@ -67,6 +80,35 @@ export default function RecentNotesSection({ tenantId }: RecentNotesSectionProps
   useEffect(() => {
     void fetchRecentNotes()
   }, [fetchRecentNotes])
+
+  const deleteNote = async (id: string) => {
+    const existing = notes.find((n) => n.id === id)
+    if (!existing) return
+
+    // Optimistically remove
+    setNotes((prev) => prev.filter((n) => n.id !== id))
+
+    try {
+      const res = await fetchWithSupabaseAuth(`/api/tenants/${tenantId}/notes/${id}`, {
+        method: 'DELETE'
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(json?.error || 'Failed to delete note')
+      }
+      if (json?.buildium_sync_error) {
+        toast.warning('Note deleted locally, but Buildium removal failed', {
+          description: json.buildium_sync_error
+        })
+      } else {
+        toast.success('Note deleted')
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete note')
+      // Restore previous state if delete failed
+      setNotes((prev) => [existing, ...prev])
+    }
+  }
 
   const handleNoteAdded = (newNote: Note) => {
     setNotes(prev => [newNote, ...prev])
@@ -125,10 +167,19 @@ export default function RecentNotesSection({ tenantId }: RecentNotesSectionProps
                         <DropdownMenuItem onClick={() => setModalOpen(true)}>
                           <PencilLine className="mr-2 h-4 w-4" /> Edit
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => alert(note.note || '')}>
+                        <DropdownMenuItem
+                          onClick={() =>
+                            toast.info('Note preview', {
+                              description: note.note || 'No content',
+                            })
+                          }
+                        >
                           <Eye className="mr-2 h-4 w-4" /> View
                         </DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive focus:text-destructive">
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive"
+                          onSelect={() => setNoteToDelete(note)}
+                        >
                           <Trash2 className="mr-2 h-4 w-4" /> Delete
                         </DropdownMenuItem>
                       </DropdownMenuContent>
@@ -148,6 +199,35 @@ export default function RecentNotesSection({ tenantId }: RecentNotesSectionProps
         onClose={() => setModalOpen(false)}
         onNoteAdded={handleNoteAdded}
       />
+
+      <AlertDialog
+        open={!!noteToDelete}
+        onOpenChange={(open) => {
+          if (!open) setNoteToDelete(null)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete note?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (noteToDelete) {
+                  void deleteNote(noteToDelete.id)
+                }
+                setNoteToDelete(null)
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   )
 }

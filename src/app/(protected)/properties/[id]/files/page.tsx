@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import PropertyRecentFilesSection from '@/components/property/PropertyRecentFilesSection'
 import { PropertyService } from '@/lib/property-service'
 import { resolvePropertyIdentifier } from '@/lib/public-id-utils'
+import { ErrorState } from '@/components/ui/state'
 
 type Props = {
   params: Promise<{ id: string }>
@@ -12,7 +13,29 @@ type Props = {
 export default async function FilesTab({ params }: Props) {
   const { id } = await params
   const { internalId: propertyId, publicId: propertyPublicId } = await resolvePropertyIdentifier(id)
-  const property = await PropertyService.getPropertyById(propertyId)
+  let property = null
+  try {
+    property = await PropertyService.getPropertyById(propertyId)
+  } catch (error) {
+    return (
+      <div id="panel-files" role="tabpanel" aria-labelledby="files" className="space-y-4">
+        <ErrorState
+          title="Unable to load property files"
+          description="We couldn't load files for this property. Please try again."
+        />
+      </div>
+    )
+  }
+  if (!property) {
+    return (
+      <div id="panel-files" role="tabpanel" aria-labelledby="files" className="space-y-4">
+        <ErrorState
+          title="Property not found"
+          description="You may not have access to this property."
+        />
+      </div>
+    )
+  }
   const href = `/files?entityType=property&entityId=${propertyPublicId}`
   const buildiumPropertyId = property?.buildium_property_id ?? null
   const orgId = (property && typeof property === 'object' && 'org_id' in property

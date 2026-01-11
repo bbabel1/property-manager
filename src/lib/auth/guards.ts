@@ -74,33 +74,19 @@ export async function requireAuth() {
     try {
       const { data, error } = await supabase
         .from('membership_roles')
-        .select('roles(name)')
+        .select('role_id, roles(name)')
         .eq('user_id', user.id);
 
       if (!error && Array.isArray(data) && data.length > 0) {
         roles = data
-          .map((row: any) => (typeof row?.roles?.name === 'string' ? (row.roles.name as AppRole) : null))
+          .map((row: any) => {
+            const name = typeof row?.roles?.name === 'string' ? row.roles.name : row?.role_id;
+            return typeof name === 'string' ? (name as AppRole) : null;
+          })
           .filter(Boolean) as AppRole[];
       }
     } catch (membershipRolesError) {
       console.warn('Failed to load roles from membership_roles', membershipRolesError);
-    }
-  }
-
-  if (!roles.length) {
-    try {
-      const { data, error } = await supabase
-        .from('org_memberships')
-        .select('role')
-        .eq('user_id', user.id);
-
-      if (!error && Array.isArray(data)) {
-        roles = data
-          .map((row) => (typeof row?.role === 'string' ? (row.role as AppRole) : null))
-          .filter(Boolean) as AppRole[];
-      }
-    } catch (membershipError) {
-      console.warn('Failed to load roles from org_memberships', membershipError);
     }
   }
 

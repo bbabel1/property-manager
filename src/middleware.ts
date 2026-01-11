@@ -182,18 +182,24 @@ export async function middleware(req: NextRequest) {
     if ((!roles.length || !orgIds.length) && user.id) {
       try {
         const { data, error } = await supabase
-          .from('org_memberships')
-          .select('org_id, role')
+          .from('membership_roles')
+          .select('org_id, role_id, roles(name)')
           .eq('user_id', user.id);
 
         if (!error && Array.isArray(data)) {
+          const normalized = data.map((row) => ({
+            org_id: row?.org_id,
+            role:
+              (row as { roles?: { name?: string | null } | null })?.roles?.name ??
+              (row as { role_id?: string | null })?.role_id,
+          }));
           if (!roles.length) {
-            roles = data
-              .map((row) => (typeof row?.role === 'string' ? (row.role as AppRole) : null))
+            roles = normalized
+              .map((row) => (typeof row.role === 'string' ? (row.role as AppRole) : null))
               .filter(Boolean) as AppRole[];
           }
           if (!orgIds.length) {
-            orgIds = data
+            orgIds = normalized
               .map((row) => (row?.org_id ? String(row.org_id) : null))
               .filter(Boolean)
               .map((org) => String(org));

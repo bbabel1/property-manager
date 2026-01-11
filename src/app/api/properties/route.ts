@@ -3,6 +3,7 @@ import { supabase, supabaseAdmin } from '@/lib/db';
 import { mapPropertyToBuildium, mapCountryToBuildium } from '@/lib/buildium-mappers';
 import { mapGoogleCountryToEnum } from '@/lib/utils';
 import { requireUser } from '@/lib/auth';
+import { requireAuth } from '@/lib/auth/guards';
 import { logger } from '@/lib/logger';
 import { buildiumFetch } from '@/lib/buildium-http';
 import { getOrgScopedBuildiumConfig } from '@/lib/buildium/credentials-manager';
@@ -24,6 +25,7 @@ import { enrichBuildingForProperty } from '@/lib/building-enrichment';
 import { ComplianceSyncService } from '@/lib/compliance-sync-service';
 import { buildNormalizedAddressKey } from '@/lib/normalized-address';
 import type { BuildiumPropertyCreate } from '@/types/buildium';
+import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
 
 type PropertiesInsert = DatabaseSchema['public']['Tables']['properties']['Insert'];
 // type PropertiesUpdate = DatabaseSchema['public']['Tables']['properties']['Update'] // Unused
@@ -47,6 +49,7 @@ type PropertyListRow = PropertyWithOwners & {
   operating_bank_gl_account_id?: string | null;
   deposit_trust_gl_account_id?: string | null;
 };
+type BankAccountMeta = { id: string; name: string | null; last4: string | null };
 type PropertyStatusEnum = DatabaseSchema['public']['Enums']['property_status'];
 type PropertyTypeEnum = DatabaseSchema['public']['Enums']['property_type_enum'];
 type UpdateBuildiumSyncStatusArgs =
@@ -1242,7 +1245,7 @@ function validateBuildiumPropertyPayload(
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await requireUser(request);
+    const { supabase: supabaseClient, user } = await requireAuth();
     const url = new URL(request.url);
     const search = (url.searchParams.get('search') || '').trim();
     const statusParam = url.searchParams.get('status') || 'all';
@@ -1274,32 +1277,9 @@ export async function GET(request: NextRequest) {
     const pageSize =
       Number.isFinite(sizeParam) && sizeParam > 0 ? Math.min(sizeParam, 100) : 25;
 
-    // Resolve org context (header preferred; fallback to first membership)
-    let orgId: string | null = request.headers.get('x-org-id') || null;
-    if (!orgId) {
-      try {
-        const { data: memberships, error: membershipsError } = await (supabaseAdmin || supabase)
-          .from('org_memberships')
-          .select('org_id')
-          .eq('user_id', user.id)
-          .limit(1);
-        if (membershipsError) {
-          logger.error(
-            { error: membershipsError, userId: user.id },
-            'Failed to resolve org for properties list',
-          );
-        }
-        const first = Array.isArray(memberships) && memberships.length > 0 ? memberships[0] : null;
-        orgId = (first as OrgMembershipRow | null)?.org_id ?? null;
-      } catch (err) {
-        console.warn('Failed to resolve orgId for properties list', err);
-      }
-    }
-    if (!orgId) {
-      return NextResponse.json({ error: 'Organization context required' }, { status: 400 });
-    }
+    const orgId = await resolveOrgIdFromRequest(request, user.id, supabaseClient);
 
-    const db = supabaseAdmin || supabase;
+    const db = supabaseClient;
     const baseCols = `
       id,
       name,
@@ -1455,6 +1435,42 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Resolve bank account names/last4 for operating and deposit accounts
+    const bankAccountIds = new Set<string>();
+    for (const p of properties) {
+      if (p?.operating_bank_gl_account_id) bankAccountIds.add(String(p.operating_bank_gl_account_id));
+      if (p?.deposit_trust_gl_account_id) bankAccountIds.add(String(p.deposit_trust_gl_account_id));
+    }
+    const bankAccounts = new Map<string, BankAccountMeta>();
+    if (bankAccountIds.size) {
+      try {
+        const { data: bankRows, error: bankError } = await db
+          .from('gl_accounts')
+          .select('id, name, bank_account_number')
+          .eq('org_id', orgId)
+          .in('id', Array.from(bankAccountIds));
+        if (bankError) {
+          logger.warn({ error: bankError }, 'Failed to load bank account metadata for properties list');
+        } else {
+          for (const row of bankRows || []) {
+            const id = (row as { id?: string | null })?.id;
+            if (!id) continue;
+            const name = (row as { name?: string | null })?.name ?? null;
+            const bankAccountNumber = (row as { bank_account_number?: string | number | null }).bank_account_number;
+            const last4 =
+              typeof bankAccountNumber === 'string'
+                ? bankAccountNumber.slice(-4)
+                : typeof bankAccountNumber === 'number'
+                  ? String(bankAccountNumber).slice(-4)
+                  : null;
+            bankAccounts.set(id, { id, name, last4 });
+          }
+        }
+      } catch (err) {
+        logger.warn({ error: err }, 'Unexpected error loading bank accounts for properties list');
+      }
+    }
+
     const mapped = properties.map((p) => {
       const ownersMeta = ownersByProperty.get(p.id) ?? { ownersCount: 0, primaryOwnerName: null };
       let primaryOwnerName = ownersMeta.primaryOwnerName;
@@ -1462,6 +1478,10 @@ export async function GET(request: NextRequest) {
         const trimmed = p.primary_owner.trim();
         if (trimmed.length > 0) primaryOwnerName = trimmed;
       }
+      const operatingAccountMeta =
+        (p.operating_bank_gl_account_id && bankAccounts.get(p.operating_bank_gl_account_id)) || null;
+      const depositAccountMeta =
+        (p.deposit_trust_gl_account_id && bankAccounts.get(p.deposit_trust_gl_account_id)) || null;
       return {
         id: p.id,
         name: p.name,
@@ -1484,6 +1504,10 @@ export async function GET(request: NextRequest) {
         // Preserve legacy response key names; values now reference gl_accounts(id)
         operatingBankAccountId: p.operating_bank_gl_account_id ?? null,
         depositTrustAccountId: p.deposit_trust_gl_account_id ?? null,
+        operatingBankAccountName: operatingAccountMeta?.name ?? null,
+        operatingBankAccountLast4: operatingAccountMeta?.last4 ?? null,
+        depositTrustAccountName: depositAccountMeta?.name ?? null,
+        depositTrustAccountLast4: depositAccountMeta?.last4 ?? null,
       };
     });
 
@@ -1494,6 +1518,17 @@ export async function GET(request: NextRequest) {
       total: count ?? mapped.length,
     });
   } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === 'UNAUTHENTICATED') {
+        return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+      }
+      if (error.message === 'ORG_CONTEXT_REQUIRED') {
+        return NextResponse.json({ error: 'Organization context required' }, { status: 400 });
+      }
+      if (error.message === 'ORG_FORBIDDEN') {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+    }
     console.error('Error fetching properties:', error);
     return NextResponse.json({ error: 'Failed to fetch properties' }, { status: 500 });
   }

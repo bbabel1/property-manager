@@ -22,6 +22,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Loader2, Save, Printer, X, Trash2 } from 'lucide-react';
+import DestructiveActionModal from '@/components/common/DestructiveActionModal';
 
 type BankAccount = {
   id: string;
@@ -74,6 +75,7 @@ export default function DepositEditForm({
   const router = useRouter();
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [formData, setFormData] = useState({
     bankAccountId: deposit?.bank_gl_account_id || '',
     date: deposit?.date ? deposit.date.slice(0, 10) : '',
@@ -129,7 +131,7 @@ export default function DepositEditForm({
   };
 
   const handleDelete = async () => {
-    if (!deposit || !confirm('Are you sure you want to delete this deposit?')) return;
+    if (!deposit) return;
 
     setIsSaving(true);
     setError(null);
@@ -154,6 +156,7 @@ export default function DepositEditForm({
       setError(err instanceof Error ? err.message : 'Failed to delete deposit');
     } finally {
       setIsSaving(false);
+      setConfirmDeleteOpen(false);
     }
   };
 
@@ -378,7 +381,7 @@ export default function DepositEditForm({
         <Button
           type="button"
           variant="outline"
-          onClick={handleDelete}
+          onClick={() => setConfirmDeleteOpen(true)}
           disabled={isSaving}
           className="text-destructive hover:text-destructive"
         >
@@ -386,6 +389,17 @@ export default function DepositEditForm({
           Delete
         </Button>
       </div>
+      <DestructiveActionModal
+        open={confirmDeleteOpen}
+        onOpenChange={(open) => {
+          if (!isSaving) setConfirmDeleteOpen(open);
+        }}
+        title="Delete deposit?"
+        description="This deposit will be permanently removed."
+        confirmLabel={isSaving ? 'Deleting…' : 'Delete'}
+        isProcessing={isSaving}
+        onConfirm={() => void handleDelete()}
+      />
     </div>
   );
 }

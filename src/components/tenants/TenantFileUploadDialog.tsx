@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { CheckCircle2 } from 'lucide-react';
+import { fetchWithSupabaseAuth } from '@/lib/supabase/fetch';
 
 export type TenantFileRow = {
   id: string;
@@ -20,16 +21,19 @@ export type TenantFileRow = {
   description: string | null;
   uploadedAt: Date;
   uploadedBy: string;
+  href?: string | null;
 };
 
 export default function TenantFileUploadDialog({
   open,
   onOpenChange,
+  tenantId,
   uploaderName = 'Team member',
   onSaved,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  tenantId: string | null;
   uploaderName?: string | null;
   onSaved?: (row: TenantFileRow) => void;
 }) {
@@ -39,6 +43,8 @@ export default function TenantFileUploadDialog({
   const [category, setCategory] = useState('Uncategorized');
   const [description, setDescription] = useState('');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const resetState = useCallback(() => {
     setStep('select');
@@ -46,6 +52,8 @@ export default function TenantFileUploadDialog({
     setTitle('');
     setCategory('Uncategorized');
     setDescription('');
+    setSaving(false);
+    setError(null);
   }, []);
 
   const close = useCallback(() => {
@@ -70,20 +78,115 @@ export default function TenantFileUploadDialog({
     handleFiles(event.dataTransfer.files);
   };
 
-  const save = () => {
+  const resolveHref = (file: Record<string, unknown> | null | undefined): string | null => {
+    if (!file) return null;
+    const buildiumHref =
+      typeof file?.['buildium_href'] === 'string' ? (file['buildium_href'] as string) : null;
+    if (buildiumHref && buildiumHref.trim()) return buildiumHref.trim();
+
+    const externalUrl =
+      typeof file?.['external_url'] === 'string' ? (file['external_url'] as string) : null;
+    if (externalUrl && externalUrl.trim()) return externalUrl.trim();
+
+    const bucket =
+      typeof file?.['bucket'] === 'string' && file['bucket'] ? (file['bucket'] as string) : null;
+    const storageKey =
+      typeof file?.['storage_key'] === 'string' && file['storage_key']
+        ? (file['storage_key'] as string)
+        : null;
+    if (bucket && storageKey && process.env.NEXT_PUBLIC_SUPABASE_URL) {
+      const base = process.env.NEXT_PUBLIC_SUPABASE_URL.replace(/\/$/, '');
+      return `${base}/storage/v1/object/${bucket}/${storageKey}`;
+    }
+
+    return null;
+  };
+
+  const save = async () => {
     if (!selectedFile) return;
-    const id =
-      typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`;
-    const row: TenantFileRow = {
-      id,
-      title: title.trim() || selectedFile.name,
-      category: category.trim() || 'Uncategorized',
-      description: description.trim() || null,
-      uploadedAt: new Date(),
-      uploadedBy: uploaderName || 'Team member',
-    };
-    onSaved?.(row);
-    close();
+    if (!tenantId) {
+      setError('Tenant id is required to upload a file.');
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setError(null);
+
+      const trimmedTitle = title.trim() || selectedFile.name;
+      let fileName = trimmedTitle;
+      if (!fileName.includes('.') && selectedFile.name.includes('.')) {
+        const ext = selectedFile.name.split('.').pop();
+        if (ext) fileName = `${fileName}.${ext}`;
+      }
+
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+      formData.append('entityType', 'tenant');
+      formData.append('entityId', tenantId);
+      formData.append('fileName', fileName);
+      if (selectedFile.type) formData.append('mimeType', selectedFile.type);
+      formData.append('isPrivate', 'true');
+      if (description.trim()) formData.append('description', description.trim());
+      if (category.trim()) formData.append('category', category.trim());
+
+      let response: Response;
+      try {
+        response = await fetchWithSupabaseAuth('/api/files/upload', {
+          method: 'POST',
+          body: formData,
+        });
+      } catch {
+        response = await fetch('/api/files/upload', {
+          method: 'POST',
+          body: formData,
+          credentials: 'include',
+        });
+      }
+
+      const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+      if (!response.ok || (payload && typeof payload?.['error'] === 'string')) {
+        throw new Error(
+          (payload?.['error'] as string | undefined) || 'Failed to upload tenant file',
+        );
+      }
+
+      const fileRecord =
+        (payload?.['file'] as Record<string, unknown> | undefined) ??
+        (payload?.['data'] as Record<string, unknown> | undefined) ??
+        null;
+
+      const row: TenantFileRow = {
+        id:
+          (fileRecord?.['id'] as string | undefined) ||
+          (typeof crypto !== 'undefined' && crypto.randomUUID
+            ? crypto.randomUUID()
+            : `${Date.now()}`),
+        title:
+          (fileRecord?.['title'] as string | undefined) ||
+          (fileRecord?.['file_name'] as string | undefined) ||
+          trimmedTitle,
+        category:
+          (fileRecord?.['category_name'] as string | undefined) || category.trim() || 'Uncategorized',
+        description:
+          (fileRecord?.['description'] as string | null | undefined) ??
+          (description.trim() || null),
+        uploadedAt: new Date(
+          (fileRecord?.['created_at'] as string | undefined) || new Date().toISOString(),
+        ),
+        uploadedBy:
+          (fileRecord?.['created_by'] as string | undefined) || uploaderName || 'Team member',
+        href: resolveHref(fileRecord),
+      };
+
+      onSaved?.(row);
+      close();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to upload tenant file';
+      setError(message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -166,13 +269,13 @@ export default function TenantFileUploadDialog({
         <DialogFooter className="flex flex-col gap-2 sm:flex-row sm:justify-end">
           {step === 'details' ? (
             <>
-              <Button type="button" onClick={save}>
+              <Button type="button" onClick={save} disabled={saving}>
                 Save
               </Button>
-              <Button type="button" variant="secondary" onClick={save}>
+              <Button type="button" variant="secondary" onClick={save} disabled={saving}>
                 Save and share
               </Button>
-              <Button type="button" variant="cancel" onClick={close}>
+              <Button type="button" variant="cancel" onClick={close} disabled={saving}>
                 Cancel
               </Button>
             </>
@@ -182,6 +285,7 @@ export default function TenantFileUploadDialog({
             </Button>
           )}
         </DialogFooter>
+        {error ? <p className="text-destructive text-sm">{error}</p> : null}
       </DialogContent>
     </Dialog>
   );

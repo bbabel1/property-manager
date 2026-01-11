@@ -54,8 +54,11 @@ export default function TenantEmergencyContactInlineEditor({ tenantId, initial }
         const message = data?.error || 'Failed to save emergency contact'
         throw new Error(message)
       }
+
       if (data?.buildium_sync_error) {
-        throw new Error(`Saved, but failed to sync to Buildium: ${data.buildium_sync_error}`)
+        setError(`Saved locally, but failed to sync to Buildium: ${data.buildium_sync_error}`)
+        router.refresh()
+        return
       }
 
       setEditing(false)

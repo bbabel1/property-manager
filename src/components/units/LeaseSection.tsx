@@ -45,6 +45,7 @@ import {
 } from '@/components/ui/accordion';
 import type { Database } from '@/types/database';
 import { fetchWithSupabaseAuth } from '@/lib/supabase/fetch';
+import { toast } from 'sonner';
 
 const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 const ALLOWED_MIME_PREFIXES = ['image/', 'application/pdf'];
@@ -2719,7 +2720,7 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                       size="sm"
                       onClick={() => {
                         if (!tenantFirstName || !tenantLastName) {
-                          alert('First and last name are required');
+                          toast.error('First and last name are required');
                           return;
                         }
                         setPendingTenants((prev) => [
@@ -3046,7 +3047,7 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                     size="sm"
                     onClick={() => {
                       if (!coFirstName || !coLastName) {
-                        alert('First and last name are required');
+                        toast.error('First and last name are required');
                         return;
                       }
                       setPendingCosigners((prev) => [

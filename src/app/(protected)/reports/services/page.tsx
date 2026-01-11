@@ -23,6 +23,7 @@ import { Badge } from '@/components/ui/badge';
 import { formatCurrency } from '@/lib/format-currency';
 import { Download, FileText } from 'lucide-react';
 import supabase from '@/lib/db';
+import { toast } from 'sonner';
 
 type ProfitabilityRow = {
   offering_id: string;
@@ -166,7 +167,7 @@ export default function ServiceReportsPage() {
       const response = await fetch(`/api/reports/services?${params}`);
       if (!response.ok) {
         if (response.status === 501) {
-          alert('PDF export is not yet implemented.');
+          toast.info('PDF export is not yet implemented.');
           return;
         }
         throw new Error('Failed to export report');
@@ -183,7 +184,7 @@ export default function ServiceReportsPage() {
       document.body.removeChild(a);
     } catch (err) {
       console.error('Error exporting report:', err);
-      alert('Failed to export report. Please try CSV while PDF is unavailable.');
+      toast.error('Failed to export report. Please try CSV while PDF is unavailable.');
     }
   };
 

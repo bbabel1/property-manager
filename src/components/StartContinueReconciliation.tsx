@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { DateInput } from "@/components/ui/date-input"
+import { toast } from "sonner"
 
 export default function StartContinueReconciliation({
   propertyId,
@@ -31,12 +32,12 @@ export default function StartContinueReconciliation({
   const [statementDate, setStatementDate] = useState<string>(defaultDate.toISOString().slice(0,10))
 
   async function start() {
-    if (!buildiumBankAccountId) return alert("No linked Buildium bank account ID.")
+    if (!buildiumBankAccountId) return toast.error("No linked Buildium bank account ID.")
     setBusy("start")
     try {
       // Validate no overlap with last finished
       if (lastFinishedDate && statementDate <= lastFinishedDate) {
-        alert(`Statement date must be after last finished (${new Date(lastFinishedDate).toLocaleDateString()}).`)
+        toast.error(`Statement date must be after last finished (${new Date(lastFinishedDate).toLocaleDateString()}).`)
         setBusy(null)
         return
       }
@@ -52,14 +53,14 @@ export default function StartContinueReconciliation({
       router.push(`/reconciliations/${id}`)
     } catch (e: any) {
       console.error(e)
-      alert(e?.message || 'Failed to start reconciliation')
+      toast.error(e?.message || 'Failed to start reconciliation')
     } finally {
       setBusy(null)
     }
   }
 
   async function cont() {
-    if (!propertyId || !bankAccountId) return alert("Missing property or bank account.")
+    if (!propertyId || !bankAccountId) return toast.error("Missing property or bank account.")
     setBusy("continue")
     try {
       // Query latest pending reconciliation for this bank account
@@ -67,13 +68,13 @@ export default function StartContinueReconciliation({
       const json = await res.json()
       const id = json?.data?.buildium_reconciliation_id
       if (!id) {
-        alert('No pending reconciliation found for this account')
+        toast.info('No pending reconciliation found for this account')
       } else {
         router.push(`/reconciliations/${id}`)
       }
     } catch (e: any) {
       console.error(e)
-      alert(e?.message || 'Failed to continue reconciliation')
+      toast.error(e?.message || 'Failed to continue reconciliation')
     } finally {
       setBusy(null)
     }

@@ -33,6 +33,7 @@ import TransactionFileUploadDialog, {
   type TransactionAttachmentDraft,
 } from '@/components/files/TransactionFileUploadDialog';
 import { cn } from '@/components/ui/utils';
+import DestructiveActionModal from '@/components/common/DestructiveActionModal';
 
 export type BankAccountOption = {
   id: string;
@@ -231,6 +232,7 @@ export default function EditCheckForm(props: {
   const [isSaving, setIsSaving] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
   const initialPayee = useMemo(() => coerceInitialPayee(props.check), [props.check]);
   const [form, setForm] = useState<FormState>(() => ({
@@ -485,7 +487,6 @@ export default function EditCheckForm(props: {
   );
 
   const handleDelete = useCallback(async () => {
-    if (!confirm('Are you sure you want to delete this check?')) return;
     setIsSaving(true);
     setFormError(null);
     try {
@@ -503,6 +504,7 @@ export default function EditCheckForm(props: {
       setFormError(error instanceof Error ? error.message : 'Failed to delete check.');
     } finally {
       setIsSaving(false);
+      setConfirmDeleteOpen(false);
     }
   }, [props.deleteUrl, props.returnHref, router]);
 
@@ -1032,13 +1034,24 @@ export default function EditCheckForm(props: {
         <Button
           type="button"
           variant="outline"
-          onClick={handleDelete}
+          onClick={() => setConfirmDeleteOpen(true)}
           disabled={isSaving}
           className="text-destructive"
         >
           Delete
         </Button>
       </div>
+      <DestructiveActionModal
+        open={confirmDeleteOpen}
+        onOpenChange={(open) => {
+          if (!isSaving) setConfirmDeleteOpen(open);
+        }}
+        title="Delete check?"
+        description="This check will be permanently removed."
+        confirmLabel={isSaving ? 'Deleting…' : 'Delete'}
+        isProcessing={isSaving}
+        onConfirm={() => void handleDelete()}
+      />
     </div>
   );
 }

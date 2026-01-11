@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { getSupabaseBrowserClient } from '@/lib/supabase/client';
+import { fetchWithSupabaseAuth } from '@/lib/supabase/fetch';
 import type { Database } from '@/types/database';
 
 type Note = Database['public']['Tables']['tenant_notes']['Row'];
@@ -25,7 +25,6 @@ export default function AddNoteModal({
 }: AddNoteModalProps) {
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
-  const supabase = getSupabaseBrowserClient();
 
   const handleSave = async () => {
     if (!note.trim()) {
@@ -35,30 +34,37 @@ export default function AddNoteModal({
 
     try {
       setSaving(true);
-      const now = new Date().toISOString();
 
-      const { data, error } = await supabase
-        .from('tenant_notes')
-        .insert({
-          tenant_id: tenantId,
-          note: note.trim(),
-          created_at: now,
-          updated_at: now,
-        })
-        .select('*')
-        .single();
+      // Call API route that handles both local save and Buildium sync
+      const res = await fetchWithSupabaseAuth(`/api/tenants/${tenantId}/notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ note: note.trim() }),
+      });
 
-      if (error) {
-        throw error;
+      const json = await res.json();
+
+      if (!res.ok) {
+        throw new Error(json?.error || 'Failed to create note');
       }
 
-      toast.success('Note added successfully');
+      // Show warning if Buildium sync failed but local save succeeded
+      if (json.buildium_sync_error) {
+        toast.warning('Note saved locally, but failed to sync to Buildium', {
+          description: json.buildium_sync_error,
+        });
+      } else {
+        toast.success('Note added successfully and synced to Buildium');
+      }
+
+      const createdNote = json.data as Note;
       setNote('');
-      onNoteAdded?.(data as Note);
+      onNoteAdded?.(createdNote);
       onClose();
     } catch (error) {
       console.error('Error saving note:', error);
-      toast.error('Failed to save note');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to save note';
+      toast.error(errorMessage);
     } finally {
       setSaving(false);
     }
