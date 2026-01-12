@@ -108,9 +108,11 @@ scripts/
 
 **Key Scripts**:
 
-- `apply_sql.ts` - Apply a SQL file via DSN
-- `run-remote-sql.ts` / `.mjs` - Apply SQL against remote Supabase
-- SQL patches like `add_bill_id_to_transaction_lines.sql`, `fix_ownerships_triggers.sql`
+- `apply_sql.ts` - Apply a SQL file via DSN (manual ops only)
+- `run-remote-sql.ts` / `.mjs` - Apply SQL against remote Supabase (manual ops only)
+- Historical SQL patch files (e.g. `add_bill_id_to_transaction_lines.sql`, `fix_ownerships_triggers.sql`)
+  are now **verification/diagnostic only** and MUST NOT be used to change schema. All schema changes
+  must go through Supabase migrations under `supabase/migrations/`.
 
 ### 7. **Utility Scripts** (`scripts/utils/`)
 

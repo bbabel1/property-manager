@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireUser } from '@/lib/auth'
-import { supabase, supabaseAdmin } from '@/lib/db'
+import { getSupabaseServerClient } from '@/lib/supabase/server'
 import { logger } from '@/lib/logger'
 import { buildiumFetch } from '@/lib/buildium-http'
 import { mapBankAccountFromBuildiumWithGLAccount } from '@/lib/buildium-mappers'
+import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id'
+import { requireOrgMember } from '@/lib/auth/org-guards'
 
 type BuildiumBankAccount = {
   Id: number
@@ -24,11 +26,13 @@ type BuildiumBankAccount = {
 export async function POST(request: NextRequest) {
   try {
     const user = await requireUser(request)
-    const db = supabaseAdmin || supabase
+    const db = await getSupabaseServerClient()
+    const orgId = await resolveOrgIdFromRequest(request, user.id, db)
+    await requireOrgMember({ client: db, userId: user.id, orgId })
     const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
     const forceSync = Boolean(body?.forceSync)
 
-    logger.info({ userId: user.id, forceSync }, 'Starting direct bank accounts sync from Buildium')
+    logger.info({ userId: user.id, orgId, forceSync }, 'Starting direct bank accounts sync from Buildium')
 
     const pageSize = Number(body?.limit || 200)
     let offset = Number(body?.offset || 0)
@@ -36,7 +40,7 @@ export async function POST(request: NextRequest) {
     const summary = { inserted: 0, updated: 0, skipped: 0, conflicts: 0, failed: 0 }
 
     for (;;) {
-      const res = await buildiumFetch('GET', '/bankaccounts', { limit: pageSize, offset })
+      const res = await buildiumFetch('GET', '/bankaccounts', { limit: pageSize, offset }, undefined, orgId)
       if (!res.ok || !Array.isArray(res.json)) {
         return NextResponse.json(
           { error: 'Failed to fetch bank accounts from Buildium', details: res.errorText || res.json },
@@ -50,7 +54,7 @@ export async function POST(request: NextRequest) {
         try {
           const now = new Date().toISOString()
           // Map Buildium -> local, including GL account resolution (creates GL if missing)
-          const mapped = await mapBankAccountFromBuildiumWithGLAccount(acct as any, db)
+          const mapped = await mapBankAccountFromBuildiumWithGLAccount(acct as any, db, orgId)
           const glId = (mapped as { gl_account?: string | null })?.gl_account
           if (!glId) throw new Error('Missing GL account mapping for bank account')
 
@@ -72,6 +76,7 @@ export async function POST(request: NextRequest) {
             bank_electronic_payments: acct.ElectronicPayments ?? null,
             bank_last_source: 'buildium',
             bank_last_source_ts: now,
+            org_id: orgId,
             updated_at: now,
           }
 
@@ -83,6 +88,7 @@ export async function POST(request: NextRequest) {
                 .from('gl_accounts')
                 .select('bank_last_source, bank_last_source_ts')
                 .eq('id', glId)
+                .or(`org_id.eq.${orgId},org_id.is.null`)
                 .maybeSingle()
               const src = existingGl?.bank_last_source as string | null
               const tsStr = existingGl?.bank_last_source_ts as string | null
@@ -105,7 +111,11 @@ export async function POST(request: NextRequest) {
           }
 
           if (shouldOverwrite) {
-            const { error: updErr } = await db.from('gl_accounts').update(glUpdate).eq('id', glId)
+            const { error: updErr } = await db
+              .from('gl_accounts')
+              .update(glUpdate)
+              .eq('id', glId)
+              .or(`org_id.eq.${orgId},org_id.is.null`)
             if (updErr) throw updErr
             summary.updated++
             await db.rpc('update_buildium_sync_status', {
@@ -128,8 +138,16 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, fetched: totalFetched, ...summary })
   } catch (error) {
-    if (error instanceof Error && error.message === 'UNAUTHENTICATED') {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    if (error instanceof Error) {
+      if (error.message === 'UNAUTHENTICATED') {
+        return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+      }
+      if (error.message === 'ORG_CONTEXT_REQUIRED') {
+        return NextResponse.json({ error: 'Organization context required' }, { status: 400 })
+      }
+      if (error.message === 'ORG_FORBIDDEN') {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
     }
     return NextResponse.json({ error: 'Failed to sync bank accounts' }, { status: 500 })
   }

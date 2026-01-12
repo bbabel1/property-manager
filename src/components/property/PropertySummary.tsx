@@ -254,7 +254,7 @@ export function PropertySummary({ property, fin, onPropertyUpdate }: PropertySum
                 <span className="pl-4">- Security deposits and early payments:</span>
                 <span>
                   {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(
-                    fin?.security_deposits ?? 0,
+                    Math.abs(fin?.security_deposits ?? 0),
                   )}
                 </span>
               </div>

@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireUser } from '@/lib/auth'
+import { requireAuth } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
 import { checkRateLimit } from '@/lib/rate-limit'
 import UnitService from '@/lib/unit-service'
 import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id'
+import { requireOrgMember } from '@/lib/auth/org-guards'
 
 // POST /api/units/sync/from-buildium
 // Body: { propertyIds?: number[]|string, lastUpdatedFrom?, lastUpdatedTo?, orderby?, limit?, offset? }
@@ -12,8 +13,9 @@ export async function POST(request: NextRequest) {
     const rate = await checkRateLimit(request)
     if (!rate.success) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
 
-    const user = await requireUser(request)
-    const orgId = await resolveOrgIdFromRequest(request, user.id)
+    const { supabase: db, user } = await requireAuth()
+    const orgId = await resolveOrgIdFromRequest(request, user.id, db)
+    await requireOrgMember({ client: db, userId: user.id, orgId })
 
     const body = (await request.json().catch(() => ({}))) as Record<string, any>
     const params = {
@@ -30,6 +32,17 @@ export async function POST(request: NextRequest) {
     logger.info(`Synced ${items.length} units from Buildium to DB`)
     return NextResponse.json({ success: true, synced: items.length })
   } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === 'UNAUTHENTICATED') {
+        return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+      }
+      if (error.message === 'ORG_FORBIDDEN') {
+        return NextResponse.json({ error: 'Organization access denied' }, { status: 403 })
+      }
+      if (error.message === 'ORG_CONTEXT_REQUIRED') {
+        return NextResponse.json({ error: 'Organization context required' }, { status: 400 })
+      }
+    }
     logger.error({ error }, 'Error syncing units from Buildium')
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

@@ -102,7 +102,6 @@ async function deleteTransaction() {
     console.error('❌ Error deleting transaction:', deleteError);
     console.log('\n⚠️  If function does not exist, run the migration first:');
     console.log('   npx supabase db push\n');
-    console.log('   Or use the SQL script: scripts/sql/delete-unbalanced-transaction.sql');
     process.exit(1);
   }
 

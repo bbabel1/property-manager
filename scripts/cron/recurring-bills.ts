@@ -20,7 +20,7 @@ async function main() {
 
   try {
     // Use advisory lock helper function (created in migration)
-    const { data, error } = await supabaseAdmin.rpc('acquire_recurring_bills_lock', {
+    const { data, error } = await supabaseAdmin.rpc('acquire_recurring_bills_lock' as any, {
       lock_key: lockKey,
     })
 
@@ -63,7 +63,7 @@ async function main() {
     // Release advisory lock if we acquired it
     if (lockAcquired) {
       try {
-        await supabaseAdmin.rpc('release_recurring_bills_lock', {
+        await supabaseAdmin.rpc('release_recurring_bills_lock' as any, {
           lock_key: lockKey,
         })
         logger.info({ lockKey }, 'Released advisory lock')
@@ -78,4 +78,3 @@ main().catch((e) => {
   console.error('Recurring bills engine failed:', e)
   process.exit(1)
 })
-

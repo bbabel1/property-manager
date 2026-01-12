@@ -141,6 +141,42 @@ describe('finance model rollup', () => {
     expect(debug.usedBankBalance).toBe(true);
   });
 
+  it('treats bank GL lines as cash even when the account type is liability', () => {
+    const lines = [
+      makeLine({
+        amount: 5000,
+        posting_type: 'debit',
+        gl_accounts: { type: 'liability', is_bank_account: true, name: 'Trust account' },
+        transaction_id: 'bank-tx',
+      }),
+    ];
+    const { fin, debug } = rollupFinances({
+      transactionLines: lines,
+      transactions: [],
+      propertyReserve: 0,
+    });
+    expect(fin.cash_balance).toBe(5000);
+    expect(debug.usedBankBalance).toBe(true);
+  });
+
+  it('treats payment bank GL lines as positive even when signed credit', () => {
+    const lines = [
+      makeLine({
+        amount: 2500,
+        posting_type: 'credit',
+        gl_accounts: { type: 'liability', is_bank_account: true, name: 'Operating Bank' },
+        transaction_id: 'bank-tx',
+      }),
+    ];
+    const { fin, debug } = rollupFinances({
+      transactionLines: lines,
+      transactions: [makeTx({ id: 'bank-tx', transaction_type: 'Payment', total_amount: 2500 })],
+      propertyReserve: 0,
+    });
+    expect(fin.cash_balance).toBe(2500);
+    expect(debug.usedBankBalance).toBe(true);
+  });
+
   it('ignores GL lines marked exclude_from_cash_balances', () => {
     const lines = [
       makeLine({

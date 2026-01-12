@@ -1,5 +1,11 @@
--- Add OneTime to rent_cycle_enum for one-off templates
-DO $$ BEGIN
-  ALTER TYPE public.rent_cycle_enum ADD VALUE IF NOT EXISTS 'OneTime';
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+-- Deprecated remote patch: add 'Onetime' (and related) enum variants for
+-- rent cycle/recurring billing.
+--
+-- Phase 1 single-source-of-truth goal:
+--   Only Supabase migrations under supabase/migrations/ should update
+--   enum types like rent_cycle_enum.
+--
+-- This file is retained for historical context only and MUST NOT be used
+-- to apply schema changes. See migration 20250919000000_105_add_onetime_to_rent_cycle_enum.sql
+-- and related files for the canonical enum definition.
 

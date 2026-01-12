@@ -123,12 +123,21 @@ Look for queries in performance dashboards that:
 3. **Short-term**: Move any schema introspection to migrations/health checks
 4. **Short-term**: Review connection pooling configuration
 
+## Database Query Observability
+
+- Apply `supabase/scripts/query_observability_views.sql` in non-production first, then production, to:
+  - Ensure `pg_stat_statements` is enabled.
+  - Create views under `admin.*` for top queries, slow queries, most-called RPC functions, table seq scans, and unused indexes.
+- Optional: Apply `supabase/scripts/schedule_slow_query_sampling.sql` and `supabase/scripts/flatten_slow_query_samples.sql` to capture and flatten nightly slow query samples from `pg_stat_statements`.
+- Generate evidence reports (run against staging/prod with `DATABASE_URL` set):
+  - `npm run db:top-queries` → `docs/database/top-query-shapes.json` (Top 20 query shapes from `pg_stat_statements`, including filters, joins, sort orders, row counts, and call frequency).
+  - `npm run db:index-usage` → `docs/database/index-usage-report.json` (Index usage from `pg_stat_user_indexes`, including candidates with `idx_scan = 0`).
+  - `npm run db:rls-indexes` → `docs/database/rls-predicate-indexes.json` (RLS predicates vs. scoping-column indexes).
+
 ## References
 
 - [Supabase Connection Pooling](https://supabase.com/docs/guides/platform/connection-pooling)
 - [PostgreSQL Performance Tips](https://www.postgresql.org/docs/current/performance-tips.html)
 - [WCAG 2.1 Level AA Compliance](../reports/WCAG_COMPLIANCE.md)
-
-
 
 

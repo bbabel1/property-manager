@@ -1,10 +1,13 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { LeaseTransactionService } from '@/lib/lease-transaction-service'
 import { supabaseAdmin } from '@/lib/db'
 import { getServerSupabaseClient, requireSupabaseAdmin } from '@/lib/supabase-client'
 import { buildiumFetch } from '@/lib/buildium-http'
 import { logger } from '@/lib/logger'
+import { requireAuth } from '@/lib/auth/guards'
+import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id'
+import { requireOrgMember } from '@/lib/auth/org-guards'
 
 const UpdateSchema = z.object({
   transaction_type: z.enum(['Charge', 'Payment']),
@@ -15,7 +18,7 @@ const UpdateSchema = z.object({
 })
 
 export async function GET(
-  request: Request,
+  request: NextRequest,
   context: { params: Promise<{ id: string; transactionId: string }> }
 ) {
   const { id, transactionId: txIdRaw } = await context.params
@@ -33,151 +36,154 @@ export async function GET(
   }
 
   try {
-    let buildiumLeaseId: number | null = null
-    try {
-      const db = supabaseAdmin || (await getServerSupabaseClient())
-      if (db) {
-        const { data: leaseRow } = await (db as any)
-          .from('lease')
-          .select('buildium_lease_id')
-          .eq('id', leaseId)
-          .maybeSingle()
-        const raw = leaseRow?.buildium_lease_id
-        if (raw != null && !Number.isNaN(Number(raw))) {
-          buildiumLeaseId = Number(raw)
-        }
-      }
-    } catch {}
+    const { supabase: db, user } = await requireAuth()
+    const orgId = await resolveOrgIdFromRequest(request, user.id, db)
+    await requireOrgMember({ client: db, userId: user.id, orgId })
 
-    if (supabaseAdmin) {
-      const query = supabaseAdmin
-        .from('transactions')
-        .select(
-          [
-            'id',
-            'date',
-            'total_amount',
-            'memo',
-            'transaction_type',
-            'check_number',
-            'payment_method',
-            'payment_method_raw',
-            'payee_buildium_id',
-            'payee_buildium_type',
-            'payee_name',
-            'payee_href',
-            'is_internal_transaction',
-            'internal_transaction_is_pending',
-            'internal_transaction_result_date',
-            'internal_transaction_result_code',
-            'buildium_unit_id',
-            'unit_id',
-            'buildium_application_id',
-            'unit_agreement_id',
-            'unit_agreement_type',
-            'bank_gl_account_id',
-            'bank_gl_account_buildium_id',
-            'buildium_last_updated_at',
-            'buildium_lease_id',
-            'transaction_lines ( gl_account_id, amount, memo, reference_number, is_cash_posting, posting_type, buildium_property_id, buildium_unit_id )',
-            'transaction_payment_transactions ( buildium_payment_transaction_id, accounting_entity_id, accounting_entity_type, accounting_entity_href, accounting_unit_id, accounting_unit_href, amount )',
-          ].join(', '),
-        )
-        .eq(isUuid ? 'id' : 'buildium_transaction_id', isUuid ? txIdRaw : txNumeric)
-        .maybeSingle();
+    const { data: leaseRow } = await db
+      .from('lease')
+      .select('id, org_id, buildium_lease_id')
+      .eq('id', leaseId)
+      .eq('org_id', orgId)
+      .maybeSingle()
+    if (!leaseRow) {
+      return NextResponse.json({ error: 'Lease not found' }, { status: 404 })
+    }
+    const buildiumLeaseId =
+      leaseRow.buildium_lease_id != null && !Number.isNaN(Number(leaseRow.buildium_lease_id))
+        ? Number(leaseRow.buildium_lease_id)
+        : null
 
-      const { data: localTx, error: localErr } = await query;
-      if (localErr && localErr.code !== 'PGRST116') {
-        throw localErr;
-      }
+    const client = supabaseAdmin ?? db
+    const query = client
+      .from('transactions')
+      .select(
+        [
+          'id',
+          'date',
+          'total_amount',
+          'memo',
+          'transaction_type',
+          'check_number',
+          'payment_method',
+          'payment_method_raw',
+          'payee_buildium_id',
+          'payee_buildium_type',
+          'payee_name',
+          'payee_href',
+          'is_internal_transaction',
+          'internal_transaction_is_pending',
+          'internal_transaction_result_date',
+          'internal_transaction_result_code',
+          'buildium_unit_id',
+          'unit_id',
+          'buildium_application_id',
+          'unit_agreement_id',
+          'unit_agreement_type',
+          'bank_gl_account_id',
+          'bank_gl_account_buildium_id',
+          'buildium_last_updated_at',
+          'buildium_lease_id',
+          'org_id',
+          'transaction_lines ( gl_account_id, amount, memo, reference_number, is_cash_posting, posting_type, buildium_property_id, buildium_unit_id )',
+          'transaction_payment_transactions ( buildium_payment_transaction_id, accounting_entity_id, accounting_entity_type, accounting_entity_href, accounting_unit_id, accounting_unit_href, amount )',
+        ].join(', '),
+      )
+      .eq('org_id', orgId)
+      .eq(isUuid ? 'id' : 'buildium_transaction_id', isUuid ? txIdRaw : txNumeric)
+      .maybeSingle()
 
-      if (localTx && 'id' in localTx) {
-        const splits = Array.isArray((localTx as any).transaction_payment_transactions)
-          ? (localTx as any).transaction_payment_transactions
-          : [];
-        const lines = Array.isArray((localTx as any).transaction_lines)
-          ? (localTx as any).transaction_lines
-          : [];
+    const { data: localTx, error: localErr } = await query
+    if (localErr && (localErr as any)?.code !== 'PGRST116') {
+      throw localErr
+    }
 
-        const payload = {
-          Id: (localTx as any).id,
-          Date: (localTx as any).date,
-          TotalAmount: (localTx as any).total_amount,
-          Memo: (localTx as any).memo,
-          TransactionTypeEnum: (localTx as any).transaction_type,
-          CheckNumber: (localTx as any).check_number ?? undefined,
-          UnitId: (localTx as any).buildium_unit_id ?? undefined,
-          PaymentDetail: {
-            PaymentMethod:
-              (localTx as any).payment_method_raw ??
-              (localTx as any).payment_method ??
-              undefined,
-            Payee:
-              (localTx as any).payee_buildium_id != null
-                ? {
-                    Id: (localTx as any).payee_buildium_id,
-                    Type: (localTx as any).payee_buildium_type ?? undefined,
-                    Name: (localTx as any).payee_name ?? undefined,
-                    Href: (localTx as any).payee_href ?? undefined,
-                  }
-                : undefined,
-            IsInternalTransaction: (localTx as any).is_internal_transaction ?? undefined,
-            InternalTransactionStatus:
-              (localTx as any).internal_transaction_is_pending != null ||
-              (localTx as any).internal_transaction_result_date ||
-              (localTx as any).internal_transaction_result_code
-                ? {
-                    IsPending: (localTx as any).internal_transaction_is_pending ?? undefined,
-                    ResultDate: (localTx as any).internal_transaction_result_date ?? undefined,
-                    ResultCode: (localTx as any).internal_transaction_result_code ?? undefined,
-                  }
-                : undefined,
-          },
-          UnitAgreement:
-            (localTx as any).unit_agreement_id != null
+    if (localTx && 'id' in localTx) {
+      const splits = Array.isArray((localTx as any).transaction_payment_transactions)
+        ? (localTx as any).transaction_payment_transactions
+        : []
+      const lines = Array.isArray((localTx as any).transaction_lines)
+        ? (localTx as any).transaction_lines
+        : []
+
+      const payload = {
+        Id: (localTx as any).id,
+        Date: (localTx as any).date,
+        TotalAmount: (localTx as any).total_amount,
+        Memo: (localTx as any).memo,
+        TransactionTypeEnum: (localTx as any).transaction_type,
+        CheckNumber: (localTx as any).check_number ?? undefined,
+        UnitId: (localTx as any).buildium_unit_id ?? undefined,
+        PaymentDetail: {
+          PaymentMethod:
+            (localTx as any).payment_method_raw ??
+            (localTx as any).payment_method ??
+            undefined,
+          Payee:
+            (localTx as any).payee_buildium_id != null
               ? {
-                  Id: (localTx as any).unit_agreement_id,
-                  Type: (localTx as any).unit_agreement_type ?? undefined,
+                  Id: (localTx as any).payee_buildium_id,
+                  Type: (localTx as any).payee_buildium_type ?? undefined,
+                  Name: (localTx as any).payee_name ?? undefined,
+                  Href: (localTx as any).payee_href ?? undefined,
                 }
               : undefined,
-          DepositDetails:
-            (localTx as any).bank_gl_account_buildium_id || splits.length
+          IsInternalTransaction: (localTx as any).is_internal_transaction ?? undefined,
+          InternalTransactionStatus:
+            (localTx as any).internal_transaction_is_pending != null ||
+            (localTx as any).internal_transaction_result_date ||
+            (localTx as any).internal_transaction_result_code
               ? {
-                  BankGLAccountId: (localTx as any).bank_gl_account_buildium_id ?? undefined,
-                  PaymentTransactions: splits.map((pt: any) => ({
-                    Id: pt?.buildium_payment_transaction_id ?? undefined,
-                    AccountingEntity:
-                      pt?.accounting_entity_id || pt?.accounting_entity_type
-                        ? {
-                            Id: pt?.accounting_entity_id ?? undefined,
-                            AccountingEntityType: pt?.accounting_entity_type ?? undefined,
-                            Href: pt?.accounting_entity_href ?? undefined,
-                            Unit:
-                              pt?.accounting_unit_id || pt?.accounting_unit_href
-                                ? {
-                                    Id: pt?.accounting_unit_id ?? undefined,
-                                    Href: pt?.accounting_unit_href ?? undefined,
-                                  }
-                                : undefined,
-                          }
-                        : undefined,
-                    Amount: pt?.amount ?? undefined,
-                  })),
+                  IsPending: (localTx as any).internal_transaction_is_pending ?? undefined,
+                  ResultDate: (localTx as any).internal_transaction_result_date ?? undefined,
+                  ResultCode: (localTx as any).internal_transaction_result_code ?? undefined,
                 }
               : undefined,
-          Lines: lines.map((line: any) => ({
-            GLAccountId: line?.gl_account_id,
-            Amount: line?.amount,
-            Memo: line?.memo,
-            ReferenceNumber: line?.reference_number ?? undefined,
-            IsCashPosting: line?.is_cash_posting ?? undefined,
-            PostingType: line?.posting_type ?? undefined,
-            PropertyId: line?.buildium_property_id ?? undefined,
-            UnitId: line?.buildium_unit_id ?? undefined,
-          })),
-        };
-        return NextResponse.json({ data: payload });
+        },
+        UnitAgreement:
+          (localTx as any).unit_agreement_id != null
+            ? {
+                Id: (localTx as any).unit_agreement_id,
+                Type: (localTx as any).unit_agreement_type ?? undefined,
+              }
+            : undefined,
+        DepositDetails:
+          (localTx as any).bank_gl_account_buildium_id || splits.length
+            ? {
+                BankGLAccountId: (localTx as any).bank_gl_account_buildium_id ?? undefined,
+                PaymentTransactions: splits.map((pt: any) => ({
+                  Id: pt?.buildium_payment_transaction_id ?? undefined,
+                  AccountingEntity:
+                    pt?.accounting_entity_id || pt?.accounting_entity_type
+                      ? {
+                          Id: pt?.accounting_entity_id ?? undefined,
+                          AccountingEntityType: pt?.accounting_entity_type ?? undefined,
+                          Href: pt?.accounting_entity_href ?? undefined,
+                          Unit:
+                            pt?.accounting_unit_id || pt?.accounting_unit_href
+                              ? {
+                                  Id: pt?.accounting_unit_id ?? undefined,
+                                  Href: pt?.accounting_unit_href ?? undefined,
+                                }
+                              : undefined,
+                        }
+                      : undefined,
+                  Amount: pt?.amount ?? undefined,
+                })),
+              }
+            : undefined,
+        Lines: lines.map((line: any) => ({
+          GLAccountId: line?.gl_account_id,
+          Amount: line?.amount,
+          Memo: line?.memo,
+          ReferenceNumber: line?.reference_number ?? undefined,
+          IsCashPosting: line?.is_cash_posting ?? undefined,
+          PostingType: line?.posting_type ?? undefined,
+          PropertyId: line?.buildium_property_id ?? undefined,
+          UnitId: line?.buildium_unit_id ?? undefined,
+        })),
       }
+      return NextResponse.json({ data: payload })
     }
 
     const tx = isNumeric
@@ -185,6 +191,7 @@ export async function GET(
           buildiumLeaseId != null && Number.isFinite(buildiumLeaseId) ? buildiumLeaseId : leaseId,
           txNumeric,
           false,
+          orgId,
         )
       : null
     if (!tx) {
@@ -192,6 +199,11 @@ export async function GET(
     }
     return NextResponse.json({ data: tx })
   } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === 'UNAUTHENTICATED') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      if (error.message === 'ORG_CONTEXT_REQUIRED') return NextResponse.json({ error: 'Organization context required' }, { status: 400 })
+      if (error.message === 'ORG_FORBIDDEN') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Failed to load transaction' }, { status: 500 })
   }
 }
@@ -219,6 +231,18 @@ export async function PUT(
   }
 
   try {
+    const { supabase: db, user } = await requireAuth()
+    const orgId = await resolveOrgIdFromRequest(request, user.id, db)
+    await requireOrgMember({ client: db, userId: user.id, orgId })
+
+    const { data: lease } = await db
+      .from('lease')
+      .select('id, org_id')
+      .eq('id', leaseId)
+      .eq('org_id', orgId)
+      .maybeSingle()
+    if (!lease) return NextResponse.json({ error: 'Lease not found' }, { status: 404 })
+
     const lines = parsed.data.allocations
       .map((line) => ({
         GLAccountId: Number(line.account_id),
@@ -238,16 +262,21 @@ export async function PUT(
       Memo: parsed.data.memo ?? undefined,
       Lines: lines,
     }
-    const result = await LeaseTransactionService.updateInBuildiumAndDB(leaseId, transactionId, payload)
+    const result = await LeaseTransactionService.updateInBuildiumAndDB(leaseId, transactionId, payload, orgId)
 
     return NextResponse.json({ data: result.buildium })
   } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === 'UNAUTHENTICATED') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      if (error.message === 'ORG_CONTEXT_REQUIRED') return NextResponse.json({ error: 'Organization context required' }, { status: 400 })
+      if (error.message === 'ORG_FORBIDDEN') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Failed to update transaction' }, { status: 500 })
   }
 }
 
 export async function DELETE(
-  _request: Request,
+  _request: NextRequest,
   context: { params: Promise<{ id: string; transactionId: string }> }
 ) {
   const { id, transactionId: txIdRaw } = await context.params
@@ -257,7 +286,10 @@ export async function DELETE(
   }
 
   try {
-    const db = requireSupabaseAdmin('transactions:delete')
+    const { supabase: db, user } = await requireAuth()
+    const orgId = await resolveOrgIdFromRequest(_request, user.id, db)
+    await requireOrgMember({ client: db, userId: user.id, orgId })
+    const admin = supabaseAdmin ?? db
     const raw = String(txIdRaw ?? '').trim()
     console.log('[DELETE transaction]', { leaseId, raw })
     const uuidLike = /[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/.test(raw)
@@ -265,13 +297,13 @@ export async function DELETE(
     let txIdLocal: string | null = null
     let buildiumTransactionId: number | null = null
     let buildiumLeaseId: number | null = null
-    let orgId: string | null = null
 
     if (uuidLike) {
-      const { data: existing } = await db
+      const { data: existing } = await admin
         .from('transactions')
         .select('id, lease_id, buildium_transaction_id, buildium_lease_id, org_id')
         .eq('id', raw)
+        .eq('org_id', orgId)
         .maybeSingle()
       console.log('[DELETE lookup uuid]', { existing })
       if (existing?.id) {
@@ -283,17 +315,17 @@ export async function DELETE(
         txIdLocal = existing.id
         buildiumTransactionId = existing.buildium_transaction_id != null ? Number(existing.buildium_transaction_id) : null
         buildiumLeaseId = existing.buildium_lease_id != null ? Number(existing.buildium_lease_id) : null
-        orgId = existing.org_id ?? null
       }
     }
 
     if (!txIdLocal) {
       const n = Number(raw)
       if (Number.isFinite(n)) {
-        const { data: existing } = await db
+        const { data: existing } = await admin
           .from('transactions')
           .select('id, lease_id, buildium_transaction_id, buildium_lease_id, org_id')
           .eq('buildium_transaction_id', n)
+          .eq('org_id', orgId)
           .maybeSingle()
         console.log('[DELETE lookup buildium]', { existing })
         if (existing?.id) {
@@ -304,7 +336,6 @@ export async function DELETE(
           txIdLocal = existing.id
           buildiumTransactionId = existing.buildium_transaction_id != null ? Number(existing.buildium_transaction_id) : null
           buildiumLeaseId = existing.buildium_lease_id != null ? Number(existing.buildium_lease_id) : null
-          orgId = existing.org_id ?? null
         }
       }
     }
@@ -344,24 +375,30 @@ export async function DELETE(
           const buildiumResponse = await buildiumFetch('DELETE', buildiumPath, undefined, undefined, orgId ?? undefined)
 
           if (!buildiumResponse.ok) {
-            logger.warn('[DELETE transaction] Buildium deletion failed (non-fatal):', {
-              buildiumLeaseId,
-              buildiumTransactionId,
-              transactionType,
-              endpoint: buildiumPath,
-              status: buildiumResponse.status,
-              error: buildiumResponse.errorText,
-            })
+            logger.warn(
+              {
+                buildiumLeaseId,
+                buildiumTransactionId,
+                transactionType,
+                endpoint: buildiumPath,
+                status: buildiumResponse.status,
+                error: buildiumResponse.errorText,
+              },
+              '[DELETE transaction] Buildium deletion failed (non-fatal)',
+            )
           } else {
             console.log('[DELETE transaction] Successfully deleted from Buildium')
           }
         } catch (buildiumError) {
           // Non-fatal - log but continue with local deletion
-          logger.error('[DELETE transaction] Buildium deletion error (non-fatal):', {
-            error: buildiumError,
-            buildiumLeaseId,
-            buildiumTransactionId,
-          })
+          logger.error(
+            {
+              error: buildiumError,
+              buildiumLeaseId,
+              buildiumTransactionId,
+            },
+            '[DELETE transaction] Buildium deletion error (non-fatal)',
+          )
         }
       } else {
         console.log('[DELETE transaction] No Buildium transaction ID, skipping Buildium deletion:', {
@@ -371,22 +408,27 @@ export async function DELETE(
       }
 
       // Remove overlays that block transaction deletion via restrictive FKs
-      const { error: depositDeleteErr } = await db
+      const { error: depositDeleteErr } = await admin
         .from('deposit_items')
         .delete()
         .eq('payment_transaction_id', txIdLocal)
       if (depositDeleteErr) throw depositDeleteErr
 
-      const { error: paymentDeleteErr } = await db.from('payment').delete().eq('transaction_id', txIdLocal)
+      const { error: paymentDeleteErr } = await admin.from('payment').delete().eq('transaction_id', txIdLocal)
       if (paymentDeleteErr) throw paymentDeleteErr
 
       // Delete the transaction (lines/journal entries cascade); disable balance trigger via helper
-      const { error: delErr } = await db.rpc('delete_transaction_safe', { p_transaction_id: txIdLocal })
+      const { error: delErr } = await admin.rpc('delete_transaction_safe', { p_transaction_id: txIdLocal })
       if (delErr) throw delErr
     }
 
     return NextResponse.json({ ok: true, deleted: Boolean(txIdLocal) }, { status: 200 })
   } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === 'UNAUTHENTICATED') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      if (error.message === 'ORG_CONTEXT_REQUIRED') return NextResponse.json({ error: 'Organization context required' }, { status: 400 })
+      if (error.message === 'ORG_FORBIDDEN') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Failed to delete transaction' }, { status: 500 })
   }
 }

@@ -62,7 +62,7 @@ async function checkExistingFiles(tenantId: string) {
   const { data: files, error } = await supabase
     .from('files')
     .select('id, file_name, title, buildium_file_id, buildium_href, created_at')
-    .eq('entity_type', 'Tenant')
+    .eq('entity_type', 'Tenants')
     .eq('entity_id', (await supabase.from('tenants').select('buildium_tenant_id').eq('id', tenantId).single()).data?.buildium_tenant_id || -1)
     .order('created_at', { ascending: false })
     .limit(5);
@@ -165,4 +165,3 @@ testUploadFlow().catch((error) => {
   console.error('❌ Test failed:', error);
   process.exit(1);
 });
-

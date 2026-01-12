@@ -30,6 +30,31 @@
     }
   },
   {
+    "name": "credit_signed_bank_line_is_payment_cash",
+    "transactionLines": [
+      {
+        "amount": 2500,
+        "posting_type": "credit",
+        "transaction_id": "bank-tx",
+        "gl_accounts": {
+          "type": "liability",
+          "is_bank_account": true,
+          "name": "Operating Bank"
+        }
+      }
+    ],
+    "transactions": [
+      { "id": "bank-tx", "transaction_type": "Payment", "total_amount": 2500 }
+    ],
+    "reserve": 0,
+    "expected": {
+      "cash_balance": 2500,
+      "security_deposits": 0,
+      "usedBankBalance": true,
+      "usedPaymentFallback": false
+    }
+  },
+  {
     "name": "payments_fallback_when_bank_lines_are_clearly_incomplete",
     "transactionLines": [
       {

@@ -1,6 +1,8 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
-import { supabaseAdmin } from '@/lib/db';
+import { requireAuth } from '@/lib/auth/guards';
+import { requireOrgMember } from '@/lib/auth/org-guards';
+import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
 
 type CreatePayload = {
   propertyId?: string;
@@ -18,8 +20,9 @@ function normalizePeriodStart(value: string | undefined): string | null {
   return `${year}-${paddedMonth}-01`;
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
+    const { supabase, user } = await requireAuth();
     const payload = (await request.json()) as CreatePayload;
     const propertyId = (payload.propertyId || '').trim();
     const unitId = (payload.unitId || '').trim();
@@ -32,10 +35,13 @@ export async function POST(request: Request) {
       );
     }
 
-    const propertyRes = await supabaseAdmin
+    const orgId = await resolveOrgIdFromRequest(request, user.id, supabase);
+
+    const propertyRes = await supabase
       .from('properties')
       .select('id, org_id, status, is_active')
       .eq('id', propertyId)
+      .eq('org_id', orgId)
       .maybeSingle();
 
     if (propertyRes.error) {
@@ -56,6 +62,7 @@ export async function POST(request: Request) {
         { status: 404 },
       );
     }
+    await requireOrgMember({ client: supabase, userId: user.id, orgId });
 
     if (property.status && property.status !== 'Active') {
       return NextResponse.json(
@@ -71,10 +78,11 @@ export async function POST(request: Request) {
       );
     }
 
-    const unitRes = await supabaseAdmin
+    const unitRes = await supabase
       .from('units')
       .select('id, property_id, status, is_active')
       .eq('id', unitId)
+      .eq('org_id', orgId)
       .maybeSingle();
 
     if (unitRes.error) {
@@ -108,7 +116,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const existingRes = await supabaseAdmin
+    const existingRes = await supabase
       .from('monthly_logs')
       .select('id')
       .eq('property_id', propertyId)
@@ -138,7 +146,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const insertRes = await supabaseAdmin
+    const insertRes = await supabase
       .from('monthly_logs')
       .insert({
         org_id: property.org_id,

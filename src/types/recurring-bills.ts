@@ -48,7 +48,8 @@ const MonthlyQuarterlyYearlyScheduleSchema = z.object({
 // Base schedule schema (for Weekly/Every2Weeks)
 const WeeklyEvery2WeeksScheduleSchema = z.object({
   frequency: z.enum(['Weekly', 'Every2Weeks']),
-  day_of_week: z.number().int().min(0).max(6), // 0 = Sunday, 6 = Saturday
+  // Week starts on Monday (1 = Monday, 7 = Sunday)
+  day_of_week: z.number().int().min(1).max(7),
   start_date: ISODateString,
   end_date: ISODateString.nullable().optional(),
   status: ScheduleStatusEnum.default('active'),
@@ -175,10 +176,8 @@ export function computeNextRunDate(
   orgTimezone: string = 'America/New_York',
 ): string | null {
   try {
-    const startDate = new Date(schedule.start_date + 'T00:00:00Z')
-    // Use org timezone for calculations (default America/New_York)
-    const today = new Date()
-    const todayStr = today.toISOString().slice(0, 10)
+    const startDate = dateOnlyToUtc(schedule.start_date)
+    const todayStr = todayInTimezone(orgTimezone)
 
     // If schedule has ended or is paused, return null
     if (schedule.status === 'ended' || schedule.status === 'paused') {
@@ -199,15 +198,23 @@ export function computeNextRunDate(
         : startDate
 
     // Ensure we're looking forward from today
-    if (currentDate < new Date(todayStr + 'T00:00:00Z')) {
-      currentDate = new Date(todayStr + 'T00:00:00Z')
+    if (currentDate < dateOnlyToUtc(todayStr)) {
+      currentDate = dateOnlyToUtc(todayStr)
     }
 
     if (schedule.frequency === 'Monthly' || schedule.frequency === 'Quarterly' || schedule.frequency === 'Yearly') {
-      return computeNextMonthlyQuarterlyYearlyDate(schedule, currentDate, orgTimezone)
+      return computeNextMonthlyQuarterlyYearlyDate(
+        schedule as Extract<RecurringBillSchedule, { frequency: 'Monthly' | 'Quarterly' | 'Yearly' }>,
+        currentDate,
+        orgTimezone,
+      )
     } else {
       // Weekly or Every2Weeks
-      return computeNextWeeklyDate(schedule, currentDate)
+      return computeNextWeeklyDate(
+        schedule as Extract<RecurringBillSchedule, { frequency: 'Weekly' | 'Every2Weeks' }>,
+        currentDate,
+        orgTimezone,
+      )
     }
   } catch (error) {
     console.error('Error computing next run date:', error)
@@ -241,6 +248,23 @@ function computeNextMonthlyQuarterlyYearlyDate(
   let year = currentYear
   let month = currentMonth
 
+  if (schedule.frequency === 'Monthly') {
+    // Try this month first; if already passed, use next month
+    let candidate = applyRolloverPolicy(year, month, targetDay, schedule.rollover_policy)
+    if (!candidate || new Date(Date.UTC(candidate.year, candidate.month - 1, candidate.day)) <= currentDate) {
+      if (month === 12) {
+        year += 1
+        month = 1
+      } else {
+        month += 1
+      }
+      candidate = applyRolloverPolicy(year, month, targetDay, schedule.rollover_policy)
+    }
+    if (!candidate) return null
+    const nextDate = new Date(Date.UTC(candidate.year, candidate.month - 1, candidate.day))
+    return nextDate.toISOString().slice(0, 10)
+  }
+
   // If we're past the target month for Quarterly/Yearly, move to next cycle
   if ((schedule.frequency === 'Quarterly' || schedule.frequency === 'Yearly') && currentMonth > targetMonth) {
     year += schedule.frequency === 'Yearly' ? 1 : 0
@@ -251,12 +275,6 @@ function computeNextMonthlyQuarterlyYearlyDate(
       const nextQuarter = (quarter + 1) % 4
       month = nextQuarter * 3 + 1
       if (nextQuarter === 0) year += 1
-    }
-  } else if (schedule.frequency === 'Monthly') {
-    month += 1
-    if (month > 12) {
-      month = 1
-      year += 1
     }
   } else {
     // Quarterly/Yearly and we're at or before target month
@@ -290,19 +308,22 @@ function computeNextMonthlyQuarterlyYearlyDate(
 function computeNextWeeklyDate(
   schedule: Extract<RecurringBillSchedule, { frequency: 'Weekly' | 'Every2Weeks' }>,
   currentDate: Date,
+  orgTimezone: string,
 ): string | null {
-  const startDate = new Date(schedule.start_date + 'T00:00:00Z')
-  const targetDayOfWeek = schedule.day_of_week
+  const startDate = dateOnlyToUtc(schedule.start_date)
+  const targetDayOfWeek = schedule.day_of_week || 1 // 1 = Monday, 7 = Sunday
 
   // Calculate days to add
   const daysToAdd = schedule.frequency === 'Every2Weeks' ? 14 : 7
 
-  // Find the next occurrence of the target day of week
+  // Find the next occurrence of the target day of week (week starts Monday)
   let nextDate = new Date(currentDate)
-  const currentDayOfWeek = nextDate.getUTCDay()
+  const currentDayOfWeek = getDayOfWeekInTimezone(nextDate, orgTimezone) // 1..7
+  const jsTargetDay = targetDayOfWeek % 7 // convert 7->0 for JS Date math
+  const jsCurrentDay = currentDayOfWeek % 7
 
   // Calculate days until next target day
-  let daysUntilTarget = (targetDayOfWeek - currentDayOfWeek + 7) % 7
+  let daysUntilTarget = (jsTargetDay - jsCurrentDay + 7) % 7
   if (daysUntilTarget === 0) {
     // If today is the target day, move to next occurrence
     daysUntilTarget = daysToAdd
@@ -343,3 +364,35 @@ export function mapFrequencyToDisplayLabel(frequency: RecurringBillFrequency): s
   return FREQUENCY_TO_DISPLAY[frequency] || frequency
 }
 
+// Helper: parse YYYY-MM-DD to a UTC date anchored at noon to reduce TZ drift
+export function dateOnlyToUtc(dateStr: string): Date {
+  const [year, month, day] = dateStr.split('-').map((p) => Number.parseInt(p, 10))
+  return new Date(Date.UTC(year, month - 1, day, 12, 0, 0))
+}
+
+// Helper: get today's date string in a given timezone (YYYY-MM-DD)
+export function todayInTimezone(timezone: string): string {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
+  return formatter.format(new Date())
+}
+
+// Helper: get day of week (1=Monday..7=Sunday) in a given timezone
+export function getDayOfWeekInTimezone(date: Date | string, timezone: string): number {
+  const d = typeof date === 'string' ? dateOnlyToUtc(date) : date
+  const weekday = new Intl.DateTimeFormat('en-US', { weekday: 'short', timeZone: timezone }).format(d)
+  const map: Record<string, number> = {
+    Mon: 1,
+    Tue: 2,
+    Wed: 3,
+    Thu: 4,
+    Fri: 5,
+    Sat: 6,
+    Sun: 7,
+  }
+  return map[weekday] || 1
+}

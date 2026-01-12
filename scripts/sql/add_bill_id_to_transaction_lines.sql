@@ -1,11 +1,21 @@
--- Add buildium_bill_id column to transaction_lines table
-ALTER TABLE "transaction_lines" ADD COLUMN IF NOT EXISTS "buildium_bill_id" INTEGER;
+-- Deprecated schema patch: add buildium_bill_id to transaction_lines.
+--
+-- Phase 1 single-source-of-truth goal:
+--   Only Supabase migrations under supabase/migrations/ should define or
+--   modify the canonical database schema.
+--
+-- The authoritative Buildium bill linkage now lives on public.transactions
+-- (see initial schema and later bill-related migrations). There is no
+-- application code that relies on a buildium_bill_id column on
+-- transaction_lines, and this script MUST NOT be used to add one.
+--
+-- Read-only drift check: shows whether any database has this extra column.
+SELECT
+  column_name,
+  data_type,
+  is_nullable
+FROM information_schema.columns
+WHERE table_schema = 'public'
+  AND table_name = 'transaction_lines'
+  AND column_name = 'buildium_bill_id';
 
--- Add index for performance
-CREATE INDEX IF NOT EXISTS "idx_transaction_lines_buildium_bill_id" ON "transaction_lines"("buildium_bill_id");
-
--- Add comment
-COMMENT ON COLUMN "transaction_lines"."buildium_bill_id" IS 'Reference to Buildium bill ID for linking bill line items';
-
--- Update the table comment to reflect the new purpose
-COMMENT ON TABLE "transaction_lines" IS 'Transaction line items representing individual GL account postings within a transaction, including bill line items';

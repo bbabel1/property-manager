@@ -86,7 +86,13 @@ const supabaseStub = {
   from: (table: keyof typeof tableData) => new QueryBuilder(table),
 };
 
-const requireAuthMock = vi.fn().mockResolvedValue({ user: { id: 'user-1' } });
+const requireAuthMock = vi.fn().mockResolvedValue({
+  supabase: supabaseStub,
+  supabaseAdmin: supabaseStub,
+  user: { id: '00000000-0000-0000-0000-000000000001' },
+  roles: ['org_admin'],
+  orgRoles: {},
+});
 
 const requireRoleMock = vi.fn().mockResolvedValue(undefined);
 
@@ -106,6 +112,14 @@ const uploadPropertyImageMock = vi.fn().mockResolvedValue({
 vi.mock('@/lib/auth/guards', () => ({
   requireAuth: requireAuthMock,
   requireRole: requireRoleMock,
+}));
+
+vi.mock('@/lib/auth/org-guards', () => ({
+  requireOrgMember: vi.fn().mockResolvedValue({ orgId: 'org-1' }),
+}));
+
+vi.mock('@/lib/org/resolve-org-id', () => ({
+  resolveOrgIdFromRequest: vi.fn().mockResolvedValue('org-1'),
 }));
 
 vi.mock('@/lib/db', () => ({
@@ -162,6 +176,7 @@ describe('Buildium property images API', () => {
   });
 
   it('GET returns images for a property', async () => {
+    tableData.properties.push({ id: 'prop-1', org_id: 'org-1' });
     tableData.property_images.push(
       { id: 'img-1', property_id: 'prop-1', sort_index: 1 },
       { id: 'img-2', property_id: 'prop-1', sort_index: 2 },

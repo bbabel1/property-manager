@@ -290,14 +290,16 @@ export const classifyLine = (line: BasicLine) => {
   const arFlag =
     normalizedSubType === 'accountsreceivable' || normalizedName.includes('accountsreceivable');
 
-  const signed = signedByNormalBalance(amount, line?.posting_type, account?.type);
-  const liabilitySigned = signedByNormalBalance(amount, line?.posting_type, 'liability');
+  const postingType = line?.posting_type;
+  // Bank accounts should always follow cash/asset normal balances even if the GL type is mis-labeled
+  const bankSigned = bankFlag ? signedByNormalBalance(amount, postingType, 'asset') : 0;
+  const liabilitySigned = signedByNormalBalance(amount, postingType, 'liability');
 
   return {
-    bankSigned: bankFlag ? signed : 0,
+    bankSigned,
     depositSigned: depositFlag ? liabilitySigned : 0,
     prepaySigned: prepayFlag ? liabilitySigned : 0,
-    arSigned: arFlag ? signed : 0,
+    arSigned: arFlag ? signedByNormalBalance(amount, postingType, 'asset') : 0,
     flags: {
       bank: bankFlag,
       deposit: depositFlag,
@@ -379,7 +381,13 @@ export function rollupFinances(params: FinanceRollupParams): FinanceRollupResult
     const txId = txIdRaw != null ? String(txIdRaw) : '';
     const txKind = txId ? txKindById.get(txId) : undefined;
     const { bankSigned, depositSigned, prepaySigned, arSigned, flags } = classifyLine(line);
-    bankTotal += bankSigned;
+
+    // If the transaction is payment-like but the bank line is negative (e.g., mis-signed),
+    // treat it as a cash inflow.
+    const bankContribution =
+      flags.bank && txKind === 'payment' && bankSigned < 0 ? Math.abs(bankSigned) : bankSigned;
+
+    bankTotal += bankContribution;
     const includeLiability =
       txKind !== 'charge' ||
       // If we do not have a transaction type for the line, keep legacy behavior to avoid losing data

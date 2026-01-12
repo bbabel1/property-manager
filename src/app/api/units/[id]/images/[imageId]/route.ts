@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireUser } from '@/lib/auth'
-import { supabase, supabaseAdmin } from '@/lib/db'
+import { requireAuth } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { buildiumFetch } from '@/lib/buildium-http'
+import { resolveResourceOrg, requireOrgMember } from '@/lib/auth/org-guards'
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string; imageId: string }> }) {
   try {
@@ -12,14 +12,19 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
     }
 
-    const user = await requireUser(request)
+    const { supabase: db, user } = await requireAuth()
     const { id: unitId, imageId } = await params
-    const db = supabaseAdmin || supabase
+    const resolvedOrg = await resolveResourceOrg(db, 'unit', unitId)
+    if (!resolvedOrg.ok) {
+      return NextResponse.json({ error: 'Unit not found' }, { status: 404 })
+    }
+    await requireOrgMember({ client: db, userId: user.id, orgId: resolvedOrg.orgId })
 
     const { data: unitRow, error: unitError } = await db
       .from('units')
       .select('id, buildium_unit_id')
       .eq('id', unitId)
+      .eq('org_id', resolvedOrg.orgId)
       .maybeSingle()
 
     if (unitError || !unitRow) {
@@ -58,6 +63,17 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     return NextResponse.json({ success: true })
   } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === 'UNAUTHENTICATED') {
+        return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+      }
+      if (error.message === 'ORG_FORBIDDEN') {
+        return NextResponse.json({ error: 'Organization access denied' }, { status: 403 })
+      }
+      if (error.message === 'ORG_CONTEXT_REQUIRED') {
+        return NextResponse.json({ error: 'Organization context required' }, { status: 400 })
+      }
+    }
     logger.error({ error }, 'Error deleting unit image')
     return NextResponse.json({ error: 'Failed to delete unit image' }, { status: 500 })
   }

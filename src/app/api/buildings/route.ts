@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth';
-import { supabase, supabaseAdmin } from '@/lib/db';
+import { requireOrgMember } from '@/lib/auth/org-guards';
+import { getSupabaseServerClient } from '@/lib/supabase/server';
 import type { Database } from '@/types/database';
+import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
 
 const BOROUGH_NAMES: Record<string, string> = {
   '1': 'Manhattan',
@@ -81,19 +83,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const db = supabaseAdmin || supabase;
-    const { data: membership, error: membershipError } = await db
-      .from('org_memberships')
-      .select('org_id')
-      .eq('user_id', user.id)
-      .limit(1)
-      .maybeSingle();
-
-    if (membershipError || !membership?.org_id) {
-      return NextResponse.json({ error: 'Organization not found' }, { status: 400 });
-    }
-
-    const orgId = membership.org_id;
+    const db = await getSupabaseServerClient();
+    const orgId = await resolveOrgIdFromRequest(request, user.id, db);
+    await requireOrgMember({ client: db, userId: user.id, orgId });
     const { data, error } = await db
       .from('properties')
       .select(
@@ -222,6 +214,14 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(payload);
   } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === 'ORG_CONTEXT_REQUIRED') {
+        return NextResponse.json({ error: 'Organization context required' }, { status: 400 });
+      }
+      if (error.message === 'ORG_FORBIDDEN') {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+    }
     console.error('Unexpected error fetching buildings', error);
     return NextResponse.json({ error: 'Failed to fetch buildings' }, { status: 500 });
   }

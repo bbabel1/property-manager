@@ -11,11 +11,20 @@ This folder contains Supabase config, migrations, and helpers.
 
 See `supabase/migrations/` for ordered SQL files. Apply in order if running manually in the dashboard.
 
+### Migration hygiene
+
+- Filenames must be `YYYYMMDDHHMMSS_description.sql` (14-digit UTC timestamp).
+- Far-future placeholders were renumbered into 2027; `20270131151000_normalize_migration_versions.sql` keeps existing envs in sync.
+- Run `npm run lint:migrations` before pushing; CI fails on unsafe DDL for new migrations.
+- Zero-downtime defaults: add nullable → backfill → enforce; create indexes concurrently on large tables; use expand/contract for drops.
+- Opt-outs (use sparingly): `-- lint:allow-nonconcurrent`, `-- lint:allow-not-null`, `-- lint:allow-drop`.
+
 ## Types & Schema Docs
 
 - Generate local types: `npm run types:local` → `src/types/database.ts`
 - Generate remote types: `npm run types:remote`
 - Update schema doc: `npm run db:schema` (writes `docs/database/current_schema.sql`)
+- Dump linked remote schema snapshot: `npm run db:schema:linked` (writes `supabase/schema.sql`, also captured as a CI artifact)
 
 ## Environment
 

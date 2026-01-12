@@ -31,6 +31,7 @@ export function PropertyFinancials({ propertyId, fin }: PropertyFinancialsProps)
 
   const fmt = (n?: number | null) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n ?? 0)
+  const fmtHeld = (n?: number | null) => fmt(Math.abs(n ?? 0))
 
   const hasFinancialData = true
 
@@ -49,7 +50,7 @@ export function PropertyFinancials({ propertyId, fin }: PropertyFinancialsProps)
           </div>
           <div className="flex justify-between items-center text-muted-foreground">
             <span className="pl-4">- Security deposits and early payments:</span>
-            <span>{fmt(financials?.security_deposits)}</span>
+            <span>{fmtHeld(financials?.security_deposits)}</span>
           </div>
           <div className="flex justify-between items-center text-muted-foreground">
             <span className="pl-4">- Property reserve:</span>

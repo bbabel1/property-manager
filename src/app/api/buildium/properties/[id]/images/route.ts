@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth, requireRole } from '@/lib/auth/guards';
-import { supabase, supabaseAdmin } from '@/lib/db';
+import { requireAuth } from '@/lib/auth/guards';
 import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumEdgeClient, getOrgScopedBuildiumEdgeClient } from '@/lib/buildium-edge-client';
 import { BuildiumPropertyImageUploadSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
+import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
+import { requireOrgMember } from '@/lib/auth/org-guards';
+import { hasRole } from '@/lib/auth/roles';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -22,18 +24,39 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     // Authentication
-    const { user } = await requireAuth();
+    const { supabase: db, user } = await requireAuth();
+    const orgId = await resolveOrgIdFromRequest(request, user.id, db);
+    await requireOrgMember({ client: db, userId: user.id, orgId });
 
     logger.info(
-      { userId: user.id, propertyId, action: 'get_property_images' },
+      { userId: user.id, propertyId, orgId, action: 'get_property_images' },
       'Fetching property images',
     );
 
+    const { data: property, error: propertyError } = await db
+      .from('properties')
+      .select('id')
+      .eq('id', propertyId)
+      .eq('org_id', orgId)
+      .maybeSingle();
+
+    if (propertyError) {
+      logger.error(
+        { error: propertyError, userId: user.id, propertyId, orgId },
+        'Error verifying property before fetching images',
+      );
+      return NextResponse.json({ error: 'Failed to fetch property images' }, { status: 500 });
+    }
+
+    if (!property) {
+      return NextResponse.json({ error: 'Property not found' }, { status: 404 });
+    }
+
     // Get property images from database
-    const { data: images, error } = await supabase
+    const { data: images, error } = await db
       .from('property_images')
       .select('*')
-      .eq('property_id', propertyId)
+      .eq('property_id', property.id)
       .order('sort_index', { ascending: true });
 
     if (error) {
@@ -42,7 +65,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     logger.info(
-      { userId: user.id, propertyId, imageCount: images?.length || 0 },
+      { userId: user.id, propertyId, orgId, imageCount: images?.length || 0 },
       'Property images fetched successfully',
     );
 
@@ -51,8 +74,16 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       data: images || [],
     });
   } catch (error) {
-    if (error instanceof Error && error.message === 'UNAUTHENTICATED') {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    if (error instanceof Error) {
+      if (error.message === 'UNAUTHENTICATED') {
+        return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+      }
+      if (error.message === 'ORG_CONTEXT_REQUIRED') {
+        return NextResponse.json({ error: 'Organization context required' }, { status: 400 });
+      }
+      if (error.message === 'ORG_FORBIDDEN') {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
     }
 
     logger.error(
@@ -78,10 +109,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     // Authentication
-    const { user } = await requireAuth();
+    const { supabase: db, user, roles, orgRoles } = await requireAuth();
+    const orgId = await resolveOrgIdFromRequest(request, user.id, db);
+    await requireOrgMember({ client: db, userId: user.id, orgId });
 
     logger.info(
-      { userId: user.id, propertyId, action: 'upload_property_image' },
+      { userId: user.id, propertyId, orgId, action: 'upload_property_image' },
       'Uploading property image',
     );
 
@@ -90,11 +123,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const validatedData = sanitizeAndValidate(body, BuildiumPropertyImageUploadSchema);
 
     // Resolve property + Buildium context
-    const db = supabaseAdmin || supabase;
     const { data: propertyRow, error: propertyError } = await db
       .from('properties')
       .select('id, buildium_property_id, org_id')
       .eq('id', propertyId)
+      .eq('org_id', orgId)
       .maybeSingle();
 
     if (propertyError) {
@@ -108,9 +141,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (!propertyRow) {
       return NextResponse.json({ error: 'Property not found' }, { status: 404 });
     }
-    if (propertyRow.org_id) {
-      // Require admin/manager for uploads
-      await requireRole(['org_admin', 'org_manager', 'platform_admin'], propertyRow.org_id);
+    const scopedRoles = orgRoles?.[orgId] ?? roles;
+    if (!hasRole(scopedRoles, ['org_admin', 'org_manager', 'platform_admin'])) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     // Determine the next sort index for locally persisted images
     const { data: existingSort } = await db
@@ -170,14 +203,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
       if (localError) {
         logger.error(
-          { error: localError, userId: user.id, propertyId },
+          { error: localError, userId: user.id, propertyId, orgId },
           'Error storing local property image',
         );
         return NextResponse.json({ error: 'Failed to store property image' }, { status: 500 });
       }
 
       logger.info(
-        { userId: user.id, propertyId, imageId: localImage?.id },
+        { userId: user.id, propertyId, orgId, imageId: localImage?.id },
         'Local property image stored',
       );
       return NextResponse.json({ success: true, data: localImage });
@@ -186,10 +219,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // Branch: Buildium-connected properties upload to Buildium service, otherwise persist locally only
     if (propertyRow.buildium_property_id) {
       try {
-        // Use org-scoped credentials if orgId is available
-        const client: BuildiumEdgeClient = propertyRow.org_id
-          ? await getOrgScopedBuildiumEdgeClient(propertyRow.org_id)
-          : await getOrgScopedBuildiumEdgeClient(undefined); // Fallback to env vars
+        const client: BuildiumEdgeClient = await getOrgScopedBuildiumEdgeClient(orgId);
 
         const buildiumImageResult = await client.uploadPropertyImage(
           String(propertyRow.buildium_property_id),
@@ -226,14 +256,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
         if (error || !image) {
           logger.error(
-            { error, userId: user.id, propertyId },
+            { error, userId: user.id, propertyId, orgId },
             'Error storing property image after Buildium upload',
           );
           return NextResponse.json({ error: 'Failed to store property image' }, { status: 500 });
         }
 
         logger.info(
-          { userId: user.id, propertyId, imageId: image.id },
+          { userId: user.id, propertyId, orgId, imageId: image.id },
           'Property image uploaded to Buildium successfully',
         );
         return NextResponse.json({ success: true, data: image });
@@ -243,7 +273,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             ? buildiumError.message
             : 'Failed to upload property image to Buildium';
         logger.error(
-          { error: message, userId: user.id, propertyId },
+          { error: message, userId: user.id, propertyId, orgId },
           'Buildium property image upload failed; falling back to local storage',
         );
         return await storeLocalImage();
@@ -253,8 +283,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // Local-only fallback for properties not yet linked to Buildium
     return await storeLocalImage();
   } catch (error) {
-    if (error instanceof Error && error.message === 'UNAUTHENTICATED') {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    if (error instanceof Error) {
+      if (error.message === 'UNAUTHENTICATED') {
+        return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+      }
+      if (error.message === 'ORG_CONTEXT_REQUIRED') {
+        return NextResponse.json({ error: 'Organization context required' }, { status: 400 });
+      }
+      if (error.message === 'ORG_FORBIDDEN') {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
     }
 
     logger.error(

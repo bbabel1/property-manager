@@ -5407,6 +5407,7 @@ export function mapBankAccountFromBuildium(buildiumBankAccount: BuildiumBankAcco
 export async function mapBankAccountFromBuildiumWithGLAccount(
   buildiumBankAccount: BuildiumBankAccountExtended,
   supabase: TypedSupabaseClient,
+  orgId?: string,
 ): Promise<{
   buildium_bank_id: number;
   name: string;
@@ -5429,6 +5430,7 @@ export async function mapBankAccountFromBuildiumWithGLAccount(
       ? buildiumBankAccount.GLAccount
       : buildiumBankAccount.GLAccount?.Id ?? null,
     supabase,
+    orgId,
   );
 
   const result = {

@@ -4,6 +4,9 @@ import { buildiumFetch } from '@/lib/buildium-http'
 import { logger } from '@/lib/logger'
 import type { Database as DatabaseSchema } from '@/types/database'
 import { syncBuildiumReconciliationTransactions } from '@/lib/buildium-reconciliation-sync'
+import { requireAuth } from '@/lib/auth/guards'
+import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id'
+import { requireOrgMember } from '@/lib/auth/org-guards'
 
 type BankAccountRow = Pick<DatabaseSchema['public']['Tables']['gl_accounts']['Row'], 'id' | 'buildium_gl_account_id'>
 type PropertyAccountRow = Pick<
@@ -38,62 +41,75 @@ type ReconciliationAlertRow = { property_id: string | null }
 
 // On-demand sync job for Buildium reconciliations → reconciliation_log
 export async function GET(req: NextRequest) {
-  const admin = supabaseAdmin
-  if (!admin) return NextResponse.json({ error: 'Service key not configured' }, { status: 500 })
-
-  const url = new URL(req.url)
-  const bankAccountId = url.searchParams.get('bankAccountId')
-  const propertyId = url.searchParams.get('propertyId')
-  const includeFinished = url.searchParams.get('includeFinished') === 'true'
-
-  let bankAccounts: BankAccountRow[] = []
   try {
-    // Phase 4: bank accounts are gl_accounts rows flagged is_bank_account=true
-    let query = admin.from('gl_accounts').select('id, buildium_gl_account_id').eq('is_bank_account', true)
-    if (bankAccountId) query = query.eq('id', bankAccountId)
-    const { data, error } = await query
-    if (error) throw error
-    bankAccounts = data || []
-  } catch (e) {
-    logger.error({ e }, 'Failed to list bank accounts for sync')
-    return NextResponse.json({ error: 'Failed to list bank accounts' }, { status: 500 })
-  }
+    const { supabase: db, user } = await requireAuth()
+    const orgId = await resolveOrgIdFromRequest(req, user.id, db)
+    await requireOrgMember({ client: db, userId: user.id, orgId })
 
-  // This is a platform_admin route, so orgId is undefined (falls back to env vars)
+    const admin = supabaseAdmin ?? db
+    if (!admin) return NextResponse.json({ error: 'Service key not configured' }, { status: 500 })
 
-  let totalAccounts = 0
-  let totalRecs = 0
-  let totalBalances = 0
-  let totalTxnSyncs = 0
-  let totalUnmatched = 0
-  let syncErrors = 0
-  let changes = 0
+    const url = new URL(req.url)
+    const bankAccountId = url.searchParams.get('bankAccountId')
+    const propertyId = url.searchParams.get('propertyId')
+    const includeFinished = url.searchParams.get('includeFinished') === 'true'
 
-    // If propertyId provided, restrict bank accounts to the property's linked accounts
-    if (propertyId) {
-      try {
-        const { data: pr } = await admin
-          .from('properties')
-          .select('operating_bank_gl_account_id, deposit_trust_gl_account_id')
-          .eq('id', propertyId)
-          .maybeSingle()
-        if (pr) {
-          const ids = [
-            (pr as PropertyAccountRow).operating_bank_gl_account_id,
-            (pr as PropertyAccountRow).deposit_trust_gl_account_id,
-          ].filter(Boolean)
-          if (ids.length) bankAccounts = bankAccounts.filter(b => ids.includes(b.id))
-        }
-      } catch {}
+    let bankAccounts: BankAccountRow[] = []
+    try {
+      // Phase 4: bank accounts are gl_accounts rows flagged is_bank_account=true
+      let query = admin.from('gl_accounts').select('id, buildium_gl_account_id').eq('is_bank_account', true)
+        .eq('org_id', orgId)
+      if (bankAccountId) query = query.eq('id', bankAccountId)
+      const { data, error } = await query
+      if (error) throw error
+      bankAccounts = data || []
+    } catch (e) {
+      logger.error({ e }, 'Failed to list bank accounts for sync')
+      return NextResponse.json({ error: 'Failed to list bank accounts' }, { status: 500 })
     }
 
-  for (const ba of bankAccounts) {
+    const { data: orgProperties } = await admin.from('properties').select('id').eq('org_id', orgId)
+    const orgPropertyIds = (orgProperties ?? []).map((p) => p?.id).filter(Boolean) as string[]
+
+    let totalAccounts = 0
+    let totalRecs = 0
+    let totalBalances = 0
+    let totalTxnSyncs = 0
+    let totalUnmatched = 0
+    let syncErrors = 0
+    let changes = 0
+
+  // If propertyId provided, restrict bank accounts to the property's linked accounts
+  if (propertyId) {
+    try {
+      const { data: pr } = await admin
+        .from('properties')
+        .select('operating_bank_gl_account_id, deposit_trust_gl_account_id')
+        .eq('id', propertyId)
+        .eq('org_id', orgId)
+        .maybeSingle()
+      if (pr) {
+        const ids = [
+          (pr as PropertyAccountRow).operating_bank_gl_account_id,
+          (pr as PropertyAccountRow).deposit_trust_gl_account_id,
+        ].filter(Boolean)
+        if (ids.length) bankAccounts = bankAccounts.filter(b => ids.includes(b.id))
+        else bankAccounts = []
+      } else {
+        bankAccounts = []
+      }
+    } catch {
+      bankAccounts = []
+    }
+  }
+
+    for (const ba of bankAccounts) {
     const buildiumBankAccountId = ba.buildium_gl_account_id
     if (!buildiumBankAccountId || buildiumBankAccountId <= 0) continue
     totalAccounts++
     try {
       // Fetch reconciliations per Buildium bank account
-      const res = await buildiumFetch('GET', `/bankaccounts/${buildiumBankAccountId}/reconciliations`, undefined, undefined, undefined)
+      const res = await buildiumFetch('GET', `/bankaccounts/${buildiumBankAccountId}/reconciliations`, undefined, undefined, orgId)
         if (!res.ok) {
           logger.warn({ bank: buildiumBankAccountId, status: res.status }, 'Reconciliations fetch failed')
           continue
@@ -108,10 +124,14 @@ export async function GET(req: NextRequest) {
             .from('properties')
             .select('id')
             .or(`operating_bank_gl_account_id.eq.${ba.id},deposit_trust_gl_account_id.eq.${ba.id}`)
+            .eq('org_id', orgId)
             .limit(1)
             .maybeSingle()
           if (prop) property_id = prop.id
         } catch {}
+        if (property_id && orgPropertyIds.length && !orgPropertyIds.includes(property_id)) {
+          property_id = null
+        }
 
         const buildiumRecId = r?.Id ?? r?.id
         if (buildiumRecId == null) continue
@@ -205,35 +225,56 @@ export async function GET(req: NextRequest) {
       logger.warn({ e, bank: buildiumBankAccountId }, 'Sync loop error for bank account')
     }
   }
-  // Alert plumbing: log counts for variance and stale alerts
-  try {
-    // Cast client + view names because these views may lag behind generated Supabase types.
-    const adminAny = admin as any
-    const varianceQuery = adminAny
-      .from('v_reconciliation_variance_alerts' as any)
-      .select('property_id')
-      .eq('over_24h', true)
-    const staleQuery = adminAny.from('v_reconciliation_stale_alerts' as any).select('property_id')
+    // Alert plumbing: log counts for variance and stale alerts
+    try {
+      if (!orgPropertyIds.length) {
+        return NextResponse.json({
+          success: true,
+          totalAccounts,
+          totalRecs,
+          totalBalances,
+          changes,
+          totalTxnSyncs,
+          totalUnmatched,
+          syncErrors,
+        })
+      }
+      // Cast client + view names because these views may lag behind generated Supabase types.
+      const adminAny = admin as any
+      const varianceQuery = adminAny
+        .from('v_reconciliation_variance_alerts' as any)
+        .select('property_id')
+        .eq('over_24h', true)
+        .in('property_id', orgPropertyIds)
+      const staleQuery = adminAny.from('v_reconciliation_stale_alerts' as any).select('property_id').in('property_id', orgPropertyIds)
 
-    const { data: rawVarRows } = await varianceQuery
-    const { data: rawStaleRows } = await staleQuery
-    const varRows = rawVarRows as Pick<ReconciliationVarianceAlertRow, 'property_id'>[] | null
-    const staleRows = rawStaleRows as ReconciliationAlertRow[] | null
-    const varCount = Array.isArray(varRows) ? varRows.length : 0
-    const staleCount = Array.isArray(staleRows) ? staleRows.length : 0
-    if (varCount > 0 || staleCount > 0) {
-      logger.warn({ varCount, staleCount }, 'Reconciliation alerts present after sync')
+      const { data: rawVarRows } = await varianceQuery
+      const { data: rawStaleRows } = await staleQuery
+      const varRows = rawVarRows as Pick<ReconciliationVarianceAlertRow, 'property_id'>[] | null
+      const staleRows = rawStaleRows as ReconciliationAlertRow[] | null
+      const varCount = Array.isArray(varRows) ? varRows.length : 0
+      const staleCount = Array.isArray(staleRows) ? staleRows.length : 0
+      if (varCount > 0 || staleCount > 0) {
+        logger.warn({ varCount, staleCount }, 'Reconciliation alerts present after sync')
+      }
+    } catch {}
+
+    return NextResponse.json({
+      success: true,
+      totalAccounts,
+      totalRecs,
+      totalBalances,
+      changes,
+      totalTxnSyncs,
+      totalUnmatched,
+      syncErrors,
+    })
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === 'UNAUTHENTICATED') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      if (error.message === 'ORG_CONTEXT_REQUIRED') return NextResponse.json({ error: 'Organization context required' }, { status: 400 })
+      if (error.message === 'ORG_FORBIDDEN') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
-  } catch {}
-
-  return NextResponse.json({
-    success: true,
-    totalAccounts,
-    totalRecs,
-    totalBalances,
-    changes,
-    totalTxnSyncs,
-    totalUnmatched,
-    syncErrors,
-  })
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
 }

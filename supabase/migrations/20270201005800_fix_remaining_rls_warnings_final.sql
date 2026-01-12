@@ -355,8 +355,12 @@ BEGIN
     AND policyname IN ('membership_roles_read', 'membership_roles_admin_write')
   ) THEN
     -- Drop both policies and recreate with combined logic
+    -- Also drop any existing split policies to avoid conflicts
     DROP POLICY IF EXISTS membership_roles_read ON public.membership_roles;
     DROP POLICY IF EXISTS membership_roles_admin_write ON public.membership_roles;
+    DROP POLICY IF EXISTS membership_roles_admin_insert ON public.membership_roles;
+    DROP POLICY IF EXISTS membership_roles_admin_update ON public.membership_roles;
+    DROP POLICY IF EXISTS membership_roles_admin_delete ON public.membership_roles;
     
     -- Create a single SELECT policy that covers all read cases
     -- This policy handles both regular users and admins for SELECT
@@ -411,8 +415,12 @@ BEGIN
     AND policyname IN ('memberships_read', 'memberships_admin_manage')
   ) THEN
     -- Drop both policies and recreate with combined logic
+    -- Also drop any existing split policies to avoid conflicts
     DROP POLICY IF EXISTS memberships_read ON public.org_memberships;
     DROP POLICY IF EXISTS memberships_admin_manage ON public.org_memberships;
+    DROP POLICY IF EXISTS memberships_admin_insert ON public.org_memberships;
+    DROP POLICY IF EXISTS memberships_admin_update ON public.org_memberships;
+    DROP POLICY IF EXISTS memberships_admin_delete ON public.org_memberships;
     
     -- Create a single SELECT policy that covers all read cases
     CREATE POLICY memberships_read ON public.org_memberships

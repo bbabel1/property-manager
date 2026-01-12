@@ -6,45 +6,16 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth/guards';
-import { supabaseAdmin } from '@/lib/db';
+import { supabase } from '@/lib/db';
 import { rotateWebhookSecret } from '@/lib/buildium/credentials-manager';
-
-/**
- * Resolve orgId from request context
- */
-async function resolveOrgId(request: NextRequest, userId: string): Promise<string> {
-  // Check header first
-  const headerOrgId = request.headers.get('x-org-id');
-  if (headerOrgId) {
-    return headerOrgId.trim();
-  }
-
-  // Check cookies
-  const cookieOrgId = request.cookies.get('x-org-id')?.value;
-  if (cookieOrgId) {
-    return cookieOrgId.trim();
-  }
-
-  // Fallback to first org membership
-  const { data: membership, error } = await supabaseAdmin
-    .from('org_memberships')
-    .select('org_id')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: true })
-    .limit(1)
-    .maybeSingle();
-
-  if (error || !membership) {
-    throw new Error('ORG_CONTEXT_REQUIRED');
-  }
-
-  return membership.org_id;
-}
+import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
+import { requireOrgMember } from '@/lib/auth/org-guards';
 
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requireAuth();
-    const orgId = await resolveOrgId(request, auth.user.id);
+    const { supabase: client, user } = await requireAuth();
+    const orgId = await resolveOrgIdFromRequest(request, user.id, client);
+    await requireOrgMember({ client, userId: user.id, orgId });
     const body = await request.json();
 
     if (!body.webhookSecret || typeof body.webhookSecret !== 'string') {
@@ -54,7 +25,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await rotateWebhookSecret(orgId, body.webhookSecret, auth.user.id);
+    await rotateWebhookSecret(orgId, body.webhookSecret, user.id);
 
     return NextResponse.json({ success: true });
   } catch (error) {
@@ -80,4 +51,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-

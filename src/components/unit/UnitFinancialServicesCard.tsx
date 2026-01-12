@@ -1,5 +1,6 @@
 'use client';
 
+import React from 'react';
 import Link from 'next/link';
 
 type Fin = {
@@ -27,6 +28,8 @@ const detailValueClass = 'text-sm font-medium text-foreground';
 
 const formatCurrency = (value?: number | null) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value ?? 0);
+
+const formatHeldLiability = (value?: number | null) => formatCurrency(Math.abs(value ?? 0));
 
 const formatAsOf = (value?: string) => {
   const fallback = new Date();
@@ -61,7 +64,7 @@ export default function UnitFinancialServicesCard({
           <div className="space-y-1">
             <div className="flex items-baseline justify-between gap-6">
               <p className={detailLabelClass}>Security deposits &amp; early payments</p>
-              <p className={metricValueClass}>{formatCurrency(fin?.security_deposits)}</p>
+              <p className={metricValueClass}>{formatHeldLiability(fin?.security_deposits)}</p>
             </div>
             <div className="flex items-baseline justify-between gap-6">
               <p className={detailLabelClass}>Property reserve</p>

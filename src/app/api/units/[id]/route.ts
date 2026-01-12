@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireUser } from '@/lib/auth';
-import { supabase, supabaseAdmin } from '@/lib/db';
+import { requireAuth } from '@/lib/auth/guards';
 import { buildiumSync } from '@/lib/buildium-sync';
-
-const ADMIN_ROLE_SET = new Set(['org_admin', 'org_manager', 'platform_admin']);
+import { resolveResourceOrg, requireOrgMember } from '@/lib/auth/org-guards';
 
 function sanitizeUnitUpdate(body: Record<string, unknown>) {
   const allowedKeys = new Set([
@@ -51,65 +49,20 @@ function sanitizeUnitUpdate(body: Record<string, unknown>) {
   return patch;
 }
 
-async function ensureOrgAccess(
-  userId: string,
-  orgId: string | null,
-  db: typeof supabase | typeof supabaseAdmin,
-) {
-  if (!orgId) return true;
-  type MembershipRoleRow = { roles?: { name?: string | null } | null };
-  const { data: membershipRoles, error } = await db
-    .from('membership_roles')
-    .select('roles(name)')
-    .eq('user_id', userId)
-    .eq('org_id', orgId)
-    .returns<MembershipRoleRow[]>();
-
-  if (error) {
-    console.error('Failed to verify org membership', { error, userId, orgId });
-    return false;
-  }
-
-  return (membershipRoles ?? []).some(
-    (row) => row?.roles?.name && ADMIN_ROLE_SET.has(String(row.roles.name)),
-  );
-}
-
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const user = await requireUser(request);
+    const { supabase: db, user } = await requireAuth();
     const { id: unitId } = await params;
     const payload = (await request.json().catch(() => ({}))) as Record<string, unknown>;
 
-    const db = supabaseAdmin || supabase;
-
-    const { data: unitRow, error: unitErr } = await db
-      .from('units')
-      .select('id, property_id')
-      .eq('id', unitId)
-      .maybeSingle();
-    if (unitErr || !unitRow) {
+    const resolvedOrg = await resolveResourceOrg(db, 'unit', unitId);
+    if (!resolvedOrg.ok) {
       return NextResponse.json({ error: 'Unit not found' }, { status: 404 });
     }
-
-    const { data: propertyRow, error: propertyErr } = await db
-      .from('properties')
-      .select('org_id')
-      .eq('id', unitRow.property_id)
-      .maybeSingle();
-    if (propertyErr) {
-      console.error('Units API: failed to load property context', propertyErr);
-      return NextResponse.json({ error: 'Failed to update unit' }, { status: 500 });
-    }
-
-    const orgId = propertyRow?.org_id ?? null;
-    const authorized = await ensureOrgAccess(user.id, orgId, db);
-    if (!authorized) {
-      return NextResponse.json({ error: 'Not authorized to manage this unit' }, { status: 403 });
-    }
+    await requireOrgMember({ client: db, userId: user.id, orgId: resolvedOrg.orgId });
 
     const updatePatch = sanitizeUnitUpdate(payload);
     if (!Object.keys(updatePatch).length) {
@@ -121,6 +74,7 @@ export async function PUT(
       .from('units')
       .update(updatePatch)
       .eq('id', unitId)
+      .eq('org_id', resolvedOrg.orgId)
       .select('*')
       .single();
     if (updateErr) {
@@ -138,6 +92,7 @@ export async function PUT(
         .from('properties')
         .select('buildium_property_id')
         .eq('id', updatedUnit.property_id)
+        .eq('org_id', resolvedOrg.orgId)
         .maybeSingle();
       if (prop?.buildium_property_id) {
         const syncResult = await buildiumSync.syncUnitToBuildium({
@@ -167,8 +122,16 @@ export async function PUT(
       { status: buildiumSyncError ? 422 : 200 },
     );
   } catch (error) {
-    if (error instanceof Error && error.message === 'UNAUTHENTICATED') {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    if (error instanceof Error) {
+      if (error.message === 'UNAUTHENTICATED') {
+        return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+      }
+      if (error.message === 'ORG_FORBIDDEN') {
+        return NextResponse.json({ error: 'Organization access denied' }, { status: 403 });
+      }
+      if (error.message === 'ORG_CONTEXT_REQUIRED') {
+        return NextResponse.json({ error: 'Organization context required' }, { status: 400 });
+      }
     }
     console.error('Units API: unexpected error updating unit', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -180,30 +143,37 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const user = await requireUser(request);
+    const { supabase: db, user } = await requireAuth();
     const { id: unitId } = await params;
-    const db = supabaseAdmin || supabase;
+    const resolvedOrg = await resolveResourceOrg(db, 'unit', unitId);
+    if (!resolvedOrg.ok) {
+      return NextResponse.json({ error: 'Unit not found' }, { status: 404 });
+    }
+    await requireOrgMember({ client: db, userId: user.id, orgId: resolvedOrg.orgId });
 
     const { data: unitRow, error } = await db
       .from('units')
       .select('*, properties:property_id(org_id)')
       .eq('id', unitId)
+      .eq('org_id', resolvedOrg.orgId)
       .maybeSingle();
     if (error || !unitRow) {
       return NextResponse.json({ error: 'Unit not found' }, { status: 404 });
     }
 
-    const orgId = (unitRow as any)?.properties?.org_id ?? null;
-    const authorized = await ensureOrgAccess(user.id, orgId, db);
-    if (!authorized) {
-      return NextResponse.json({ error: 'Not authorized to view this unit' }, { status: 403 });
-    }
-
     const { properties, ...unitPayload } = unitRow as any;
     return NextResponse.json(unitPayload);
   } catch (error) {
-    if (error instanceof Error && error.message === 'UNAUTHENTICATED') {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    if (error instanceof Error) {
+      if (error.message === 'UNAUTHENTICATED') {
+        return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+      }
+      if (error.message === 'ORG_FORBIDDEN') {
+        return NextResponse.json({ error: 'Organization access denied' }, { status: 403 });
+      }
+      if (error.message === 'ORG_CONTEXT_REQUIRED') {
+        return NextResponse.json({ error: 'Organization context required' }, { status: 400 });
+      }
     }
     console.error('Units API: unexpected error fetching unit', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

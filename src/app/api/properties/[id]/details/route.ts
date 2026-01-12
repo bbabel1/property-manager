@@ -191,7 +191,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
           )
           .eq('property_id', propertyId)
           .eq('org_id', orgId)
-        const list = (Array.isArray(ownerships) ? ownerships : []) as OwnershipWithContact[]
+        const list = (Array.isArray(ownerships) ? ownerships : []) as unknown as OwnershipWithContact[]
         owners = list.map((o) => {
           const contact = o?.owners?.contacts || null
           const displayName =

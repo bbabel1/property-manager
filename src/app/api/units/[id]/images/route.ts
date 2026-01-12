@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireUser } from '@/lib/auth'
-import { supabase, supabaseAdmin } from '@/lib/db'
+import { requireAuth } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { sanitizeAndValidate } from '@/lib/sanitize'
 import { BuildiumUnitImageUploadSchema } from '@/schemas/buildium'
 import { buildiumFetch } from '@/lib/buildium-http'
 import UnitService from '@/lib/unit-service'
+import { resolveResourceOrg, requireOrgMember } from '@/lib/auth/org-guards'
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -15,14 +15,19 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
     }
 
-    const user = await requireUser(request)
+    const { supabase: db, user } = await requireAuth()
     const { id: unitId } = await params
-    const db = supabaseAdmin || supabase
+    const resolvedOrg = await resolveResourceOrg(db, 'unit', unitId)
+    if (!resolvedOrg.ok) {
+      return NextResponse.json({ error: 'Unit not found' }, { status: 404 })
+    }
+    await requireOrgMember({ client: db, userId: user.id, orgId: resolvedOrg.orgId })
 
     const { data: unitRow, error: unitError } = await db
       .from('units')
       .select('id, property_id, buildium_unit_id, org_id')
       .eq('id', unitId)
+      .eq('org_id', resolvedOrg.orgId)
       .maybeSingle()
 
     if (unitError || !unitRow) {
@@ -31,10 +36,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     const fetchLocalImages = async () => {
       const { data, error } = await db
-        .from('unit_images')
-        .select('*')
-        .eq('unit_id', unitId)
-        .order('sort_index', { ascending: true })
+      .from('unit_images')
+      .select('*')
+      .eq('unit_id', unitId)
+      .order('sort_index', { ascending: true })
 
       if (error) throw error
       return data ?? []
@@ -113,6 +118,17 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     return NextResponse.json({ success: true, data: images })
   } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === 'UNAUTHENTICATED') {
+        return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+      }
+      if (error.message === 'ORG_FORBIDDEN') {
+        return NextResponse.json({ error: 'Organization access denied' }, { status: 403 })
+      }
+      if (error.message === 'ORG_CONTEXT_REQUIRED') {
+        return NextResponse.json({ error: 'Organization context required' }, { status: 400 })
+      }
+    }
     logger.error({ error }, 'Error fetching unit images')
     return NextResponse.json({ error: 'Failed to fetch unit images' }, { status: 500 })
   }
@@ -125,9 +141,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
     }
 
-    const user = await requireUser(request)
+    const { supabase: db, user } = await requireAuth()
     const { id: unitId } = await params
-    const db = supabaseAdmin || supabase
+    const resolvedOrg = await resolveResourceOrg(db, 'unit', unitId)
+    if (!resolvedOrg.ok) {
+      return NextResponse.json({ error: 'Unit not found' }, { status: 404 })
+    }
+    await requireOrgMember({ client: db, userId: user.id, orgId: resolvedOrg.orgId })
 
     const { data: unitRow, error: unitError } = await db
       .from('units')
@@ -185,10 +205,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       }
 
       const href = prepared.originalDataUrl
-      const row = {
-        unit_id: unitId,
-        buildium_image_id: typeof uploaded?.Id === 'number' ? uploaded.Id : null,
-        name: uploaded?.Name ?? prepared.fileName ?? null,
+        const row = {
+          unit_id: unitId,
+          buildium_image_id: typeof uploaded?.Id === 'number' ? uploaded.Id : null,
+          name: uploaded?.Name ?? prepared.fileName ?? null,
         description: uploaded?.Description ?? validated.Description ?? null,
         file_type: prepared.originalMimeType,
         file_size: prepared.originalSize,
@@ -215,7 +235,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         await UnitService.persistImages(
           unitRow.buildium_unit_id,
           [uploaded],
-          (unitRow as { org_id?: string | null }).org_id || undefined,
+          resolvedOrg.orgId || undefined,
         );
       } catch {}
 
@@ -262,6 +282,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     return NextResponse.json({ success: true, data: image })
   } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === 'UNAUTHENTICATED') {
+        return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+      }
+      if (error.message === 'ORG_FORBIDDEN') {
+        return NextResponse.json({ error: 'Organization access denied' }, { status: 403 })
+      }
+      if (error.message === 'ORG_CONTEXT_REQUIRED') {
+        return NextResponse.json({ error: 'Organization context required' }, { status: 400 })
+      }
+    }
     logger.error({ error }, 'Error uploading unit image')
     return NextResponse.json({ error: 'Failed to upload unit image' }, { status: 500 })
   }

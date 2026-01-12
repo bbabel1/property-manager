@@ -266,8 +266,13 @@ async function main() {
 
   // Alert plumbing: log counts for variance and stale alerts
   try {
-    const { data: varRows } = await admin.from('v_reconciliation_variance_alerts').select('property_id').eq('over_24h', true)
-    const { data: staleRows } = await admin.from('v_reconciliation_stale_alerts').select('property_id')
+    const { data: varRows } = await (admin as any)
+      .from('v_reconciliation_variance_alerts')
+      .select('property_id')
+      .eq('over_24h', true)
+    const { data: staleRows } = await (admin as any)
+      .from('v_reconciliation_stale_alerts')
+      .select('property_id')
     const varCount = Array.isArray(varRows) ? varRows.length : 0
     const staleCount = Array.isArray(staleRows) ? staleRows.length : 0
     if (varCount > 0 || staleCount > 0) {

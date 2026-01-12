@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getVendorDashboardData } from '@/lib/vendor-service'
+import { requireAuth } from '@/lib/auth/guards'
+import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id'
+import { requireOrgMember } from '@/lib/auth/org-guards'
 
 const requestSchema = z.object({
   propertyQuery: z.string().optional(),
@@ -26,6 +29,10 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
 
 export async function POST(request: Request) {
   try {
+    const { supabase: db, user } = await requireAuth()
+    const orgId = await resolveOrgIdFromRequest(request as any, user.id, db)
+    await requireOrgMember({ client: db, userId: user.id, orgId })
+
     const raw = await request.json().catch(() => ({}))
     const parsed = requestSchema.safeParse(raw)
     if (!parsed.success) {
@@ -34,7 +41,7 @@ export async function POST(request: Request) {
 
     const { propertyQuery, jobCategory = 'general', notes = '', budget } = parsed.data
 
-    const dashboard = await getVendorDashboardData()
+    const dashboard = await getVendorDashboardData({ client: db, orgId })
 
     const keywords = new Set<string>([
       jobCategory.toLowerCase(),
@@ -107,8 +114,18 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ recommendations })
   } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === 'UNAUTHENTICATED') {
+        return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+      }
+      if (error.message === 'ORG_FORBIDDEN') {
+        return NextResponse.json({ error: 'Organization access denied' }, { status: 403 })
+      }
+      if (error.message === 'ORG_CONTEXT_REQUIRED') {
+        return NextResponse.json({ error: 'Organization context required' }, { status: 400 })
+      }
+    }
     console.error(error)
     return NextResponse.json({ error: 'Failed to generate vendor recommendations' }, { status: 500 })
   }
 }
-

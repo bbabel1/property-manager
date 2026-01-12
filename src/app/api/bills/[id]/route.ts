@@ -154,6 +154,13 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
           recurringSchedule.frequency = canonical;
         }
       }
+      // Normalize weekly day_of_week to Monday-based (1=Mon..7=Sun)
+      if (
+        (recurringSchedule.frequency === 'Weekly' || recurringSchedule.frequency === 'Every2Weeks') &&
+        recurringSchedule.day_of_week === 0
+      ) {
+        recurringSchedule.day_of_week = 7;
+      }
 
       // Strip server-owned fields
       delete (recurringSchedule as any).next_run_date;
@@ -165,7 +172,9 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         return NextResponse.json(
           {
             error: 'Invalid recurring schedule',
-            details: validationResult.error.errors.map((e) => `${e.path.join('.')}: ${e.message}`).join('; '),
+            details: validationResult.error.issues
+              .map((issue) => `${issue.path.join('.')}: ${issue.message}`)
+              .join('; '),
           },
           { status: 400 },
         );
@@ -275,11 +284,20 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       };
     } else if (payload.recurring_action === 'resume') {
       const schedule = currentSchedule.schedule as RecurringBillSchedule;
-      const nextRunDate = computeNextRunDate({ ...schedule, status: 'active' }, orgTimezone);
+      const normalizedSchedule: RecurringBillSchedule = {
+        ...schedule,
+        ...(schedule.frequency === 'Weekly' || schedule.frequency === 'Every2Weeks'
+          ? {
+              day_of_week:
+                schedule.day_of_week === 0 ? 7 : schedule.day_of_week, // normalize to Monday-based
+            }
+          : {}),
+      };
+      const nextRunDate = computeNextRunDate({ ...normalizedSchedule, status: 'active' }, orgTimezone);
       update.recurring_schedule = {
         ...currentSchedule,
         schedule: {
-          ...schedule,
+          ...normalizedSchedule,
           status: 'active',
           next_run_date: nextRunDate,
         },
@@ -490,11 +508,11 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     return NextResponse.json({ error: 'Bill not found after update' }, { status: 404 });
   }
 
-  // Resolve orgId from billSnapshot
-  let orgId = billSnapshot.org_id ?? undefined;
+  // Resolve orgId from billSnapshot, falling back to the earlier orgId if needed
+  let resolvedOrgId: string | undefined = billSnapshot.org_id ?? orgId;
 
   // If no orgId on transaction, try to resolve from property via transaction_lines
-  if (!orgId) {
+  if (!resolvedOrgId) {
     const { data: txnLine } = await admin
       .from('transaction_lines')
       .select('property_id')
@@ -510,7 +528,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         .eq('id', txnLine.property_id)
         .maybeSingle();
       if (property?.org_id) {
-        orgId = property.org_id;
+        resolvedOrgId = property.org_id;
       }
     }
   }
@@ -540,7 +558,13 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   let buildiumResponseBody: unknown = null;
   let buildiumStatus = 0;
   try {
-    const buildiumResponse = await buildiumFetch(isUpdate ? 'PUT' : 'POST', path, undefined, buildiumPayload, orgId);
+    const buildiumResponse = await buildiumFetch(
+      isUpdate ? 'PUT' : 'POST',
+      path,
+      undefined,
+      buildiumPayload,
+      resolvedOrgId,
+    );
     buildiumStatus = buildiumResponse.status;
     buildiumResponseBody = buildiumResponse.json ?? null;
 

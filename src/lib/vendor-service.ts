@@ -273,19 +273,24 @@ function buildAutomationSignals(
   return signals
 }
 
-export async function getVendorDashboardData(): Promise<VendorDashboardData> {
-  const supabase = (supabaseAdmin ?? (await getSupabaseServerClient())) as TypedSupabaseClient
+export async function getVendorDashboardData(options?: {
+  client?: TypedSupabaseClient
+  orgId?: string
+}): Promise<VendorDashboardData> {
+  const supabase = (options?.client ?? supabaseAdmin ?? (await getSupabaseServerClient())) as TypedSupabaseClient
+  const orgId = options?.orgId
   const now = new Date()
   const startOfCurrentMonth = startOfMonth(now)
   const startOfCurrentYear = startOfYear(now)
   const startOfCurrentYearIso = startOfCurrentYear.toISOString().slice(0, 10)
   const last30Boundary = subDays(now, 30)
 
-  const { data: rawVendors, error: vendorError } = await supabase
+  let vendorQuery = supabase
     .from('vendors')
     .select(
       `
         id,
+        org_id,
         buildium_vendor_id,
         buildium_category_id,
         vendor_category,
@@ -318,6 +323,10 @@ export async function getVendorDashboardData(): Promise<VendorDashboardData> {
     )
     .order('updated_at', { ascending: false })
     .limit(120)
+  if (orgId) {
+    vendorQuery = vendorQuery.eq('org_id', orgId)
+  }
+  const { data: rawVendors, error: vendorError } = await vendorQuery
 
   if (vendorError) {
     logger.error({ vendorError }, 'Failed to load vendors for dashboard')
@@ -328,11 +337,15 @@ export async function getVendorDashboardData(): Promise<VendorDashboardData> {
 
   let transactions: RawTransaction[] = []
   if (vendorIds.length > 0) {
-    const { data, error } = await supabase
+    let txnQuery = supabase
       .from('transactions')
       .select('id, vendor_id, total_amount, status, date, due_date, category_id, transaction_type, buildium_bill_id, memo, reference_number')
       .in('vendor_id', vendorIds)
       .gte('date', startOfCurrentYearIso)
+    if (orgId) {
+      txnQuery = txnQuery.eq('org_id', orgId)
+    }
+    const { data, error } = await txnQuery
 
     if (error) {
       logger.error({ error }, 'Failed to load vendor transactions')
@@ -343,11 +356,15 @@ export async function getVendorDashboardData(): Promise<VendorDashboardData> {
 
   let workOrders: RawWorkOrder[] = []
   if (vendorIds.length > 0) {
-    const { data, error } = await supabase
+    let woQuery = supabase
       .from('work_orders')
       .select('id, vendor_id, subject, status, priority, scheduled_date, property_id, buildium_work_order_id, created_at, updated_at')
       .in('vendor_id', vendorIds)
       .order('scheduled_date', { ascending: true })
+    if (orgId) {
+      woQuery = woQuery.eq('org_id', orgId)
+    }
+    const { data, error } = await woQuery
 
     if (error) {
       logger.error({ error }, 'Failed to load vendor work orders')
@@ -361,10 +378,14 @@ export async function getVendorDashboardData(): Promise<VendorDashboardData> {
   )
   const propertyMap = new Map<string, Pick<PropertyRow, 'id' | 'name' | 'address_line1' | 'city' | 'state' | 'postal_code' | 'buildium_property_id'>>()
   if (propertyIds.length > 0) {
-    const { data, error } = await supabase
+    let propertyQuery = supabase
       .from('properties')
       .select('id, name, address_line1, city, state, postal_code, buildium_property_id')
       .in('id', propertyIds)
+    if (orgId) {
+      propertyQuery = propertyQuery.eq('org_id', orgId)
+    }
+    const { data, error } = await propertyQuery
 
     if (error) {
       logger.error({ error }, 'Failed to load properties for vendor dashboard')

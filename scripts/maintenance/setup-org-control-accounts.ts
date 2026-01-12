@@ -26,18 +26,18 @@ async function findBestGlAccount(
   if (!allAccounts || allAccounts.length === 0) return null
 
   // Filter by type (case-insensitive)
-  const accounts = allAccounts.filter(a => (a.type || '').toLowerCase() === type.toLowerCase())
+  const accounts = allAccounts.filter((a: any) => (a.type || '').toLowerCase() === type.toLowerCase())
   if (accounts.length === 0) return null
 
   // Try exact matches first (case-insensitive)
   for (const pref of preferences) {
-    const exact = accounts.find(a => a.name?.toLowerCase() === pref.toLowerCase())
+    const exact = accounts.find((a: any) => a.name?.toLowerCase() === pref.toLowerCase())
     if (exact) return exact.id
   }
 
   // Try partial matches
   for (const pref of preferences) {
-    const partial = accounts.find(a => a.name?.toLowerCase().includes(pref.toLowerCase()))
+    const partial = accounts.find((a: any) => a.name?.toLowerCase().includes(pref.toLowerCase()))
     if (partial) return partial.id
   }
 
@@ -196,4 +196,3 @@ main().catch((e) => {
   console.error(e)
   process.exit(1)
 })
-

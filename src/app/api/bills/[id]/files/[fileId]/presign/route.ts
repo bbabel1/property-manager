@@ -143,31 +143,35 @@ export async function GET(
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 
+  const typedFile = file as any;
+
   // Ensure the file is tied to this bill context (same org already enforced)
   const buildiumBillId = Number(transaction.buildium_bill_id) || null;
-  const entityType = String(file.entity_type || '').toLowerCase();
-  const buildiumEntityType = String(file.buildium_entity_type || '').toLowerCase();
-  const entityId = file.entity_id ? String(file.entity_id) : null;
+  const entityType = String(typedFile.entity_type || '').toLowerCase();
+  const buildiumEntityType = String(typedFile.buildium_entity_type || '').toLowerCase();
+  const entityId = typedFile.entity_id ? String(typedFile.entity_id) : null;
 
   const matchesBill =
     (entityType === 'transactions' || entityType === 'bills') ? entityId === billId : false;
   const matchesBuildiumBill =
-    buildiumBillId && Number(file.buildium_entity_id) === buildiumBillId
+    buildiumBillId && Number(typedFile.buildium_entity_id) === buildiumBillId
       ? true
-      : buildiumBillId && buildiumEntityType === 'bills' && Number(file.buildium_entity_id) === buildiumBillId;
+      : buildiumBillId &&
+        buildiumEntityType === 'bills' &&
+        Number(typedFile.buildium_entity_id) === buildiumBillId;
 
   if (!matchesBill && !matchesBuildiumBill) {
     return NextResponse.json({ error: 'File does not belong to this bill' }, { status: 404 });
   }
 
-  if (file.storage_provider === 'supabase') {
-    if (!file.bucket || !file.storage_key) {
+  if (typedFile.storage_provider === 'supabase') {
+    if (!typedFile.bucket || !typedFile.storage_key) {
       return NextResponse.json({ error: 'File missing storage path' }, { status: 400 });
     }
     const expiresIn = 15 * 60;
     const { data: signData, error: signErr } = await admin.storage
-      .from(String(file.bucket))
-      .createSignedUrl(String(file.storage_key), expiresIn, { download: false });
+      .from(String(typedFile.bucket))
+      .createSignedUrl(String(typedFile.storage_key), expiresIn, { download: false });
     if (signErr) {
       return NextResponse.json(
         { error: 'Failed to presign', details: signErr.message },
@@ -178,12 +182,12 @@ export async function GET(
     return NextResponse.json({
       getUrl: signData.signedUrl,
       expiresAt,
-      sha256: file.sha256 || null,
+      sha256: typedFile.sha256 || null,
     });
   }
 
-  if (file.storage_provider === 'buildium') {
-    const id = file.buildium_file_id;
+  if (typedFile.storage_provider === 'buildium') {
+    const id = typedFile.buildium_file_id;
     if (!id) {
       return NextResponse.json({ error: 'Missing Buildium file id' }, { status: 400 });
     }

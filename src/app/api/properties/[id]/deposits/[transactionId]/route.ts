@@ -270,7 +270,8 @@ export async function DELETE(
       return NextResponse.json({ error: 'Failed to load deposit' }, { status: 500 });
     }
 
-    const orgId = depositTx?.org_id ?? null;
+    const depositOrgId = depositTx?.org_id ?? null;
+    const effectiveOrgId = depositOrgId ?? orgId;
     const depositBankAccountId = depositTx?.bank_gl_account_id ?? null;
 
     // Get payment transactions linked to this deposit before deletion
@@ -284,8 +285,8 @@ export async function DELETE(
 
     // Resolve UDF before deleting to avoid stranding payments
     let udfGlAccountId: string | null = null;
-    if (paymentLinks && paymentLinks.length > 0 && orgId) {
-      udfGlAccountId = await resolveUndepositedFundsGlAccountId(supabaseAdmin, orgId);
+    if (paymentLinks && paymentLinks.length > 0 && effectiveOrgId) {
+      udfGlAccountId = await resolveUndepositedFundsGlAccountId(supabaseAdmin, effectiveOrgId);
       if (!udfGlAccountId) {
         return NextResponse.json(
           {
@@ -321,7 +322,7 @@ export async function DELETE(
         const { data: paymentTxs, error: paymentTxError } = await supabaseAdmin
           .from('transactions')
           .select('id')
-          .eq('org_id', orgId)
+          .eq('org_id', effectiveOrgId)
           .in('buildium_transaction_id', paymentBuildiumIds)
           .limit(1000);
         if (paymentTxError) {
@@ -331,11 +332,11 @@ export async function DELETE(
       }
 
       // Fallback for local-only payments (no Buildium ids): grab payments on this bank account in this org.
-      if (paymentIdSet.size === 0 && depositBankAccountId && orgId) {
+      if (paymentIdSet.size === 0 && depositBankAccountId && effectiveOrgId) {
         const { data: fallbackPayments, error: fallbackError } = await supabaseAdmin
           .from('transactions')
           .select('id')
-          .eq('org_id', orgId)
+          .eq('org_id', effectiveOrgId)
           .eq('bank_gl_account_id', depositBankAccountId)
           .in('transaction_type', paymentTypeFilters)
           .limit(1000);
@@ -352,7 +353,7 @@ export async function DELETE(
         const { error: updatePaymentsError } = await supabaseAdmin
           .from('transactions')
           .update({ bank_gl_account_id: udfGlAccountId, updated_at: nowIso })
-          .eq('org_id', orgId)
+          .eq('org_id', effectiveOrgId)
           .in('id', paymentIds);
         if (updatePaymentsError) {
           return NextResponse.json({ error: 'Failed to reclassify payments' }, { status: 500 });
@@ -399,8 +400,8 @@ export async function DELETE(
     // After deletion, ensure payment transactions are properly marked as undeposited
     // This is a safeguard - payments should already be in undeposited funds since they weren't modified
     // when the deposit was created, but we verify and update if needed
-    if (paymentLinks && paymentLinks.length > 0 && orgId) {
-      const udfGlAccountId = await resolveUndepositedFundsGlAccountId(supabaseAdmin, orgId);
+    if (paymentLinks && paymentLinks.length > 0 && effectiveOrgId) {
+      const udfGlAccountId = await resolveUndepositedFundsGlAccountId(supabaseAdmin, effectiveOrgId);
       if (udfGlAccountId) {
         // Find payment transactions that might need their bank_gl_account_id updated
         // Note: Most payments should already have bank_gl_account_id = udfGlAccountId
@@ -415,7 +416,7 @@ export async function DELETE(
           const { data: paymentTxs } = await supabaseAdmin
             .from('transactions')
             .select('id, bank_gl_account_id')
-            .eq('org_id', orgId)
+            .eq('org_id', effectiveOrgId)
             .in('buildium_transaction_id', paymentBuildiumIds)
             .limit(100);
 
@@ -432,7 +433,7 @@ export async function DELETE(
                   bank_gl_account_id: udfGlAccountId,
                   updated_at: new Date().toISOString(),
                 })
-                .eq('org_id', orgId)
+                .eq('org_id', effectiveOrgId)
                 .in('id', paymentIds);
             }
           }

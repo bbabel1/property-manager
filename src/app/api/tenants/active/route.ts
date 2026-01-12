@@ -1,5 +1,8 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getServerSupabaseClient } from '@/lib/supabase-client';
+import { requireAuth } from '@/lib/auth/guards';
+import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
+import { requireOrgMember } from '@/lib/auth/org-guards';
 
 type ResidentOption = {
   value: string;
@@ -8,11 +11,14 @@ type ResidentOption = {
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const db = getServerSupabaseClient('list active tenants');
+    const { supabase: db, user } = await requireAuth();
+    const orgId = await resolveOrgIdFromRequest(request, user.id, db);
+    await requireOrgMember({ client: db, userId: user.id, orgId });
+    const dbScoped = getServerSupabaseClient('list active tenants');
 
-    const { data, error } = await db
+    const { data, error } = await dbScoped
       .from('lease_contacts')
       .select(
         `
@@ -30,6 +36,7 @@ export async function GET() {
       )
       .is('move_out_date', null)
       .not('tenant_id', 'is', null)
+      .eq('org_id', orgId)
       .order('updated_at', { ascending: false })
       .limit(200);
 
@@ -63,6 +70,17 @@ export async function GET() {
 
     return NextResponse.json({ success: true, data: options });
   } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === 'UNAUTHENTICATED') {
+        return NextResponse.json({ success: false, error: 'Authentication required.' }, { status: 401 });
+      }
+      if (error.message === 'ORG_CONTEXT_REQUIRED') {
+        return NextResponse.json({ success: false, error: 'Organization context required.' }, { status: 400 });
+      }
+      if (error.message === 'ORG_FORBIDDEN') {
+        return NextResponse.json({ success: false, error: 'Forbidden.' }, { status: 403 });
+      }
+    }
     console.error('Unexpected error loading active tenants', error);
     return NextResponse.json(
       { success: false, error: 'Unexpected error loading active tenants.' },

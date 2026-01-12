@@ -1,12 +1,14 @@
--- Fix generate_display_name function search_path issue
-DROP FUNCTION IF EXISTS public.generate_display_name();
+-- Deprecated schema patch: fix generate_display_name search_path via DROP+CREATE.
+--
+-- Phase 1 single-source-of-truth goal:
+--   Only Supabase migrations under supabase/migrations/ should change
+--   function definitions and search_path.
+--
+-- Search path hardening (including generate_display_name) is now handled
+-- by migrations such as:
+--   - supabase/migrations/20291225000004_secure_search_path_and_permissions.sql
+--
+-- This file is retained only for historical context and MUST NOT be used
+-- to apply schema changes. To adjust generate_display_name(), add a new
+-- migration instead.
 
-CREATE OR REPLACE FUNCTION public.generate_display_name()
-RETURNS trigger 
-LANGUAGE plpgsql
-SET search_path = public
-AS $$
-BEGIN
-  NEW.display_name := COALESCE(NULLIF(TRIM(NEW.first_name||' '||NEW.last_name),''), NEW.company_name);
-  RETURN NEW;
-END$$;

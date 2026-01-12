@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireUser } from '@/lib/auth';
+import { requireAuth } from '@/lib/auth/guards';
 import { logger } from '@/lib/logger';
-import { supabase, supabaseAdmin } from '@/lib/db';
 import {
   mapCountryToBuildium,
   mapPropertyToBuildium,
@@ -9,6 +8,7 @@ import {
 } from '@/lib/buildium-mappers';
 import { buildiumFetch } from '@/lib/buildium-http';
 import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
+import { supabase } from '@/lib/db';
 import type {
   BuildiumUnit,
   BuildiumLease,
@@ -66,9 +66,8 @@ type OwnerRow = {
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const user = await requireUser(request);
+    const { supabase: db, user } = await requireAuth();
     const { id } = await params;
-    const db = supabaseAdmin || supabase;
     const orgId = await resolveOrgIdFromRequest(request, user.id, db);
 
     // Load local property (with minimal fields needed to construct Buildium payload)
@@ -268,7 +267,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       await db
         .from('properties')
         .update({ buildium_property_id: buildiumId, updated_at: new Date().toISOString() })
-        .eq('id', id);
+        .eq('id', id)
+        .eq('org_id', orgId);
     }
 
     // Track how many owners were pre-linked before creating new ones
@@ -596,7 +596,7 @@ async function createOwnerDirectly(
       };
     }
     const newId = Number(createJson.Id);
-    const db = supabaseAdmin || supabase;
+    const db = supabase;
     await db
       .from('owners')
       .update({ buildium_owner_id: newId, buildium_updated_at: new Date().toISOString() })

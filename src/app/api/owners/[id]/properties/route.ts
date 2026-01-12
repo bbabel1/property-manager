@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/db'
-import { requireUser } from '@/lib/auth'
+import { requireAuth } from '@/lib/auth/guards'
+import { resolveResourceOrg, requireOrgMember } from '@/lib/auth/org-guards'
 import { checkRateLimit } from '@/lib/rate-limit'
 
 export async function GET(
@@ -23,13 +23,19 @@ export async function GET(
 
     console.log('🔍 Owner Properties API: Rate limit check passed');
 
-    // Authentication
-    const user = await requireUser(request);
-    console.log('🔍 Owner Properties API: User authenticated:', user.id);
+    // Authentication + org scope
+    const auth = await requireAuth()
+    console.log('🔍 Owner Properties API: User authenticated:', auth.user.id);
+
+    const resolvedOrg = await resolveResourceOrg(auth.supabase, 'owner', resolvedParams.id)
+    if (!resolvedOrg.ok) {
+      return NextResponse.json({ error: 'Owner not found or org missing' }, { status: 404 })
+    }
+    await requireOrgMember({ client: auth.supabase, userId: auth.user.id, orgId: resolvedOrg.orgId })
 
     // Fetch properties owned by this owner through ownerships table
     console.log('🔍 Owner Properties API: About to query Supabase...');
-    const { data: ownerships, error } = await supabaseAdmin
+    const { data: ownerships, error } = await auth.supabase
       .from('ownerships')
       .select(`
         id,
@@ -57,6 +63,7 @@ export async function GET(
         )
       `)
       .eq('owner_id', resolvedParams.id)
+      .eq('org_id', resolvedOrg.orgId)
       .order('properties(name)', { ascending: true });
 
     console.log('🔍 Owner Properties API: Supabase query completed');
@@ -107,12 +114,17 @@ export async function GET(
   } catch (error) {
     console.error('🔍 Owner Properties API: Caught error:', error);
     
-    if (error instanceof Error && error.message === 'UNAUTHENTICATED') {
-      console.log('🔍 Owner Properties API: Authentication error');
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      );
+    if (error instanceof Error) {
+      if (error.message === 'UNAUTHENTICATED') {
+        console.log('🔍 Owner Properties API: Authentication error');
+        return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+      }
+      if (error.message === 'ORG_FORBIDDEN') {
+        return NextResponse.json({ error: 'Organization access denied' }, { status: 403 });
+      }
+      if (error.message === 'ORG_CONTEXT_REQUIRED') {
+        return NextResponse.json({ error: 'Organization context required' }, { status: 400 });
+      }
     }
 
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';

@@ -4,6 +4,9 @@ import { hasSupabaseAdmin, requireSupabaseAdmin } from '@/lib/supabase-client'
 import { logger } from '@/lib/logger'
 import { randomUUID } from 'crypto'
 import type { Database } from '@/types/database'
+import { requireAuth } from '@/lib/auth/guards'
+import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id'
+import { requireOrgMember } from '@/lib/auth/org-guards'
 
 const ALLOWED_TYPES = new Set(['application/pdf', 'image/png', 'image/jpeg'])
 const MAX_SIZE = 25 * 1024 * 1024 // 25 MB
@@ -25,6 +28,9 @@ export async function POST(
 ) {
   const corr = request.headers.get('Idempotency-Key') || `presign:${Date.now()}:${Math.random()}`
   try {
+    const { supabase, user } = await requireAuth()
+    const orgId = await resolveOrgIdFromRequest(request, user.id, supabase)
+    await requireOrgMember({ client: supabase, userId: user.id, orgId })
     if (!hasSupabaseAdmin()) return NextResponse.json({ error: 'Server missing admin key' }, { status: 500 })
     const supabaseAdmin = requireSupabaseAdmin('lease documents presign')
     const supabase = await getSupabaseServerClient()
@@ -55,21 +61,25 @@ export async function POST(
       .from('lease')
       .select('id, org_id, property_id')
       .eq('id', leaseIdNum)
+      .eq('org_id', orgId)
       .maybeSingle<Pick<LeaseRow, 'id' | 'org_id' | 'property_id'>>()
     const { data: lease } = await supabase
       .from('lease')
       .select('id, org_id, property_id')
       .eq('id', leaseIdNum)
+      .eq('org_id', orgId)
       .maybeSingle<Pick<LeaseRow, 'id' | 'org_id' | 'property_id'>>()
     if (!lease && leaseAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     if (!leaseAdmin) return NextResponse.json({ error: 'Lease not found' }, { status: 404 })
     if (!leaseAdmin.org_id) return NextResponse.json({ error: 'Lease missing organization' }, { status: 400 })
+    if (leaseAdmin.org_id !== orgId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     if (!leaseAdmin.property_id) return NextResponse.json({ error: 'Lease missing property' }, { status: 400 })
 
     const { data: propertyRow, error: propertyError } = await supabaseAdmin
       .from('properties')
       .select('id, org_id')
       .eq('id', leaseAdmin.property_id)
+      .eq('org_id', orgId)
       .maybeSingle<Pick<PropertyRow, 'id' | 'org_id'>>()
     if (propertyError) {
       return NextResponse.json({ error: 'Failed to load property' }, { status: 500 })

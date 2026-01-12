@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireAuth } from '@/lib/auth/guards'
-import { hasSupabaseAdmin } from '@/lib/supabase-client'
 import { arService } from '@/lib/ar-service'
 import { CHARGE_TYPES, type ChargeType } from '@/types/ar'
 import {
@@ -49,9 +48,7 @@ export async function POST(
   }
 
   try {
-    if (!hasSupabaseAdmin()) {
-      await requireAuth()
-    }
+    await requireAuth()
 
     const totalAmount = parsed.data.allocations.reduce((sum, line) => sum + (line?.amount ?? 0), 0)
     if (!amountsRoughlyEqual(parsed.data.amount, totalAmount)) {

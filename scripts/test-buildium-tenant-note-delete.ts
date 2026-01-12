@@ -21,6 +21,10 @@ if (!clientId || !clientSecret) {
   process.exit(1);
 }
 
+// Narrow types after the runtime guard above
+const clientIdValue: string = clientId;
+const clientSecretValue: string = clientSecret;
+
 async function testBuildiumDelete(tenantId: number, noteId: number) {
   console.log('🧪 Testing Buildium DELETE for Tenant Notes');
   console.log('='.repeat(60));
@@ -48,8 +52,8 @@ async function testBuildiumDelete(tenantId: number, noteId: number) {
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
-          'X-Buildium-Client-Id': clientId,
-          'X-Buildium-Client-Secret': clientSecret,
+          'X-Buildium-Client-Id': clientIdValue,
+          'X-Buildium-Client-Secret': clientSecretValue,
         },
       });
 
@@ -114,4 +118,3 @@ testBuildiumDelete(tenantId, noteId).then((success) => {
   console.log('='.repeat(60) + '\n');
   process.exit(success ? 0 : 1);
 });
-

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/db'
 
 export async function GET() {
+  // Public healthcheck endpoint (read-only): intentionally does not require auth.
   try {
     // Simple database connectivity check
     const { error } = await supabase

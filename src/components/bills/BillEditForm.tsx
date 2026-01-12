@@ -345,7 +345,6 @@ export default function BillEditForm({
                 className="w-full text-base"
               />
             </label>
-          </div>
 
           {/* Recurring Bill Settings */}
           <div className="border-t border-border/60 pt-6">

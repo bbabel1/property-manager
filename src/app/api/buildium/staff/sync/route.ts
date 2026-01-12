@@ -1,22 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth/guards'
 import { buildiumFetch } from '@/lib/buildium-http'
-import { supabase, supabaseAdmin } from '@/lib/db'
 import { mapStaffToBuildium } from '@/lib/buildium-mappers'
 import type { Database } from '@/types/database'
+import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id'
+import { requireOrgMember } from '@/lib/auth/org-guards'
 
 type StaffUpdate = Database['public']['Tables']['staff']['Update']
 
 export async function POST(request: NextRequest) {
   try {
-    await requireRole('platform_admin')
+    const { supabase: db, user } = await requireRole('platform_admin')
+    const orgId = await resolveOrgIdFromRequest(request, user.id, db)
+    await requireOrgMember({ client: db, userId: user.id, orgId })
     const body = await request.json().catch(() => ({})) as { staff_id?: number | string }
     const sidRaw = body?.staff_id
     if (!sidRaw) return NextResponse.json({ error: 'staff_id is required' }, { status: 400 })
     const staffId = typeof sidRaw === 'string' ? Number(sidRaw) : sidRaw
     if (!Number.isFinite(staffId)) return NextResponse.json({ error: 'Invalid staff_id' }, { status: 400 })
 
-    const db = supabaseAdmin || supabase
     const { data: st, error: err } = await db
       .from('staff')
       .select('*')
@@ -32,7 +34,7 @@ export async function POST(request: NextRequest) {
     const path = isUpdate ? `/users/${localBuildiumId}` : '/users'
     const method = isUpdate ? 'PUT' : 'POST'
 
-    const res = await buildiumFetch(method, path, undefined, payload, undefined)
+    const res = await buildiumFetch(method, path, undefined, payload, orgId)
 
     if (!res.ok) {
       const details: unknown = res.json ?? null
@@ -48,7 +50,11 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, buildiumId, data })
   } catch (e: unknown) {
-    if (e instanceof Error && e.message === 'UNAUTHENTICATED') return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    if (e instanceof Error) {
+      if (e.message === 'UNAUTHENTICATED') return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+      if (e.message === 'ORG_CONTEXT_REQUIRED') return NextResponse.json({ error: 'Organization context required' }, { status: 400 })
+      if (e.message === 'ORG_FORBIDDEN') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

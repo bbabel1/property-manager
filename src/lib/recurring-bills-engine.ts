@@ -8,6 +8,9 @@ import {
   generateIdempotencyKey,
   applyRolloverPolicy,
   type RecurringBillInstanceMetadata,
+  getDayOfWeekInTimezone,
+  todayInTimezone,
+  dateOnlyToUtc,
 } from '@/types/recurring-bills';
 
 type TransactionInsert = DatabaseSchema['public']['Tables']['transactions']['Insert'];
@@ -52,16 +55,17 @@ async function fetchRecurringBills(
   horizon: Date,
   orgId?: string,
 ): Promise<Array<{
-  id: string;
-  org_id: string;
-  date: string;
-  due_date: string | null;
-  vendor_id: string | null;
-  reference_number: string | null;
-  memo: string | null;
-  status: string | null;
-  recurring_schedule: any;
-  is_recurring: boolean;
+  id: string
+  org_id: string
+  date: string
+  due_date: string | null
+  vendor_id: string | null
+  reference_number: string | null
+  memo: string | null
+  status: string | null
+  recurring_schedule: any
+  is_recurring: boolean
+  total_amount: number | null
 }>> {
   const todayStr = fmtDate(today);
   const horizonStr = fmtDate(horizon);
@@ -106,10 +110,11 @@ function computeScheduleOccurrences(
   to: Date,
   lastGeneratedAt: string | null,
   nextRunDate: string | null,
+  orgTimezone: string,
 ): string[] {
   const dates: string[] = [];
-  const startDate = new Date(schedule.start_date + 'T00:00:00Z');
-  const endLimit = schedule.end_date ? new Date(schedule.end_date + 'T00:00:00Z') : to;
+  const startDate = dateOnlyToUtc(schedule.start_date);
+  const endLimit = schedule.end_date ? dateOnlyToUtc(schedule.end_date) : to;
 
   if (Number.isNaN(startDate.getTime())) return dates;
 
@@ -118,7 +123,7 @@ function computeScheduleOccurrences(
   let currentDate = lastGeneratedAt
     ? new Date(lastGeneratedAt)
     : nextRunDate
-      ? new Date(nextRunDate + 'T00:00:00Z')
+      ? dateOnlyToUtc(nextRunDate)
       : startDate;
 
   // Ensure we're looking forward from 'from'
@@ -187,27 +192,25 @@ function computeScheduleOccurrences(
         break; // skip policy
       }
     } else if (schedule.frequency === 'Weekly' || schedule.frequency === 'Every2Weeks') {
-      // For weekly/biweekly, respect the configured day_of_week
-      // Find the next occurrence of the target day of week
-      const targetDayOfWeek = schedule.day_of_week ?? 0;
+      // For weekly/biweekly, respect the configured day_of_week (1=Mon..7=Sun)
+      const targetDayOfWeek = schedule.day_of_week || 1;
       const daysToAdd = schedule.frequency === 'Every2Weeks' ? 14 : 7;
-      
-      // Get the day of week of current date (0=Sunday, 6=Saturday)
-      let currentDayOfWeek = currentDate.getUTCDay();
-      
+
+      const currentDayOfWeek = getDayOfWeekInTimezone(currentDate, orgTimezone); // 1..7
+      const jsTargetDay = targetDayOfWeek % 7; // convert Sunday (7) -> 0
+      const jsCurrentDay = currentDayOfWeek % 7;
+
       // Calculate days until next target day
-      let daysUntilTarget = (targetDayOfWeek - currentDayOfWeek + 7) % 7;
+      let daysUntilTarget = (jsTargetDay - jsCurrentDay + 7) % 7;
       if (daysUntilTarget === 0) {
-        // If we're already on the target day, move to next cycle
         daysUntilTarget = daysToAdd;
       }
-      
+
       currentDate = addDays(currentDate, daysUntilTarget);
-      
+
       // Ensure we're advancing by at least one full cycle from start_date
       const daysSinceStart = Math.floor((currentDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
       if (daysSinceStart < daysToAdd && currentDate <= to) {
-        // Move to next cycle to ensure we're generating future occurrences
         currentDate = addDays(currentDate, daysToAdd);
       }
     } else {
@@ -222,8 +225,7 @@ function computeScheduleOccurrences(
 // Process a single recurring bill schedule
 async function processRecurringBill(
   parentBill: Awaited<ReturnType<typeof fetchRecurringBills>>[0],
-  from: Date,
-  to: Date,
+  daysHorizon: number,
 ): Promise<{ generated: number; skipped: number; duplicates: number; errors: number }> {
   const db = supabaseAdmin;
   const schedule = (parentBill.recurring_schedule as any)?.schedule as RecurringBillSchedule | undefined;
@@ -257,10 +259,13 @@ async function processRecurringBill(
   // Get org timezone
   const orgTimezone = await getOrgTimezone(parentBill.org_id);
 
-  // Compute occurrence dates
+  // Compute occurrence dates using org-local "today"
+  const todayStr = todayInTimezone(orgTimezone);
+  const from = dateOnlyToUtc(todayStr);
+  const to = addDays(from, daysHorizon);
   const lastGeneratedAt = schedule.last_generated_at ? schedule.last_generated_at.slice(0, 10) : null;
-  const nextRunDate = schedule.next_run_date;
-  const occurrenceDates = computeScheduleOccurrences(schedule, from, to, lastGeneratedAt, nextRunDate);
+  const nextRunDate: string | null = schedule.next_run_date ?? null;
+  const occurrenceDates = computeScheduleOccurrences(schedule, from, to, lastGeneratedAt, nextRunDate, orgTimezone);
 
   let generated = 0;
   let skipped = 0;
@@ -334,7 +339,7 @@ async function processRecurringBill(
           ? `${parentBill.reference_number}-${nextSequence + i}`
           : null,
         memo: parentBill.memo,
-        status: 'Pending', // Children start as draft/pending, not Due
+        status: '', // Children start as draft (empty maps to draft state)
         total_amount: parentBill.total_amount ?? 0,
         created_at: nowIso,
         updated_at: nowIso,
@@ -461,7 +466,7 @@ export async function generateRecurringBills(
 
   for (const bill of recurringBills) {
     orgIds.add(bill.org_id);
-    const result = await processRecurringBill(bill, today, horizon);
+    const result = await processRecurringBill(bill, daysHorizon);
     totalGenerated += result.generated;
     totalSkipped += result.skipped;
     totalDuplicates += result.duplicates;
@@ -476,4 +481,3 @@ export async function generateRecurringBills(
     orgIds: Array.from(orgIds),
   };
 }
-

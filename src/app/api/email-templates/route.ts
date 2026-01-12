@@ -19,7 +19,7 @@ import { requireOrgAdmin, requireOrgMember } from '@/lib/auth/org-guards';
  */
 export async function GET(request: NextRequest) {
   try {
-    const { supabase, user } = await requireAuth(request);
+    const { supabase, user } = await requireAuth();
     const orgId = await resolveOrgIdFromRequest(request, user.id, supabase);
     await requireOrgMember({ client: supabase, userId: user.id, orgId });
 
@@ -86,7 +86,7 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const { supabase, user, roles } = await requireAuth(request);
+    const { supabase, user, roles } = await requireAuth();
     const orgId = await resolveOrgIdFromRequest(request, user.id, supabase);
 
     await requireOrgAdmin({ client: supabase, userId: user.id, orgId, roles });

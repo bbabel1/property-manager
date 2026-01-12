@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { hasSupabaseAdmin, requireSupabaseAdmin } from '@/lib/supabase-client';
 import { buildiumFetch } from '@/lib/buildium-http';
 import { logger } from '@/lib/logger';
+import { requireAuth } from '@/lib/auth/guards';
+import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
+import { requireOrgMember } from '@/lib/auth/org-guards';
 
 /**
  * GET /api/leases/[id]/documents/[docId]/presign
@@ -16,6 +19,9 @@ export async function GET(
   const corr =
     request.headers.get('Idempotency-Key') || `presign-get:${Date.now()}:${Math.random()}`;
   try {
+    const { supabase, user } = await requireAuth();
+    const orgId = await resolveOrgIdFromRequest(request, user.id, supabase);
+    await requireOrgMember({ client: supabase, userId: user.id, orgId });
     if (!hasSupabaseAdmin()) {
       return NextResponse.json({ error: 'Server missing admin key' }, { status: 500 });
     }
@@ -32,6 +38,7 @@ export async function GET(
       .from('lease')
       .select('buildium_lease_id, org_id')
       .eq('id', leaseIdNum)
+      .eq('org_id', orgId)
       .maybeSingle();
 
     if (leaseErr) {

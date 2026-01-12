@@ -1,8 +1,6 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireAuth } from '@/lib/auth/guards'
-import { hasSupabaseAdmin } from '@/lib/supabase-client'
-import { supabaseAdmin } from '@/lib/db'
 import { PAYMENT_METHOD_VALUES } from '@/lib/enums/payment-method'
 import type { BuildiumLeaseTransactionCreate } from '@/types/buildium'
 import { LeaseTransactionService } from '@/lib/lease-transaction-service'
@@ -21,6 +19,8 @@ import { resolveUndepositedFundsGlAccountId } from '@/lib/buildium-mappers'
 import { ensurePaymentToUndepositedFunds } from '@/lib/deposit-service'
 import PayerRestrictionsService from '@/lib/payments/payer-restrictions-service'
 import type { Charge, PaymentAllocation } from '@/types/ar'
+import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id'
+import { requireOrgMember } from '@/lib/auth/org-guards'
 
 const ReceivePaymentSchema = z.object({
   date: z.string().min(1),
@@ -45,7 +45,7 @@ const ReceivePaymentSchema = z.object({
 })
 
 export async function POST(
-  request: Request,
+  request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   const { id } = await context.params
@@ -62,9 +62,9 @@ export async function POST(
   }
 
   try {
-    if (!hasSupabaseAdmin()) {
-      await requireAuth()
-    }
+    const { supabase: db, user } = await requireAuth()
+    const orgId = await resolveOrgIdFromRequest(request, user.id, db)
+    await requireOrgMember({ client: db, userId: user.id, orgId })
 
     const totalAllocated = parsed.data.allocations.reduce((sum, line) => sum + line.amount, 0)
     if (!amountsRoughlyEqual(totalAllocated, parsed.data.amount)) {
@@ -72,18 +72,23 @@ export async function POST(
     }
 
     const allocationAccountIds = parsed.data.allocations.map((line) => line.account_id)
-    const { data: _allocationAccounts, error: allocationAccountsError } = await supabaseAdmin
+    const { data: _allocationAccounts, error: allocationAccountsError } = await db
       .from('gl_accounts')
       .select('id, name, type')
       .in('id', allocationAccountIds)
+      .eq('org_id', orgId)
     if (allocationAccountsError) {
       throw new Error(`Failed to load allocation accounts: ${allocationAccountsError.message}`)
     }
 
-    const leaseContext = await fetchLeaseContextById(leaseId)
+    const leaseContext = await fetchLeaseContextById(leaseId, db)
+    if (leaseContext.orgId && leaseContext.orgId !== orgId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
 
     const glAccountMap = await fetchBuildiumGlAccountMap(
-      parsed.data.allocations.map((line) => line.account_id)
+      parsed.data.allocations.map((line) => line.account_id),
+      db
     )
     const buildiumLines = buildLinesFromAllocations(parsed.data.allocations, glAccountMap)
     const lines = castLeaseTransactionLinesForPersistence(buildiumLines)
@@ -97,7 +102,7 @@ export async function POST(
       )
     }
 
-    const udfGlAccountId = await resolveUndepositedFundsGlAccountId(supabaseAdmin, leaseContext.orgId)
+    const udfGlAccountId = await resolveUndepositedFundsGlAccountId(db, leaseContext.orgId)
     if (!udfGlAccountId) {
       return NextResponse.json(
         { error: 'Undeposited Funds account is missing for this organization.' },
@@ -111,10 +116,11 @@ export async function POST(
     // Restriction check before calling Buildium
     if (payeeTenantId != null && leaseContext.orgId) {
       // Resolve local tenant id to align with payer_restrictions.payer_id (UUID)
-      const { data: tenantRow } = await supabaseAdmin
+      const { data: tenantRow } = await db
         .from('tenants')
         .select('id')
         .eq('buildium_tenant_id', payeeTenantId)
+        .eq('org_id', leaseContext.orgId)
         .maybeSingle()
       const payerId = tenantRow?.id ?? null
       if (payerId) {
@@ -159,13 +165,14 @@ export async function POST(
 
     let intentState: string | null = null
     if (result.intentId) {
-      const { data: intentRow } = await supabaseAdmin
+      const { data: intentRow } = await db
         .from('payment_intent')
         .select('state')
+        .eq('org_id', orgId)
         .eq('id', result.intentId)
         .maybeSingle()
-      if (!intentRow && leaseContext.orgId) {
-        const scoped = await supabaseAdmin
+      if (!intentRow && leaseContext.orgId && leaseContext.orgId !== orgId) {
+        const scoped = await db
           .from('payment_intent')
           .select('state')
           .eq('org_id', leaseContext.orgId)
@@ -177,7 +184,7 @@ export async function POST(
       }
     }
     if (result.localId) {
-      await ensurePaymentToUndepositedFunds(result.localId, leaseContext.orgId, supabaseAdmin, {
+      await ensurePaymentToUndepositedFunds(result.localId, leaseContext.orgId, db, {
         intendedBankBuildiumId: intendedBankBuildiumId ?? null,
       })
     }
@@ -232,7 +239,7 @@ export async function POST(
       }
 
       // Stamp payment metadata for reconciliation
-      await supabaseAdmin
+      await db
         .from('transactions')
         .update({ metadata: { payment_id: result.localId } })
         .eq('id', result.localId)
@@ -269,6 +276,12 @@ export async function POST(
     if (error instanceof Error) {
       if (error.message === 'UNAUTHENTICATED') {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+      if (error.message === 'ORG_CONTEXT_REQUIRED') {
+        return NextResponse.json({ error: 'Organization context required' }, { status: 400 })
+      }
+      if (error.message === 'ORG_FORBIDDEN') {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
       if (
         error.message.includes('allocation') ||

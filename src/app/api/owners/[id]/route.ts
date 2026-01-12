@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/db'
-import { requireUser } from '@/lib/auth'
 import { getOrgScopedBuildiumEdgeClient } from '@/lib/buildium-edge-client'
 import { checkRateLimit } from '@/lib/rate-limit'
 import type { Database } from '@/types/database'
@@ -89,8 +87,7 @@ export async function GET(
 
     // Authentication + org scope
     const auth = await requireAuth()
-    const user = await requireUser(request);
-    console.log('🔍 Owner Details API: User authenticated:', user.id);
+    console.log('🔍 Owner Details API: User authenticated:', auth.user.id);
 
     const resolvedOrg = await resolveResourceOrg(auth.supabase, 'owner', resolvedParams.id)
     if (!resolvedOrg.ok) {
@@ -100,7 +97,7 @@ export async function GET(
 
     // Fetch owner from database with contact information
     console.log('🔍 Owner Details API: About to query Supabase...');
-    const { data: owner, error } = await supabaseAdmin
+    const { data: owner, error } = await auth.supabase
       .from('owners')
       .select(`
         id,
@@ -177,7 +174,7 @@ export async function GET(
 
     // Calculate total units for this owner
     console.log('🔍 Owner Details API: Calculating total units for owner:', resolvedParams.id);
-            const { data: ownerships, error: ownershipError } = await supabaseAdmin
+            const { data: ownerships, error: ownershipError } = await auth.supabase
       .from('ownerships')
       .select(`
         property_id,
@@ -259,12 +256,17 @@ export async function GET(
   } catch (error) {
     console.error('🔍 Owner Details API: Caught error:', error);
     
-    if (error instanceof Error && error.message === 'UNAUTHENTICATED') {
-      console.log('🔍 Owner Details API: Authentication error');
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      );
+    if (error instanceof Error) {
+      if (error.message === 'UNAUTHENTICATED') {
+        console.log('🔍 Owner Details API: Authentication error');
+        return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+      }
+      if (error.message === 'ORG_FORBIDDEN') {
+        return NextResponse.json({ error: 'Organization access denied' }, { status: 403 });
+      }
+      if (error.message === 'ORG_CONTEXT_REQUIRED') {
+        return NextResponse.json({ error: 'Organization context required' }, { status: 400 });
+      }
     }
 
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -297,7 +299,8 @@ export async function PUT(
     console.log('🔍 Owner Update API: Rate limit check passed');
 
     // Authentication
-    const user = await requireUser(request);
+    const auth = await requireAuth()
+    const user = auth.user
     console.log('🔍 Owner Update API: User authenticated:', user.id);
 
     const body = await request.json();
@@ -409,10 +412,17 @@ export async function PUT(
     }
 
     // Get the owner to find the contact_id
-    const { data: existingOwner, error: ownerError } = await supabaseAdmin
+    const resolvedOrg = await resolveResourceOrg(auth.supabase, 'owner', resolvedParams.id)
+    if (!resolvedOrg.ok) {
+      return NextResponse.json({ error: 'Owner not found or org missing' }, { status: 404 })
+    }
+    await requireOrgMember({ client: auth.supabase, userId: user.id, orgId: resolvedOrg.orgId })
+
+    const { data: existingOwner, error: ownerError } = await auth.supabase
       .from('owners')
       .select('contact_id')
       .eq('id', resolvedParams.id)
+      .eq('org_id', resolvedOrg.orgId)
       .single();
 
     if (ownerError) {
@@ -462,7 +472,7 @@ export async function PUT(
       updated_at: new Date().toISOString()
     };
 
-    const { error: contactUpdateError } = await supabaseAdmin
+    const { error: contactUpdateError } = await auth.supabase
       .from('contacts')
       .update(contactData)
       .eq('id', contactId);
@@ -497,10 +507,11 @@ export async function PUT(
       updated_at: new Date().toISOString()
     }
 
-    const { error: ownerUpdateError } = await supabaseAdmin
+    const { error: ownerUpdateError } = await auth.supabase
       .from('owners')
       .update(ownerData)
-      .eq('id', resolvedParams.id);
+      .eq('id', resolvedParams.id)
+      .eq('org_id', resolvedOrg.orgId);
 
     if (ownerUpdateError) {
       console.error('🔍 Owner Update API: Error updating owner:', ownerUpdateError);
@@ -511,7 +522,7 @@ export async function PUT(
     }
 
     // Fetch the updated owner to return
-    const { data: updatedOwner, error: fetchError } = await supabaseAdmin
+    const { data: updatedOwner, error: fetchError } = await auth.supabase
       .from('owners')
       .select(`
         id,
@@ -553,6 +564,7 @@ export async function PUT(
         )
       `)
       .eq('id', resolvedParams.id)
+      .eq('org_id', resolvedOrg.orgId)
       .single();
 
     if (fetchError) {
@@ -592,10 +604,11 @@ export async function PUT(
       const edgeClient = await getOrgScopedBuildiumEdgeClient(orgId ?? undefined);
       const syncRes = await edgeClient.syncOwnerToBuildium(buildiumOwnerData)
       if (syncRes.success && syncRes.buildiumId && !updatedOwner.buildium_owner_id) {
-        await supabaseAdmin
+        await auth.supabase
           .from('owners')
           .update({ buildium_owner_id: syncRes.buildiumId })
           .eq('id', updatedOwner.id)
+          .eq('org_id', resolvedOrg.orgId)
       }
     } catch (syncErr) {
       console.warn('Owner update Buildium sync failed (non-fatal):', syncErr)
@@ -651,12 +664,17 @@ export async function PUT(
   } catch (error) {
     console.error('🔍 Owner Update API: Caught error:', error);
     
-    if (error instanceof Error && error.message === 'UNAUTHENTICATED') {
-      console.log('🔍 Owner Update API: Authentication error');
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      );
+    if (error instanceof Error) {
+      if (error.message === 'UNAUTHENTICATED') {
+        console.log('🔍 Owner Update API: Authentication error');
+        return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+      }
+      if (error.message === 'ORG_FORBIDDEN') {
+        return NextResponse.json({ error: 'Organization access denied' }, { status: 403 });
+      }
+      if (error.message === 'ORG_CONTEXT_REQUIRED') {
+        return NextResponse.json({ error: 'Organization context required' }, { status: 400 });
+      }
     }
 
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';

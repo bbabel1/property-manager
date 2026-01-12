@@ -6,19 +6,20 @@ import { supabaseAdmin } from '@/lib/db';
  * This can be enhanced later to fetch from org settings or user preferences
  */
 export async function getOrgTimezone(orgId: string): Promise<string> {
-  // TODO: When org timezone setting is available, fetch from organizations table
-  // For now, default to America/New_York (US/Eastern)
+  const defaultTimezone = process.env.DEFAULT_ORG_TIMEZONE || 'America/New_York';
   try {
-    // Could query organizations table for timezone if it exists
-    // const { data } = await supabaseAdmin
-    //   .from('organizations')
-    //   .select('timezone')
-    //   .eq('id', orgId)
-    //   .maybeSingle()
-    // return data?.timezone || 'America/New_York'
-    return 'America/New_York';
-  } catch {
-    return 'America/New_York';
-  }
-}
+    // Attempt to read timezone from organizations table if the column exists
+    const { data, error } = await supabaseAdmin
+      .from('organizations' as any)
+      .select('timezone')
+      .eq('id', orgId)
+      .maybeSingle();
 
+    if (!error && data && typeof (data as any).timezone === 'string' && (data as any).timezone) {
+      return (data as any).timezone as string;
+    }
+  } catch {
+    // Ignore and fall back
+  }
+  return defaultTimezone;
+}

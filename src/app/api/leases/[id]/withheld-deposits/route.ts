@@ -1,7 +1,6 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireAuth } from '@/lib/auth/guards'
-import { hasSupabaseAdmin } from '@/lib/supabase-client'
 import type { BuildiumLeaseTransactionCreate } from '@/types/buildium'
 import { LeaseTransactionService } from '@/lib/lease-transaction-service'
 import {
@@ -11,6 +10,8 @@ import {
   fetchTransactionWithLines,
   castLeaseTransactionLinesForPersistence
 } from '@/lib/lease-transaction-helpers'
+import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id'
+import { requireOrgMember } from '@/lib/auth/org-guards'
 
 const WithholdDepositSchema = z.object({
   date: z.string().min(1),
@@ -20,7 +21,7 @@ const WithholdDepositSchema = z.object({
 })
 
 export async function POST(
-  request: Request,
+  request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   const { id } = await context.params
@@ -37,15 +38,18 @@ export async function POST(
   }
 
   try {
-    if (!hasSupabaseAdmin()) {
-      await requireAuth()
-    }
+    const { supabase: db, user } = await requireAuth()
+    const orgId = await resolveOrgIdFromRequest(request, user.id, db)
+    await requireOrgMember({ client: db, userId: user.id, orgId })
 
-    const leaseContext = await fetchLeaseContextById(leaseId)
+    const leaseContext = await fetchLeaseContextById(leaseId, db)
+    if (leaseContext.orgId && leaseContext.orgId !== orgId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
     const glAccountMap = await fetchBuildiumGlAccountMap([
       parsed.data.deposit_account_id,
       ...parsed.data.allocations.map((line) => line.account_id),
-    ])
+    ], db)
     const { lines: buildiumLines, debitTotal, depositBuildiumAccountId } = buildDepositLines({
       allocations: parsed.data.allocations,
       depositAccountId: parsed.data.deposit_account_id,
@@ -97,6 +101,12 @@ export async function POST(
     if (error instanceof Error) {
       if (error.message === 'UNAUTHENTICATED') {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+      if (error.message === 'ORG_CONTEXT_REQUIRED') {
+        return NextResponse.json({ error: 'Organization context required' }, { status: 400 })
+      }
+      if (error.message === 'ORG_FORBIDDEN') {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
       if (
         error.message === 'Lease not found' ||

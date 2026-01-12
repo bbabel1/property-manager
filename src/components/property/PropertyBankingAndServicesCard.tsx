@@ -271,6 +271,7 @@ export default function PropertyBankingAndServicesCard({
 
   const formatCurrency = (n: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
+  const formatHeldLiability = (n: number) => formatCurrency(Math.abs(n));
 
   const view = (
     <div className="space-y-3">
@@ -299,7 +300,9 @@ export default function PropertyBankingAndServicesCard({
             <div className="space-y-1">
               <div className="flex items-baseline justify-between gap-6">
                 <p className={detailLabelClass}>Security deposits &amp; early payments</p>
-                <p className={metricValueClass}>{formatCurrency(fin?.security_deposits ?? 0)}</p>
+                <p className={metricValueClass}>
+                  {formatHeldLiability(fin?.security_deposits ?? 0)}
+                </p>
               </div>
               <div className="flex items-baseline justify-between gap-6">
                 <p className={detailLabelClass}>Property reserve</p>

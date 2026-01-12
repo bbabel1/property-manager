@@ -9,6 +9,8 @@
 
 The `cleanup_audit_logs()` function has been created in the database to automatically clean up old audit log entries. Since the `pg_cron` extension is not available, we need to set up an external cron job to call this function weekly.
 
+The repo now includes a scheduled GitHub Action at `.github/workflows/cleanup-audit-logs.yml` that calls the RPC weekly when `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are configured in repo secrets. You can still run the options below if you prefer another scheduler.
+
 ---
 
 ## Retention Policies
@@ -273,4 +275,3 @@ FROM buildium_webhook_events;
 ---
 
 **Last Updated**: 2025-01-31
-

@@ -3,9 +3,10 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import { requireAuth } from '@/lib/auth/guards';
-import { requireSupabaseAdmin } from '@/lib/supabase-client';
 import { mapGoogleCountryToEnum } from '@/lib/utils';
 import type { Database } from '@/types/database';
+import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
+import { requireOrgMember } from '@/lib/auth/org-guards';
 
 const CreateVendorSchema = z.object({
   name: z
@@ -43,14 +44,24 @@ const normalizeCountry = (value?: string | null) => {
 };
 
 export async function POST(request: Request) {
+  let db: any
+  let user: any
+  let orgId = ''
   try {
-    await requireAuth();
+    const auth = await requireAuth();
+    db = auth.supabase;
+    user = auth.user;
+    orgId = await resolveOrgIdFromRequest(request as any, user.id, db);
+    await requireOrgMember({ client: db, userId: user.id, orgId });
   } catch (error) {
     if (error instanceof Error && error.message === 'UNAUTHENTICATED') {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
-    if (error instanceof Error && error.message === 'FORBIDDEN') {
-      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+    if (error instanceof Error && error.message === 'ORG_FORBIDDEN') {
+      return NextResponse.json({ error: 'Organization access denied' }, { status: 403 });
+    }
+    if (error instanceof Error && error.message === 'ORG_CONTEXT_REQUIRED') {
+      return NextResponse.json({ error: 'Organization context required' }, { status: 400 });
     }
     return NextResponse.json({ error: 'Unable to verify authentication' }, { status: 500 });
   }
@@ -69,7 +80,6 @@ export async function POST(request: Request) {
     );
   }
 
-  const admin = requireSupabaseAdmin('create vendor');
   const data = parsed.data;
   const nowIso = new Date().toISOString();
 
@@ -92,7 +102,7 @@ export async function POST(request: Request) {
     updated_at: nowIso,
   };
 
-  const contactRes = await admin
+  const contactRes = await db
     .from('contacts')
     .insert(contactInsert)
     .select('id, display_name, company_name, first_name, last_name')
@@ -110,10 +120,11 @@ export async function POST(request: Request) {
 
   let buildiumCategoryId: number | null = null;
   if (data.categoryId) {
-    const categoryLookup = await admin
+    const categoryLookup = await db
       .from('vendor_categories')
       .select('id, buildium_category_id')
       .eq('id', data.categoryId)
+      .eq('org_id', orgId)
       .maybeSingle();
 
     if (categoryLookup.error) {
@@ -128,6 +139,7 @@ export async function POST(request: Request) {
 
   const vendorInsert = {
     contact_id: contactId,
+    org_id: orgId,
     vendor_category: data.categoryId ?? null,
     buildium_category_id: buildiumCategoryId,
     notes: normalize(data.notes),
@@ -135,7 +147,7 @@ export async function POST(request: Request) {
     updated_at: nowIso,
   };
 
-  const vendorRes = await admin
+  const vendorRes = await db
     .from('vendors')
     .insert(vendorInsert)
     .select(
@@ -153,7 +165,7 @@ export async function POST(request: Request) {
 
   if (vendorRes.error || !vendorRes.data) {
     console.error('create vendor: failed to insert vendor', vendorRes.error);
-    await admin.from('contacts').delete().eq('id', contactId);
+    await db.from('contacts').delete().eq('id', contactId);
     return NextResponse.json({ error: 'Unable to create vendor' }, { status: 500 });
   }
 

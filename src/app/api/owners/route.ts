@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase, supabaseAdmin } from '@/lib/db'
-import { requireUser } from '@/lib/auth'
+import { requireAuth } from '@/lib/auth/guards'
 import { OwnerCreateSchema, OwnerQuerySchema } from '@/schemas/owner'
 import { sanitizeAndValidate } from '@/lib/sanitize'
 import { logger } from '@/lib/logger'
@@ -9,6 +8,7 @@ import { validateCSRFToken } from '@/lib/csrf'
 import { mapOwnerFromDB, type Owner, type OwnerDB } from '@/types/owners'
 import { getOrgScopedBuildiumEdgeClient } from '@/lib/buildium-edge-client'
 import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id'
+import { requireOrgMember } from '@/lib/auth/org-guards'
 import type { Database } from '@/types/database'
 import { normalizeCountry, normalizeCountryWithDefault, normalizeEtfAccountType } from '@/lib/normalizers'
 
@@ -61,8 +61,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Authentication
-    const user = await requireUser(request);
-    logger.info({ userId: user.id, action: 'create_owner' }, 'Creating owner');
+    const { supabase: db, user } = await requireAuth()
+    const orgId = await resolveOrgIdFromRequest(request, user.id, db)
+    await requireOrgMember({ client: db, userId: user.id, orgId })
+    logger.info({ userId: user.id, orgId, action: 'create_owner' }, 'Creating owner')
 
     // Parse and validate request body
     let bodyRaw: unknown;
@@ -102,9 +104,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Use admin client for writes (bypass RLS)
-    const db = supabaseAdmin || supabase
-
     // First create the contact (map to snake_case DB columns)
     const now = new Date().toISOString();
     const contactData: ContactsInsert = {
@@ -142,6 +141,7 @@ export async function POST(request: NextRequest) {
     // Then create the owner referencing the contact
     const ownerInsert: OwnersInsert = {
       contact_id: contact.id,
+      org_id: orgId,
       management_agreement_start_date: data.managementAgreementStartDate ?? null,
       management_agreement_end_date: data.managementAgreementEndDate ?? null,
       comment: data.comment ?? null,
@@ -231,14 +231,6 @@ export async function POST(request: NextRequest) {
         IsActive: true
       };
 
-      // Resolve orgId from request context for org-scoped credentials
-      let orgId: string | undefined;
-      try {
-        orgId = await resolveOrgIdFromRequest(request, user.id);
-      } catch (error) {
-        logger.warn({ userId: user.id, error }, 'Could not resolve orgId, falling back to env vars');
-      }
-      
       // Use org-scoped client for Buildium sync
       const edgeClient = await getOrgScopedBuildiumEdgeClient(orgId);
       buildiumSyncResult = await edgeClient.syncOwnerToBuildium(buildiumOwnerData);
@@ -269,7 +261,8 @@ export async function POST(request: NextRequest) {
 
     } catch (syncError) {
       logger.error({ 
-        ownerId: owner.id, 
+        ownerId: owner.id,
+        orgId,
         error: syncError,
         userId: user.id 
       }, 'Error during Buildium sync via Edge Function');
@@ -315,11 +308,16 @@ export async function POST(request: NextRequest) {
     )
 
   } catch (error) {
-    if (error instanceof Error && error.message === 'UNAUTHENTICATED') {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      );
+    if (error instanceof Error) {
+      if (error.message === 'UNAUTHENTICATED') {
+        return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+      }
+      if (error.message === 'ORG_FORBIDDEN') {
+        return NextResponse.json({ error: 'Organization access denied' }, { status: 403 })
+      }
+      if (error.message === 'ORG_CONTEXT_REQUIRED') {
+        return NextResponse.json({ error: 'Organization context required' }, { status: 400 })
+      }
     }
 
     console.error('Error creating owner:', error instanceof Error ? error.message : 'Unknown error');
@@ -342,16 +340,17 @@ export async function GET(request: NextRequest) {
     }
 
     // Authentication
-    const user = await requireUser(request);
-    console.log('Fetching owners:', { userId: user.id, action: 'fetch_owners' });
+    const { supabase: db, user } = await requireAuth()
+    const orgId = await resolveOrgIdFromRequest(request, user.id, db)
+    await requireOrgMember({ client: db, userId: user.id, orgId })
+    console.log('Fetching owners:', { userId: user.id, orgId, action: 'fetch_owners' });
 
     // Parse and validate query parameters
     const url = new URL(request.url);
     const queryParams = Object.fromEntries(url.searchParams.entries());
     const query = sanitizeAndValidate(queryParams, OwnerQuerySchema);
 
-    // Build query with pagination and filters - using admin client to bypass RLS
-    const db = supabaseAdmin || supabase
+    // Build query with pagination and filters scoped to the org context
     let queryBuilder = db
       .from('owners')
       .select(`
@@ -381,6 +380,7 @@ export async function GET(request: NextRequest) {
           is_company
         )
       `)
+      .eq('org_id', orgId)
       .range(query.offset, query.offset + query.limit - 1);
 
     // Apply filters
@@ -447,11 +447,16 @@ export async function GET(request: NextRequest) {
     console.log('Owners fetched successfully:', { count: mappedOwners.length, userId: user.id });
     return NextResponse.json(mappedOwners)
   } catch (error) {
-    if (error instanceof Error && error.message === 'UNAUTHENTICATED') {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      );
+    if (error instanceof Error) {
+      if (error.message === 'UNAUTHENTICATED') {
+        return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+      }
+      if (error.message === 'ORG_FORBIDDEN') {
+        return NextResponse.json({ error: 'Organization access denied' }, { status: 403 })
+      }
+      if (error.message === 'ORG_CONTEXT_REQUIRED') {
+        return NextResponse.json({ error: 'Organization context required' }, { status: 400 })
+      }
     }
 
     logger.error({ error: error instanceof Error ? error.message : 'Unknown error' }, 'Error fetching owners');

@@ -7,13 +7,25 @@ drop policy if exists bill_applications_read on public.bill_applications;
 drop policy if exists bill_applications_insert on public.bill_applications;
 drop policy if exists bill_applications_update on public.bill_applications;
 drop policy if exists bill_applications_delete on public.bill_applications;
+-- Drop new policy names if they exist from a previous run
+drop policy if exists bill_applications_org_read on public.bill_applications;
+drop policy if exists bill_applications_org_write on public.bill_applications;
+drop policy if exists bill_applications_org_update on public.bill_applications;
+drop policy if exists bill_applications_org_delete on public.bill_applications;
 
 drop policy if exists bill_workflow_read on public.bill_workflow;
 drop policy if exists bill_workflow_insert on public.bill_workflow;
 drop policy if exists bill_workflow_update on public.bill_workflow;
 drop policy if exists bill_workflow_delete on public.bill_workflow;
+-- Drop new policy names if they exist from a previous run
+drop policy if exists bill_workflow_org_read on public.bill_workflow;
+drop policy if exists bill_workflow_org_write on public.bill_workflow;
+drop policy if exists bill_workflow_org_update on public.bill_workflow;
+drop policy if exists bill_workflow_org_delete on public.bill_workflow;
 
 drop policy if exists bill_approval_audit_read on public.bill_approval_audit;
+-- Drop new policy name if it exists from a previous run
+drop policy if exists bill_approval_audit_org_read on public.bill_approval_audit;
 
 -- bill_applications RLS
 create policy bill_applications_org_read

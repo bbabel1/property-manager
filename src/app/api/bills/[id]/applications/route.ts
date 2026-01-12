@@ -37,7 +37,15 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     }
 
     const orgId = String((scopedBill as any).org_id);
-    await requireOrgMember({ client: supabase, userId: user.id, orgId });
+    const membershipClient = (supabase as any) || db;
+    const isAdminRole = roles.includes('platform_admin') || roles.includes('org_admin') || roles.includes('org_manager');
+    try {
+      await requireOrgMember({ client: membershipClient, userId: user.id, orgId });
+    } catch (err) {
+      if (!isAdminRole) {
+        throw err;
+      }
+    }
 
     const { data, error } = await db
       .from('bill_applications')
@@ -88,7 +96,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!bill || bill.transaction_type !== 'Bill') {
     return NextResponse.json({ error: 'Bill not found' }, { status: 404 });
   }
-  await requireOrgMember({ client: supabase, userId: user.id, orgId: String((bill as any).org_id) });
+  const membershipClient = (supabase as any) || db;
+  const isAdminRole = roles.includes('platform_admin') || roles.includes('org_admin') || roles.includes('org_manager');
+  try {
+    await requireOrgMember({
+      client: membershipClient,
+      userId: user.id,
+      orgId: String((bill as any).org_id),
+    });
+  } catch (err) {
+    if (!isAdminRole) {
+      throw err;
+    }
+  }
 
   const { data: sourceTransaction, error: sourceErr } = await db
     .from('transactions')

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase, supabaseAdmin } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/guards';
-import { getServerSupabaseClient } from '@/lib/supabase-client';
 import { logger } from '@/lib/logger';
 import { getOrgScopedBuildiumEdgeClient } from '@/lib/buildium-edge-client';
 import { buildiumSync } from '@/lib/buildium-sync';
@@ -15,6 +14,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database, Json } from '@/types/database';
 import type { BuildiumLease } from '@/types/buildium';
 import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
+import { requireOrgMember } from '@/lib/auth/org-guards';
 
 type ContactRow = Database['public']['Tables']['contacts']['Row'];
 type LeaseContactRow = Database['public']['Tables']['lease_contacts']['Row'];
@@ -567,6 +567,7 @@ export async function GET(request: NextRequest) {
   try {
     const { supabase: serverSupabase, user } = await requireAuth();
     const orgId = await resolveOrgIdFromRequest(request, user.id, serverSupabase);
+    await requireOrgMember({ client: serverSupabase, userId: user.id, orgId });
 
     const requestUrl = new URL(request.url);
     const { searchParams } = requestUrl;
@@ -776,6 +777,12 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const { supabase: db, user } = await requireAuth();
+    const orgId = await resolveOrgIdFromRequest(request, user.id, db);
+    await requireOrgMember({ client: db, userId: user.id, orgId });
+    const supabase = db;
+    const admin = supabaseAdmin ?? supabase;
+
     const url = new URL(request.url);
     const strict = url.searchParams.get('strict') === 'true';
     const body = await request.json();
@@ -789,6 +796,7 @@ export async function POST(request: NextRequest) {
         .from('properties')
         .select('id')
         .eq('buildium_property_id', body.buildium_property_id)
+        .eq('org_id', orgId)
         .single();
       if (propertyLookupError) {
         return NextResponse.json(
@@ -806,6 +814,7 @@ export async function POST(request: NextRequest) {
         .from('units')
         .select('id')
         .eq('buildium_unit_id', body.buildium_unit_id)
+        .eq('org_id', orgId)
         .single();
       if (unitLookupError) {
         return NextResponse.json(
@@ -823,13 +832,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const admin = getServerSupabaseClient();
-
     // Resolve org_id early for both payload and idempotency scoping
-    const { data: propertyRowForOrg, error: propertyOrgError } = await (supabaseAdmin || supabase)
+    const { data: propertyRowForOrg, error: propertyOrgError } = await admin
       .from('properties')
       .select('org_id')
       .eq('id', property_id)
+      .eq('org_id', orgId)
       .maybeSingle();
 
     if (propertyOrgError) {
@@ -839,10 +847,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { data: unitRowForOrg, error: unitOrgError } = await (supabaseAdmin || supabase)
+    const { data: unitRowForOrg, error: unitOrgError } = await admin
       .from('units')
       .select('org_id, property_id')
       .eq('id', unit_id)
+      .eq('org_id', orgId)
       .maybeSingle();
     if (unitOrgError) {
       return NextResponse.json(
@@ -852,6 +861,9 @@ export async function POST(request: NextRequest) {
     }
 
     const resolvedOrgId = propertyRowForOrg?.org_id ?? unitRowForOrg?.org_id ?? null;
+    if (!resolvedOrgId || resolvedOrgId !== orgId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
     // Backfill property_id from the unit if caller only provided unit-level context
     if (!property_id && unitRowForOrg?.property_id) {
       property_id = unitRowForOrg.property_id;
@@ -1486,6 +1498,15 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     const message = error instanceof Error ? error.message : JSON.stringify(error);
     logger.error({ error, message }, 'Error creating lease');
+    if (message === 'UNAUTHENTICATED') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (message === 'ORG_CONTEXT_REQUIRED') {
+      return NextResponse.json({ error: 'Organization context required' }, { status: 400 });
+    }
+    if (message === 'ORG_FORBIDDEN') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
     return NextResponse.json({ error: 'Internal error', details: message }, { status: 500 });
   }
 }

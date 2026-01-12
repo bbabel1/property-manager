@@ -7,14 +7,23 @@ BEGIN;
 -- Fix membership_roles: Split admin_write FOR ALL into separate policies
 DO $$
 BEGIN
+  -- Only process if the old FOR ALL policy exists and new split policies don't
   IF EXISTS (
     SELECT 1 FROM pg_policies 
     WHERE schemaname = 'public' 
     AND tablename = 'membership_roles'
     AND policyname = 'membership_roles_admin_write'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM pg_policies 
+    WHERE schemaname = 'public' 
+    AND tablename = 'membership_roles'
+    AND policyname = 'membership_roles_admin_insert'
   ) THEN
-    -- Drop the FOR ALL policy
+    -- Drop the FOR ALL policy and any existing split policies
     DROP POLICY IF EXISTS membership_roles_admin_write ON public.membership_roles;
+    DROP POLICY IF EXISTS membership_roles_admin_insert ON public.membership_roles;
+    DROP POLICY IF EXISTS membership_roles_admin_update ON public.membership_roles;
+    DROP POLICY IF EXISTS membership_roles_admin_delete ON public.membership_roles;
     
     -- Create separate policies for each operation to avoid SELECT overlap
     CREATE POLICY membership_roles_admin_insert ON public.membership_roles

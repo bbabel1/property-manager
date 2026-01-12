@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { revalidateTag } from 'next/cache'
-import { supabase, supabaseAdmin } from '@/lib/db'
-import { requireUser } from '@/lib/auth'
+import { supabase } from '@/lib/db'
+import { requireAuth } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
 import { checkRateLimit } from '@/lib/rate-limit'
+import { requireOrgMember, resolveResourceOrg } from '@/lib/auth/org-guards'
 
 const ADMIN_ROLE_SET = new Set(['org_admin', 'org_manager', 'platform_admin'])
 
@@ -24,10 +25,14 @@ export async function PUT(
     }
 
     // Authentication
-    const user = await requireUser(request);
+    const { supabase: db, user } = await requireAuth();
     const propertyId = resolvedParams.id;
 
-    const client = supabaseAdmin || supabase;
+    const resolvedOrg = await resolveResourceOrg(db, 'property', propertyId)
+    if (!resolvedOrg.ok) {
+      return NextResponse.json({ error: 'Property not found' }, { status: 404 })
+    }
+    await requireOrgMember({ client: db, userId: user.id, orgId: resolvedOrg.orgId })
 
     logger.info({ userId: user.id, propertyId, action: 'update_banking_details' }, 'Updating property banking details');
 
@@ -50,10 +55,11 @@ export async function PUT(
     const {
       data: propertyRow,
       error: propertyFetchError,
-    } = await client
+    } = await db
       .from('properties')
       .select('id, org_id')
       .eq('id', propertyId)
+      .eq('org_id', resolvedOrg.orgId)
       .maybeSingle();
 
     if (propertyFetchError) {
@@ -83,13 +89,13 @@ export async function PUT(
       );
     }
 
-    type MembershipRoleRow = { roles?: { name?: string | null } | null }
-    const { data: membershipRoles, error: membershipRolesError } = await client
+    // requireOrgMember already enforced; ADMIN_ROLE_SET check kept for stricter control
+    const { data: membershipRoles, error: membershipRolesError } = await db
       .from('membership_roles')
       .select('roles(name)')
       .eq('user_id', user.id)
       .eq('org_id', orgId)
-      .returns<MembershipRoleRow[]>();
+      .returns<{ roles?: { name?: string | null } | null }[]>()
 
     if (membershipRolesError) {
       logger.error(
@@ -102,12 +108,7 @@ export async function PUT(
       );
     }
 
-    const membershipRoleRows = (membershipRoles ?? []).filter(
-      (row): row is MembershipRoleRow =>
-        Boolean(row) && !(row as any)?.error && typeof (row as any)?.roles === 'object',
-    );
-
-    const hasAdminRole = membershipRoleRows.some(
+    const hasAdminRole = (membershipRoles ?? []).some(
       (row) => row?.roles?.name && ADMIN_ROLE_SET.has(String(row.roles.name)),
     );
 
@@ -125,7 +126,7 @@ export async function PUT(
 	    // Validate selected GL accounts are bank accounts (when provided)
 	    const selectedIds = [operatingGlId, trustGlId].filter((v): v is string => typeof v === 'string' && v.length > 0)
 	    if (selectedIds.length) {
-	      const { data: glRows, error: glErr } = await client
+	      const { data: glRows, error: glErr } = await db
 	        .from('gl_accounts')
 	        .select('id, is_bank_account')
 	        .eq('org_id', orgId)
@@ -141,7 +142,7 @@ export async function PUT(
 	    }
 
 	    // Update property banking details
-	    const { data, error } = await client
+	    const { data, error } = await db
 	      .from('properties')
 	      .update({
 	        reserve: reserve,
@@ -169,11 +170,16 @@ export async function PUT(
     } catch {}
     return NextResponse.json(data);
   } catch (error) {
-    if (error instanceof Error && error.message === 'UNAUTHENTICATED') {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      );
+    if (error instanceof Error) {
+      if (error.message === 'UNAUTHENTICATED') {
+        return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+      }
+      if (error.message === 'ORG_FORBIDDEN') {
+        return NextResponse.json({ error: 'Organization access denied' }, { status: 403 });
+      }
+      if (error.message === 'ORG_CONTEXT_REQUIRED') {
+        return NextResponse.json({ error: 'Organization context required' }, { status: 400 });
+      }
     }
 
     logger.error({ error: error instanceof Error ? error.message : 'Unknown error' }, 'Error updating property banking details');

@@ -1,11 +1,10 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth/guards';
-import { hasSupabaseAdmin } from '@/lib/supabase-client';
-import { supabaseAdmin } from '@/lib/db';
+import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
 import PaymentIntentService from '@/lib/payments/payment-intent-service';
 
 export async function GET(
-  _request: Request,
+  request: NextRequest,
   context: { params: Promise<{ intentId: string }> },
 ) {
   const { intentId } = await context.params;
@@ -14,16 +13,19 @@ export async function GET(
   }
 
   try {
-    if (!hasSupabaseAdmin()) {
-      await requireAuth();
-    }
+    const { supabase, user } = await requireAuth();
+    const orgId = await resolveOrgIdFromRequest(request, user.id, supabase);
 
-    const { data: intentRow } = await supabaseAdmin
+    const { data: intentRow, error } = await supabase
       .from('payment_intent')
       .select('*')
       .eq('id', intentId)
+      .eq('org_id', orgId)
       .maybeSingle();
 
+    if (error) {
+      return NextResponse.json({ error: 'Failed to load intent' }, { status: 500 });
+    }
     if (!intentRow) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }

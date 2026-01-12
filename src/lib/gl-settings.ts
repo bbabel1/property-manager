@@ -147,7 +147,10 @@ export async function getOrgGlSettingsOrThrow(orgId: string): Promise<OrgGlSetti
         control.ar_account_id ??
         control.rent_income_account_id,
       cash_trust: null,
-      tenant_deposit_liability: null,
+      tenant_deposit_liability:
+        control.undeposited_funds_account_id ??
+        control.ar_account_id ??
+        control.rent_income_account_id,
       late_fee_income: control.late_fee_income_account_id ?? null,
       write_off: null,
       undeposited_funds_account_id: control.undeposited_funds_account_id ?? null,

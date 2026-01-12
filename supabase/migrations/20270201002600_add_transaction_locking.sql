@@ -90,7 +90,9 @@ $$;
 comment on function public.lock_transaction(uuid, text, uuid) is 'Locks a transaction for immutability with a reason and user id';
 
 -- Reversal linkage view
-create or replace view public.v_transaction_with_reversal as
+-- Drop first if it exists with different column structure
+drop view if exists public.v_transaction_with_reversal;
+create view public.v_transaction_with_reversal as
 select
   t.*,
   r.id as reversal_id,

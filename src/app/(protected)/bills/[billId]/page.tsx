@@ -21,12 +21,9 @@ import BillFileAttachmentsCard from '@/components/bills/BillFileAttachmentsCard'
 import BillActionsMenu from '@/components/bills/BillActionsMenu';
 import type { BillFileRecord } from '@/components/bills/types';
 import type { Database } from '@/types/database';
-import { BillApprovalWorkflow } from '@/components/bills/BillApprovalWorkflow';
-import { BillApplicationsList } from '@/components/bills/BillApplicationsList';
-import { BillPaymentForm } from '@/components/bills/BillPaymentForm';
-import { VendorCreditForm } from '@/components/bills/VendorCreditForm';
 import { RecurringBillStatusBadge } from '@/components/bills/RecurringBillStatusBadge';
-import type { RecurringBillSchedule } from '@/types/recurring-bills';
+import { BillAdminNotes } from '@/components/bills/BillAdminNotes';
+import type { RecurringBillSchedule, RecurringBillInstanceMetadata } from '@/types/recurring-bills';
 
 export type BillPageParams = { billId: string };
 type BillPageProps = { params: Promise<BillPageParams> };
@@ -292,25 +289,6 @@ export default async function BillDetailsPage({ params }: BillPageProps) {
     return { data: (data as any[] | null) ?? [], error };
   })();
 
-  const applicationsPromise = (async () => {
-    const { data, error } = await dbAny
-      .from('bill_applications')
-      .select(
-        'id, applied_amount, applied_at, source_type, source_transaction_id, source:source_transaction_id(id, transaction_type, status, total_amount, payment_method, is_reconciled, date, reference_number, check_number)',
-      )
-      .eq('bill_transaction_id', bill.id);
-    return { data: (data as any[] | null) ?? [], error };
-  })();
-
-  const bankAccountsPromise = (async () => {
-    const { data, error } = await db
-      .from('gl_accounts')
-      .select('id, name, account_number')
-      .eq('org_id', orgId)
-      .eq('is_bank_account', true)
-      .order('name', { ascending: true });
-    return { data: (data as any[] | null) ?? [], error };
-  })();
 
   const creditAccountsPromise = (async () => {
     const { data, error } = await db
@@ -326,7 +304,6 @@ export default async function BillDetailsPage({ params }: BillPageProps) {
     const { data, error } = await db
       .from('vendors')
       .select('id, contacts(display_name, company_name)')
-      .eq('org_id', orgId)
       .order('created_at', { ascending: true });
     return { data: (data as any[] | null) ?? [], error };
   })();
@@ -353,8 +330,6 @@ export default async function BillDetailsPage({ params }: BillPageProps) {
     workOrderRes,
     workflowRes,
     auditRes,
-    applicationsRes,
-    bankAccountsRes,
     creditAccountsRes,
     vendorListRes,
     billOptionsRes,
@@ -365,8 +340,6 @@ export default async function BillDetailsPage({ params }: BillPageProps) {
     workOrderPromise,
     workflowPromise,
     auditPromise,
-    applicationsPromise,
-    bankAccountsPromise,
     creditAccountsPromise,
     vendorListPromise,
     billOptionsPromise,
@@ -391,17 +364,11 @@ export default async function BillDetailsPage({ params }: BillPageProps) {
   if (auditRes?.error) {
     console.error('Failed to load bill approval audit', auditRes.error);
   }
-  if (applicationsRes?.error) {
-    console.error('Failed to load bill applications', applicationsRes.error);
-  }
-  if (bankAccountsRes?.error) {
-    console.error('Failed to load bank accounts', bankAccountsRes.error);
-  }
   if (creditAccountsRes?.error) {
     console.error('Failed to load credit accounts', creditAccountsRes.error);
   }
-  if (vendorListRes?.error) {
-    console.error('Failed to load vendors', vendorListRes.error);
+  if (vendorListRes?.error?.message) {
+    console.error('Failed to load vendors', vendorListRes.error.message);
   }
   if (billOptionsRes?.error) {
     console.error('Failed to load vendor bills for payment forms', billOptionsRes.error);
@@ -424,18 +391,11 @@ export default async function BillDetailsPage({ params }: BillPageProps) {
   // Extract recurring schedule from JSONB
   const recurringScheduleJsonb = (bill as any)?.recurring_schedule as any;
   const recurringSchedule: RecurringBillSchedule | null = recurringScheduleJsonb?.schedule || null;
+  const recurringInstance: RecurringBillInstanceMetadata | null =
+    (recurringScheduleJsonb?.instance as RecurringBillInstanceMetadata) || null;
   const isRecurring = (bill as any)?.is_recurring || false;
   const nextRunDate = recurringSchedule?.next_run_date || null;
   const auditEntries = auditRes?.data ?? [];
-  const applications = applicationsRes?.data ?? [];
-  const hasReconciledApplications = applications.some(
-    (app: any) => (app?.source as any)?.is_reconciled,
-  );
-  const bankAccountOptions: Option[] = (bankAccountsRes?.data ?? []).map((row: any) => ({
-    id: String(row.id),
-    label: row.name || 'Bank account',
-    meta: row.account_number ? `#${row.account_number}` : null,
-  }));
   const creditAccountOptions: Option[] = (creditAccountsRes?.data ?? []).map((row: any) => ({
     id: String(row.id),
     label: row.name || 'GL account',
@@ -480,20 +440,42 @@ export default async function BillDetailsPage({ params }: BillPageProps) {
   try {
     const orgId = bill.org_id;
     const billIdForLink = bill.id ? String(bill.id) : null;
+    const parentBillIdForLink = recurringInstance?.parent_transaction_id
+      ? String(recurringInstance.parent_transaction_id)
+      : null;
 
     if (orgId && billIdForLink) {
-      const { data: filesData, error: filesError } = await db
+      let filesData: any[] | null = null;
+      let filesError: any = null;
+
+      const baseQuery = db
         .from('files')
         .select('id, title, file_name, created_at, created_by, buildium_file_id, buildium_href')
         .eq('org_id', orgId)
-        .ilike('storage_key', `bill/${billIdForLink}/%`)
         .is('deleted_at', null)
         .order('created_at', { ascending: false });
+
+      if (parentBillIdForLink && parentBillIdForLink !== billIdForLink) {
+        const { data, error } = await baseQuery.or(
+          `storage_key.ilike.bill/${billIdForLink}/%,storage_key.ilike.bill/${parentBillIdForLink}/%`,
+        );
+        filesData = data as any[] | null;
+        filesError = error;
+      } else {
+        const { data, error } = await baseQuery.ilike('storage_key', `bill/${billIdForLink}/%`);
+        filesData = data as any[] | null;
+        filesError = error;
+      }
 
       if (filesError) {
         console.error('Failed to load bill files', filesError);
       } else if (filesData?.length) {
-        billFiles = filesData
+        const deduped = new Map<string, any>();
+        filesData.forEach((file) => {
+          const key = String(file.id);
+          if (!deduped.has(key)) deduped.set(key, file);
+        });
+        billFiles = Array.from(deduped.values())
           .map((file) => ({
             id: file.id,
             title: file.title || file.file_name || 'File',
@@ -567,17 +549,6 @@ export default async function BillDetailsPage({ params }: BillPageProps) {
     (sum, p) => sum + (Number.isFinite(p.displayAmount) ? p.displayAmount : 0),
     0,
   );
-  const appliedPaymentTotal = applications.reduce((sum: number, app: any) => {
-    const amt = Number(app?.applied_amount ?? 0);
-    return app?.source_type === 'payment' && Number.isFinite(amt) ? sum + amt : sum;
-  }, 0);
-  const appliedCreditTotal = applications.reduce((sum: number, app: any) => {
-    const amt = Number(app?.applied_amount ?? 0);
-    return app && ['credit', 'refund'].includes(String(app?.source_type || '')) && Number.isFinite(amt)
-      ? sum + amt
-      : sum;
-  }, 0);
-  const applicationNet = appliedPaymentTotal + appliedCreditTotal;
 
   const billAmount = Number(bill.total_amount ?? 0) || 0;
   const lineItemsInitialTotalFallback = rawLines.reduce((sum, line) => {
@@ -589,7 +560,7 @@ export default async function BillDetailsPage({ params }: BillPageProps) {
   const billDueLabel = formatDate(bill.due_date);
   const ledgerStatus = normalizeBillStatus(bill.status);
   const statusNormalized = (() => {
-    const paidAmount = applicationNet || paymentsTotal;
+    const paidAmount = paymentsTotal;
     if (paidAmount > 0 && paidAmount < billDueAmount) return 'Partially paid' as BillStatusLabel;
     if (paidAmount >= billDueAmount && billDueAmount > 0) return 'Paid' as BillStatusLabel;
     return normalizeBillStatus(bill.status);
@@ -661,7 +632,7 @@ export default async function BillDetailsPage({ params }: BillPageProps) {
   // Now calculate derived values that depend on the totals
   const baseDue = lineItemsInitialTotal || billAmount;
   const remainingAmount =
-    statusLabel === 'Paid' ? 0 : Math.max(baseDue - (applicationNet || paymentsTotal), 0);
+    statusLabel === 'Paid' ? 0 : Math.max(baseDue - paymentsTotal, 0);
 
   const detailEntries: DetailEntry[] = [
     { name: 'Date', value: billDateLabel },
@@ -729,8 +700,8 @@ export default async function BillDetailsPage({ params }: BillPageProps) {
             <Button size="sm" asChild>
               <Link href={`/bills/${bill.id}/pay`}>Pay bill</Link>
             </Button>
-            <Button variant="outline" size="sm" asChild>
-              <Link href={`/bills/${bill.id}/edit`}>Enter charges</Link>
+            <Button variant="outline" size="sm" asChild disabled={approvalState === 'approved'}>
+              <Link href={`/bills/${bill.id}/edit`}>Edit bill</Link>
             </Button>
             <BillActionsMenu billId={bill.id} />
           </div>
@@ -782,8 +753,8 @@ export default async function BillDetailsPage({ params }: BillPageProps) {
                   </CardContent>
                 </Card>
 
-                {/* Recurring Bill Section - Show if recurring or has recurring history */}
-                {(isRecurring || recurringSchedule) && (
+                {/* Recurring Bill Section - only show when we have a concrete schedule */}
+                {recurringSchedule && (
                   <Card className="border-border/70 shadow-sm">
                     <CardHeader className="border-border/60 bg-muted/30 border-b">
                       <div className="flex items-center justify-between">
@@ -881,13 +852,6 @@ export default async function BillDetailsPage({ params }: BillPageProps) {
                     </CardContent>
                   </Card>
                 )}
-
-                <BillApprovalWorkflow
-                  billId={bill.id}
-                  approvalState={approvalState}
-                  audit={auditEntries}
-                  canVoid={!hasReconciledApplications}
-                />
 
                 <Card className="border-border/70 shadow-sm">
                   <CardHeader className="border-border/60 bg-muted/30 flex flex-wrap items-center justify-between gap-3 border-b">
@@ -991,49 +955,32 @@ export default async function BillDetailsPage({ params }: BillPageProps) {
                   </CardContent>
                 </Card>
 
-                {hasReconciledApplications ? (
-                  <div className="rounded-md border border-amber-300/70 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                    One or more applications are reconciled and locked. Remove/void actions are disabled for those rows.
-                  </div>
-                ) : null}
-
-                <BillApplicationsList billId={bill.id} applications={applications as any[]} />
-
-                <Card className="border-border/70 shadow-sm">
-                  <CardHeader className="border-border/60 bg-muted/30 border-b">
-                    <CardTitle>Payment history</CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-0">
-                    <div className="relative overflow-x-auto">
-                      <Table className="min-w-[640px] text-sm">
-                        <TableHeader>
-                          <TableRow className="border-border/60 bg-muted/30 sticky top-0 z-10 border-b">
-                            <TableHead className="text-foreground w-[14rem] px-4 py-3 text-xs font-semibold tracking-wide uppercase">
-                              Bank account
-                            </TableHead>
-                            <TableHead className="text-foreground w-[10rem] px-4 py-3 text-xs font-semibold tracking-wide uppercase">
-                              Date
-                            </TableHead>
-                            <TableHead className="text-foreground w-[10rem] px-4 py-3 text-xs font-semibold tracking-wide uppercase">
-                              Method
-                            </TableHead>
-                            <TableHead className="text-foreground w-[10rem] px-4 py-3 text-right text-xs font-semibold tracking-wide uppercase">
-                              Amount paid
-                            </TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody className="divide-border/60 divide-y">
-                          {paymentsWithDisplay.length === 0 ? (
-                            <TableRow className="hover:bg-transparent">
-                              <TableCell
-                                colSpan={4}
-                                className="text-muted-foreground bg-background px-4 py-6 text-center text-sm"
-                              >
-                                No payments recorded for this bill.
-                              </TableCell>
+                {paymentsWithDisplay.length > 0 ? (
+                  <Card className="border-border/70 shadow-sm">
+                    <CardHeader className="border-border/60 bg-muted/30 border-b">
+                      <CardTitle>Payment history</CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                      <div className="relative overflow-x-auto">
+                        <Table className="min-w-[640px] text-sm">
+                          <TableHeader>
+                            <TableRow className="border-border/60 bg-muted/30 sticky top-0 z-10 border-b">
+                              <TableHead className="text-foreground w-[14rem] px-4 py-3 text-xs font-semibold tracking-wide uppercase">
+                                Bank account
+                              </TableHead>
+                              <TableHead className="text-foreground w-[10rem] px-4 py-3 text-xs font-semibold tracking-wide uppercase">
+                                Date
+                              </TableHead>
+                              <TableHead className="text-foreground w-[10rem] px-4 py-3 text-xs font-semibold tracking-wide uppercase">
+                                Method
+                              </TableHead>
+                              <TableHead className="text-foreground w-[10rem] px-4 py-3 text-right text-xs font-semibold tracking-wide uppercase">
+                                Amount paid
+                              </TableHead>
                             </TableRow>
-                          ) : (
-                            paymentsWithDisplay.map((p) => (
+                          </TableHeader>
+                          <TableBody className="divide-border/60 divide-y">
+                            {paymentsWithDisplay.map((p) => (
                               <TableRow key={p.id} className="hover:bg-muted/20 transition-colors">
                                 <TableCell className="text-primary px-4 py-3">
                                   {p.bankName || '—'}
@@ -1048,13 +995,13 @@ export default async function BillDetailsPage({ params }: BillPageProps) {
                                   {formatCurrency(p.displayAmount)}
                                 </TableCell>
                               </TableRow>
-                            ))
-                          )}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  </CardContent>
-                </Card>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ) : null}
 
                 <BillFileAttachmentsCard
                   billId={bill.id}
@@ -1079,39 +1026,11 @@ export default async function BillDetailsPage({ params }: BillPageProps) {
                   </CardContent>
                 </Card>
 
-                <Card className="border-border/70 shadow-sm">
-                  <CardHeader className="border-border/60 bg-muted/30 border-b">
-                    <CardTitle>
-                      Available credits <span className="text-muted-foreground text-xs">(i)</span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4 px-6 py-6 text-sm">
-                    <div className="border-border/60 bg-muted/20 flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed px-4 py-6 text-center">
-                      <div className="text-foreground text-lg font-semibold">0.00</div>
-                      <div className="text-muted-foreground text-xs">No vendor credits</div>
-                    </div>
-                    <Button type="button" variant="outline" size="sm">
-                      Add a credit
-                    </Button>
-                  </CardContent>
-                </Card>
-
-                <BillPaymentForm
-                  defaultBillId={bill.id}
-                  bankAccounts={bankAccountOptions}
-                  billOptions={billOptions}
-                />
-                <VendorCreditForm
-                  vendorId={bill.vendor_id ? String(bill.vendor_id) : ''}
-                  vendorOptions={vendorOptions}
-                  creditAccounts={creditAccountOptions}
-                  billOptions={billOptions}
-                  defaultBillId={bill.id}
-                />
               </>
             }
           />
         </div>
+        <BillAdminNotes />
       </PageBody>
     </PageShell>
   );

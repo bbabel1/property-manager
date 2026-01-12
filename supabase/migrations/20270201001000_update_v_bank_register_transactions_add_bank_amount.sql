@@ -3,6 +3,8 @@ begin;
 -- Expose the bank-side amount and posting type for register rows so the UI
 -- can show Payment/Deposit columns even when transactions.total_amount is 0.
 -- Drop and recreate to avoid column position conflicts.
+-- Note: Must drop dependent views first (they may exist from previously applied migrations)
+drop view if exists public.v_reconciliation_transactions;
 drop view if exists public.v_bank_register_transactions;
 
 create view public.v_bank_register_transactions as

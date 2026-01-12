@@ -22,6 +22,9 @@ We maintain both:
 ```bash
 # Update all database-related files
 npm run db:docs
+
+# Lint migrations for ordering/safety (applies to new migrations)
+npm run lint:migrations
 ```
 
 This single command runs:
@@ -41,6 +44,9 @@ npm run db:types
 
 # Update documentation
 npm run docs:update
+
+# Generate a repo-wide DB usage scan (read-only code analysis)
+npm run db:usage-scan
 ```
 
 ## File Structure
@@ -50,6 +56,7 @@ npm run docs:update
 - `docs/database/current_schema.sql` - Current database schema
 - `src/types/database.ts` - TypeScript types matching database
 - `docs/database/DATABASE_SCHEMA.md` - Human-readable schema documentation
+- `docs/database/db-usage-scan.json` - Machine-readable usage scan from `src/` + `scripts/`
 
 ### Manual Files (Version Controlled)
 
@@ -61,6 +68,7 @@ npm run docs:update
 ### ✅ Do This
 
 - Run `npm run db:docs` after any schema changes
+- Run `npm run db:usage-scan` when auditing for unused tables/views/columns
 - Use `docs/database/current_schema.sql` as the authoritative current schema
 - Reference `src/types/database.ts` for TypeScript types
 - Keep migration files for version control and rollback capability

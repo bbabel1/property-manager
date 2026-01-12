@@ -349,13 +349,6 @@ export async function uploadLeaseDocumentToBuildium(options: {
       typeof fileRow.description === 'string' && fileRow.description.trim()
         ? fileRow.description.trim()
         : null
-    if (descriptionValue) {
-      genericUploadPayload.Description = descriptionValue
-    }
-
-    if (mimeType) {
-      genericUploadPayload.ContentType = mimeType || 'application/octet-stream'
-    }
 
     const normalizedCategory = typeof category === 'string' ? category.trim().toLowerCase() : ''
     const candidateSet = new Set<string>()
@@ -439,9 +432,7 @@ export async function uploadLeaseDocumentToBuildium(options: {
       (typeof category === 'string' && category.trim()) ||
       'Lease Documents'
 
-    if (categoryId != null && categoryId > 0) {
-      genericUploadPayload.CategoryId = categoryId
-    } else {
+    if (categoryId == null || !Number.isFinite(categoryId) || categoryId <= 0) {
       categoryId = null
     }
 

@@ -30,6 +30,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Lint migrations
+        run: npm run lint:migrations
+
       - name: Install Playwright browsers (for tests)
         run: npx playwright install --with-deps
 
@@ -89,3 +92,12 @@ jobs:
 
       - name: Run RPC/rollup parity tests
         run: npm run test -- tests/property.financials.rpc.test.ts
+
+      - name: Verify RLS initplan and policy fixes
+        run: npm run check:rls:initplan
+
+      - name: Verify security definer and RLS hardening
+        run: npm run check:security
+
+      - name: Verify RLS initplan and policy fixes
+        run: npm run check:rls:initplan

@@ -1,14 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-import { supabaseAdmin, supabase } from '@/lib/db';
+import { requireAuth } from '@/lib/auth/guards';
+import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
 
 export async function POST(request: NextRequest) {
   try {
+    const { supabase, user } = await requireAuth();
+    const orgId = await resolveOrgIdFromRequest(request, user.id, supabase);
     const body = await request.json().catch(() => ({}));
     const payload = {
       event: typeof body?.event === 'string' ? body.event : 'unknown',
       lease_id: body?.leaseId ?? null,
-      org_id: body?.orgId ?? null,
+      org_id: orgId,
       source: body?.source ?? body?.returnTo ?? null,
       prefills: body?.prefills ?? null,
       duration_ms: typeof body?.durationMs === 'number' ? body.durationMs : null,
@@ -16,29 +19,41 @@ export async function POST(request: NextRequest) {
       created_at: new Date().toISOString(),
     };
 
-    const db = supabaseAdmin || supabase;
-    if (db) {
-      const { error } = await db.from('charge_telemetry_events').insert(payload);
-      if (error) {
-        console.warn('Telemetry insert failed (non-fatal):', error);
-      }
+    const { error } = await supabase.from('charge_telemetry_events').insert(payload);
+    if (error) {
+      console.warn('Telemetry insert failed (non-fatal):', error);
     }
 
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error('Telemetry POST error', error);
-    return NextResponse.json({ ok: false }, { status: 200 });
+    if (error instanceof Error) {
+      if (error.message === 'UNAUTHENTICATED') {
+        return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+      }
+      if (error.message === 'ORG_CONTEXT_REQUIRED') {
+        return NextResponse.json({ error: 'Organization context required' }, { status: 400 });
+      }
+      if (error.message === 'ORG_FORBIDDEN') {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+    }
+    return NextResponse.json({ ok: false }, { status: 500 });
   }
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const db = supabaseAdmin || supabase;
-    if (!db) return NextResponse.json({ events: [], summary: null });
+    const { supabase, user, roles } = await requireAuth();
+    if (!roles.includes('platform_admin')) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+    const orgId = await resolveOrgIdFromRequest(request, user.id, supabase);
 
-    const { data, error } = await db
+    const { data, error } = await supabase
       .from('charge_telemetry_events')
       .select('event, lease_id, org_id, source, duration_ms, error_message, prefills, created_at')
+      .eq('org_id', orgId)
       .order('created_at', { ascending: false })
       .limit(500);
     if (error) {
@@ -67,6 +82,17 @@ export async function GET() {
     });
   } catch (error) {
     console.error('Telemetry GET error', error);
-    return NextResponse.json({ events: [], summary: null });
+    if (error instanceof Error) {
+      if (error.message === 'UNAUTHENTICATED') {
+        return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+      }
+      if (error.message === 'ORG_CONTEXT_REQUIRED') {
+        return NextResponse.json({ error: 'Organization context required' }, { status: 400 });
+      }
+      if (error.message === 'ORG_FORBIDDEN') {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+    }
+    return NextResponse.json({ events: [], summary: null }, { status: 500 });
   }
 }

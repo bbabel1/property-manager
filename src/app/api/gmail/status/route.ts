@@ -5,33 +5,22 @@
  * Returns the current Gmail integration status for the authenticated user
  */
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth/guards';
-import { supabaseAdmin } from '@/lib/db';
+import { supabase } from '@/lib/db';
 import { getStaffGmailIntegration } from '@/lib/gmail/token-manager';
+import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
+import { requireOrgMember } from '@/lib/auth/org-guards';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const auth = await requireAuth();
+    const { supabase: client, user } = await requireAuth();
 
-    // Get user's org_id from org_memberships
-    const { data: membership, error: membershipError } = await supabaseAdmin
-      .from('org_memberships')
-      .select('org_id')
-      .eq('user_id', auth.user.id)
-      .order('created_at', { ascending: true })
-      .limit(1)
-      .single();
-
-    if (membershipError || !membership) {
-      return NextResponse.json(
-        { error: { code: 'ORG_NOT_FOUND', message: 'Organization membership not found' } },
-        { status: 403 },
-      );
-    }
+    const orgId = await resolveOrgIdFromRequest(request, user.id, client);
+    await requireOrgMember({ client, userId: user.id, orgId });
 
     // Get Gmail integration
-    const integration = await getStaffGmailIntegration(auth.user.id, membership.org_id);
+    const integration = await getStaffGmailIntegration(user.id, orgId);
 
     if (!integration) {
       return NextResponse.json({

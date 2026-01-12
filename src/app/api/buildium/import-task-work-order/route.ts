@@ -1,12 +1,13 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
 import { getOrgScopedBuildiumClient } from '@/lib/buildium-client';
 import { mapTaskFromBuildiumWithRelations, mapWorkOrderFromBuildiumWithRelations } from '@/lib/buildium-mappers';
-import { supabase, supabaseAdmin } from '@/lib/db';
+import type { TypedSupabaseClient } from '@/lib/db';
 import { requireRole } from '@/lib/auth/guards';
 import type { Database } from '@/types/database';
+import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
+import { requireOrgMember } from '@/lib/auth/org-guards';
 
-const db = supabaseAdmin || supabase;
 type TaskUpdate = Database['public']['Tables']['tasks']['Update'];
 type TaskInsert = Database['public']['Tables']['tasks']['Insert'];
 type WorkOrderUpdate = Database['public']['Tables']['work_orders']['Update'];
@@ -27,7 +28,11 @@ const BUILD_DEFAULTS = {
   workOrderId: 1965,
 };
 
-async function upsertTaskFromBuildium(taskId: number, client: Awaited<ReturnType<typeof getOrgScopedBuildiumClient>>) {
+async function upsertTaskFromBuildium(
+  taskId: number,
+  client: Awaited<ReturnType<typeof getOrgScopedBuildiumClient>>,
+  db: TypedSupabaseClient,
+) {
   const buildiumTask = await client.getTask(taskId);
   const localPayload = await mapTaskFromBuildiumWithRelations(buildiumTask, db);
 
@@ -75,6 +80,7 @@ async function upsertTaskFromBuildium(taskId: number, client: Awaited<ReturnType
 async function upsertWorkOrderFromBuildium(
   workOrderId: number,
   client: Awaited<ReturnType<typeof getOrgScopedBuildiumClient>>,
+  db: TypedSupabaseClient,
 ) {
   const buildiumWorkOrder = await client.getWorkOrder(workOrderId);
   const localPayload = await mapWorkOrderFromBuildiumWithRelations(buildiumWorkOrder, db);
@@ -110,9 +116,11 @@ async function upsertWorkOrderFromBuildium(
   return { action: 'inserted', localId: inserted.id, buildiumId: buildiumWorkOrder.Id };
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
-    await requireRole('platform_admin');
+    const { supabase: db, user } = await requireRole('platform_admin');
+    const orgId = await resolveOrgIdFromRequest(request, user.id, db);
+    await requireOrgMember({ client: db, userId: user.id, orgId });
     const body: unknown = await request.json().catch(() => ({}));
     const bodyObj = isRecord(body) ? body : {};
     const taskIdInput = toNumber(bodyObj.taskId) ?? BUILD_DEFAULTS.taskId;
@@ -132,19 +140,31 @@ export async function POST(request: Request) {
       );
     }
 
-    const buildiumClient = await getOrgScopedBuildiumClient(undefined);
+    const buildiumClient = await getOrgScopedBuildiumClient(orgId);
 
     const [taskResult, workOrderResult] = await Promise.all([
-      upsertTaskFromBuildium(taskIdInput, buildiumClient),
-      upsertWorkOrderFromBuildium(workOrderIdInput, buildiumClient),
+      upsertTaskFromBuildium(taskIdInput, buildiumClient, db),
+      upsertWorkOrderFromBuildium(workOrderIdInput, buildiumClient, db),
     ]);
 
     return NextResponse.json({
       success: true,
       task: taskResult,
       workOrder: workOrderResult,
+      orgId,
     });
   } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === 'UNAUTHENTICATED') {
+        return NextResponse.json({ success: false, error: 'Authentication required.' }, { status: 401 });
+      }
+      if (error.message === 'ORG_CONTEXT_REQUIRED') {
+        return NextResponse.json({ success: false, error: 'Organization context required.' }, { status: 400 });
+      }
+      if (error.message === 'ORG_FORBIDDEN') {
+        return NextResponse.json({ success: false, error: 'Forbidden.' }, { status: 403 });
+      }
+    }
     console.error('Failed to import task and work order from Buildium', error);
     return NextResponse.json(
       {

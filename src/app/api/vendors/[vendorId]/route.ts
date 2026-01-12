@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
 
-import { supabase, supabaseAdmin } from '@/lib/db'
 import { requireAuth } from '@/lib/auth/guards'
 import { resolveResourceOrg, requireOrgAdmin } from '@/lib/auth/org-guards'
 
@@ -83,11 +82,6 @@ export async function PATCH(
 
   const auth = await requireAuth()
 
-  const db = supabaseAdmin || supabase
-  if (!db) {
-    return NextResponse.json({ error: 'Supabase client unavailable' }, { status: 500 })
-  }
-
   const resolvedOrg = await resolveResourceOrg(auth.supabase, 'vendor', vendorId)
   if (!resolvedOrg.ok) {
     return NextResponse.json({ error: resolvedOrg.error }, { status: 404 })
@@ -120,7 +114,7 @@ export async function PATCH(
       contactUpdates.is_company = isCompany
     }
 
-    const { error: contactError } = await db
+    const { error: contactError } = await auth.supabase
       .from('contacts')
       .update(contactUpdates)
       .eq('id', contactId)
@@ -195,7 +189,7 @@ export async function PATCH(
 
   if (Object.keys(vendorUpdates).length > 0) {
     vendorUpdates.updated_at = nowIso
-    const { error: vendorError } = await db
+    const { error: vendorError } = await auth.supabase
       .from('vendors')
       .update(vendorUpdates)
       .eq('id', vendorId)

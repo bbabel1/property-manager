@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { revalidateTag } from 'next/cache'
 import { requireUser } from '@/lib/auth'
-import { supabase, supabaseAdmin } from '@/lib/db'
+import { supabase } from '@/lib/db'
 import { validateCSRFToken } from '@/lib/csrf'
 import type { Database as DatabaseSchema } from '@/types/database'
 import { mapGoogleCountryToEnum } from '@/lib/utils'
@@ -46,7 +46,7 @@ export async function PUT(
       );
     }
 
-    const adminClient = supabaseAdmin || supabase
+    const adminClient = supabase
 
     // Resolve property + org context before mutating anything
     const {

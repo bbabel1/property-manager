@@ -11,9 +11,11 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url)
   const orgId = url.searchParams.get('orgId')
+  const limitParam = Number(url.searchParams.get('limit') || '200')
+  const limit = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), 500) : 200
 
-  const warningsQuery = supabaseAdmin.from('v_udf_warnings').select('*')
-  const paymentsQuery = supabaseAdmin.from('v_undeposited_payments').select('*')
+  const warningsQuery = supabaseAdmin.from('v_udf_warnings').select('*').limit(limit)
+  const paymentsQuery = supabaseAdmin.from('v_undeposited_payments').select('*').limit(limit)
 
   if (orgId) {
     warningsQuery.eq('org_id', orgId)

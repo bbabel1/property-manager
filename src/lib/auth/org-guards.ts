@@ -140,11 +140,17 @@ export async function requireOrgAdmin(params: {
         .eq('user_id', userId)
         .eq('org_id', orgId)
       if (error) throw error
+      const rows = (data ?? []) as Array<{
+        role_id?: string | null
+        roles?: { name?: string | null } | null
+      }>
       return (
-        data?.map((row: { role_id?: string | null; roles?: { name?: string | null } | null }) => {
+        rows
+          .map((row) => {
           const roleName = row?.roles?.name ?? row?.role_id
           return typeof roleName === 'string' ? (roleName as AppRole) : null
-        }).filter(Boolean) ?? []
+          })
+          .filter(Boolean) ?? []
       )
     } catch (error) {
       console.warn('requireOrgAdmin: failed to load membership roles', error)

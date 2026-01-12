@@ -878,7 +878,7 @@ async function uploadFileToBuildiumEntity(options: {
     );
     return {
       buildiumFile: buildiumFile
-        ? (buildiumFile as Record<string, unknown>)
+        ? (buildiumFile as unknown as Record<string, unknown>)
         : ({
             Id: buildiumFileId,
             Href: ticketHref ?? undefined,
@@ -901,7 +901,10 @@ async function uploadFileToBuildiumEntity(options: {
 
   return {
     buildiumFile: buildiumFile
-      ? ({ ...buildiumFile, UsedCategoryId: usedCategoryId } as Record<string, unknown>)
+      ? ({
+          ...(buildiumFile as unknown as Record<string, unknown>),
+          UsedCategoryId: usedCategoryId,
+        } as Record<string, unknown>)
       : ({
           Id: buildiumFileId,
           Href: ticket.Href ?? null,

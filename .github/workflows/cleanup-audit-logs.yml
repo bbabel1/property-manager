@@ -1,0 +1,51 @@
+name: Cleanup Audit Logs
+
+on:
+  schedule:
+    - cron: '0 2 * * 0' # Sundays at 02:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check required secrets
+        id: check
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping cleanup: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY not configured."
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Call cleanup_audit_logs RPC
+        if: steps.check.outputs.enabled == 'true'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -euo pipefail
+          echo "Running cleanup_audit_logs against $SUPABASE_URL"
+          http_code=$(curl -s -o response.json -w "%{http_code}" \
+            -X POST "$SUPABASE_URL/rest/v1/rpc/cleanup_audit_logs" \
+            -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "Content-Type: application/json")
+          cat response.json || true
+          if [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
+            echo "Cleanup succeeded with status $http_code"
+          else
+            echo "::error::cleanup_audit_logs failed with status $http_code"
+            exit 1
+          fi
+
+      - name: Skip (secrets missing)
+        if: steps.check.outputs.enabled != 'true'
+        run: echo "Cleanup skipped; configure SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY secrets to enable."

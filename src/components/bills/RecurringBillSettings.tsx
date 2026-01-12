@@ -43,13 +43,13 @@ const FREQUENCY_OPTIONS: Array<{ value: RecurringBillFrequency; displayLabel: st
 ]
 
 const DAYS_OF_WEEK = [
-  { value: 0, label: 'Sunday' },
   { value: 1, label: 'Monday' },
   { value: 2, label: 'Tuesday' },
   { value: 3, label: 'Wednesday' },
   { value: 4, label: 'Thursday' },
   { value: 5, label: 'Friday' },
   { value: 6, label: 'Saturday' },
+  { value: 7, label: 'Sunday' },
 ]
 
 const MONTHS = [
@@ -82,33 +82,34 @@ export function RecurringBillSettings({
   onUpdate,
 }: RecurringBillSettingsProps) {
   const [isRecurring, setIsRecurring] = useState(initialIsRecurring)
-  const [schedule, setSchedule] = useState<Partial<RecurringBillSchedule> | null>(
-    initialSchedule || null,
-  )
+  const [schedule, setSchedule] = useState<any>(initialSchedule || null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showConfirmDialog, setShowConfirmDialog] = useState<'pause' | 'resume' | 'disable' | null>(
     null,
   )
 
   const frequency = schedule?.frequency || 'Monthly'
+  const normalizedDayOfWeek =
+    schedule?.day_of_week === 0 ? 7 : schedule?.day_of_week
   const isMonthlyQuarterlyYearly =
     frequency === 'Monthly' || frequency === 'Quarterly' || frequency === 'Yearly'
   const isWeeklyEvery2Weeks = frequency === 'Weekly' || frequency === 'Every2Weeks'
+  const jsDayToMondayIndex = useCallback((jsDay: number) => ((jsDay + 6) % 7) + 1, [])
 
   const handleToggleRecurring = useCallback(async () => {
-    if (isApproved) {
-      toast.error('Cannot modify recurring settings on approved bills')
-      return
-    }
+      if (isApproved) {
+        toast.error('Cannot modify recurring settings on approved bills')
+        return
+      }
 
-    const newIsRecurring = !isRecurring
+      const newIsRecurring = !isRecurring
     setIsRecurring(newIsRecurring)
 
-    if (newIsRecurring) {
-      // Initialize default schedule
-      const defaultSchedule: Partial<RecurringBillSchedule> = {
-        frequency: 'Monthly',
-        day_of_month: new Date(billDate).getDate(),
+      if (newIsRecurring) {
+        // Initialize default schedule
+        const defaultSchedule: Partial<RecurringBillSchedule> = {
+          frequency: 'Monthly',
+          day_of_month: new Date(billDate).getDate(),
         start_date: billDate,
         status: 'active',
         rollover_policy: 'last_day',
@@ -130,12 +131,12 @@ export function RecurringBillSettings({
   }, [isRecurring, isApproved, billDate, onUpdate])
 
   const handleScheduleChange = useCallback(
-    <K extends keyof RecurringBillSchedule>(key: K, value: RecurringBillSchedule[K]) => {
+    (key: string, value: unknown) => {
       if (isApproved) return
 
-      setSchedule((prev) => ({
-        ...prev,
-        [key]: value,
+      setSchedule((prev: any) => ({
+        ...(prev || {}),
+        [key]: value as never,
       }))
     },
     [isApproved],
@@ -197,13 +198,13 @@ export function RecurringBillSettings({
       try {
         await onUpdate({ recurring_action: action })
         if (action === 'pause') {
-          setSchedule((prev) => (prev ? { ...prev, status: 'paused' } : null))
+          setSchedule((prev: any) => (prev ? { ...prev, status: 'paused' } : null))
           toast.success('Recurring billing paused')
         } else if (action === 'resume') {
-          setSchedule((prev) => (prev ? { ...prev, status: 'active' } : null))
+          setSchedule((prev: any) => (prev ? { ...prev, status: 'active' } : null))
           toast.success('Recurring billing resumed')
         } else {
-          setSchedule((prev) => (prev ? { ...prev, status: 'ended' } : null))
+          setSchedule((prev: any) => (prev ? { ...prev, status: 'ended' } : null))
           setIsRecurring(false)
           toast.success('Recurring billing disabled')
         }
@@ -265,7 +266,8 @@ export function RecurringBillSettings({
                     // Reset conditional fields when frequency changes
                     if (canonical === 'Weekly' || canonical === 'Every2Weeks') {
                       const startDate = schedule.start_date || billDate
-                      const dayOfWeek = new Date(startDate + 'T00:00:00Z').getDay()
+                      const jsDay = new Date(startDate + 'T00:00:00Z').getUTCDay()
+                      const dayOfWeek = jsDayToMondayIndex(jsDay)
                       handleScheduleChange('day_of_week', dayOfWeek)
                       delete (schedule as any).day_of_month
                       delete (schedule as any).month
@@ -351,9 +353,9 @@ export function RecurringBillSettings({
                     Rollover Policy
                   </label>
                   <Select
-                    value={schedule.rollover_policy || 'last_day'}
+                    value={('rollover_policy' in schedule ? (schedule as any).rollover_policy : null) || 'last_day'}
                     onValueChange={(value) =>
-                      handleScheduleChange('rollover_policy', value as 'last_day' | 'next_month' | 'skip')
+                      handleScheduleChange('rollover_policy', value)
                     }
                     disabled={isApproved}
                   >
@@ -382,7 +384,7 @@ export function RecurringBillSettings({
                   Day of Week *
                 </label>
                 <Select
-                  value={schedule.day_of_week?.toString() || ''}
+                  value={normalizedDayOfWeek?.toString() || ''}
                   onValueChange={(value) =>
                     handleScheduleChange('day_of_week', Number.parseInt(value, 10))
                   }
@@ -415,7 +417,7 @@ export function RecurringBillSettings({
                   value={schedule.start_date || billDate}
                   onChange={(value) => handleScheduleChange('start_date', value)}
                   disabled={isApproved}
-                  minDate={billDate}
+                  minDate={billDate ? new Date(`${billDate}T00:00:00Z`) : undefined}
                 />
                 <p className="text-muted-foreground text-xs">Date-only (YYYY-MM-DD)</p>
               </div>
@@ -428,7 +430,13 @@ export function RecurringBillSettings({
                   value={schedule.end_date || ''}
                   onChange={(value) => handleScheduleChange('end_date', value || null)}
                   disabled={isApproved}
-                  minDate={schedule.start_date || billDate}
+                  minDate={
+                    schedule.start_date
+                      ? new Date(`${schedule.start_date}T00:00:00Z`)
+                      : billDate
+                        ? new Date(`${billDate}T00:00:00Z`)
+                        : undefined
+                  }
                 />
                 <p className="text-muted-foreground text-xs">Leave blank for ongoing</p>
               </div>
@@ -567,4 +575,3 @@ export function RecurringBillSettings({
     </Card>
   )
 }
-

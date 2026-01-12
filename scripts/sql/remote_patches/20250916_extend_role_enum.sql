@@ -1,9 +1,10 @@
-DO $$ BEGIN
-  -- Add 'Guarantor' to existing lease_contact_role_enum if not present
-  IF NOT EXISTS (SELECT 1 FROM pg_type t
-                 JOIN pg_enum e ON t.oid = e.enumtypid
-                 WHERE t.typname = 'lease_contact_role_enum' AND e.enumlabel = 'Guarantor') THEN
-    ALTER TYPE public.lease_contact_role_enum ADD VALUE 'Guarantor';
-  END IF;
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+-- Deprecated remote patch: extend lease_contact_role_enum with additional roles.
+--
+-- Phase 1 single-source-of-truth goal:
+--   Only Supabase migrations under supabase/migrations/ should define or
+--   modify the canonical database schema (including enums).
+--
+-- This file is retained for historical context only and MUST NOT be used
+-- to apply schema changes. If you need to adjust enum values, add a new
+-- migration instead.
 
