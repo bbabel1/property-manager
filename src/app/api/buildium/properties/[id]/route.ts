@@ -4,7 +4,8 @@ import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumPropertyUpdateEnhancedSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
-import { buildiumFetch } from '@/lib/buildium-http'
+import { buildiumFetch } from '@/lib/buildium-http';
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -19,9 +20,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     // Require platform admin
     await requireRole('platform_admin');
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
 
     const { id } = await params;
-    const prox = await buildiumFetch('GET', `/rentals/${id}`)
+    const prox = await buildiumFetch('GET', `/rentals/${id}`, undefined, undefined, orgId)
     if (!prox.ok) {
       logger.error(`Buildium property fetch failed`);
       return NextResponse.json(
@@ -62,14 +66,17 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     // Require platform admin
     await requireRole('platform_admin');
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
 
     const { id } = await params;
     // Parse and validate request body
     const body = await request.json();
-    
+
     // Validate request body against schema
     const validatedData = sanitizeAndValidate(body, BuildiumPropertyUpdateEnhancedSchema);
-    const prox = await buildiumFetch('PUT', `/rentals/${id}`, undefined, validatedData)
+    const prox = await buildiumFetch('PUT', `/rentals/${id}`, undefined, validatedData, orgId)
     if (!prox.ok) {
       logger.error(`Buildium property update failed`);
       return NextResponse.json(

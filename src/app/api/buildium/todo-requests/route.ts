@@ -7,6 +7,7 @@ import { requireSupabaseAdmin } from '@/lib/supabase-client';
 import { mapTaskFromBuildiumWithRelations } from '@/lib/buildium-mappers';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 import { buildiumFetch } from '@/lib/buildium-http';
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard';
 type BuildiumToDoRequest = {
   Id?: number | string | null;
   RequestedByUserEntity?: { Type?: string | number | null } | null;
@@ -15,7 +16,6 @@ type BuildiumToDoRequest = {
 
 export async function GET(request: NextRequest) {
   try {
-    const supabaseAdmin = requireSupabaseAdmin('todo requests sync')
     // Check rate limiting
     const rateLimitResult = await checkRateLimit(request);
     if (!rateLimitResult.success) {
@@ -27,6 +27,12 @@ export async function GET(request: NextRequest) {
 
     // Require platform admin
     await requireRole('platform_admin');
+
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
+
+    const supabaseAdmin = requireSupabaseAdmin('todo requests sync')
 
     // Get query parameters
     const { searchParams } = new URL(request.url);
@@ -51,7 +57,7 @@ export async function GET(request: NextRequest) {
     if (dateTo) params.dateTo = dateTo;
 
     // Make request to Buildium API
-    const response = await buildiumFetch('GET', '/todorequests', params, undefined, undefined);
+    const response = await buildiumFetch('GET', '/todorequests', params, undefined, orgId);
 
     if (!response.ok) {
       const errorData = response.json ?? {};
@@ -151,7 +157,6 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const supabaseAdmin = requireSupabaseAdmin('todo requests sync')
     // Check rate limiting
     const rateLimitResult = await checkRateLimit(request);
     if (!rateLimitResult.success) {
@@ -164,6 +169,12 @@ export async function POST(request: NextRequest) {
     // Require platform admin
     await requireRole('platform_admin');
 
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
+
+    const supabaseAdmin = requireSupabaseAdmin('todo requests sync')
+
     // Parse and validate request body
     const body = await request.json();
     
@@ -171,7 +182,7 @@ export async function POST(request: NextRequest) {
     const validatedData = sanitizeAndValidate(body, BuildiumToDoRequestCreateSchema);
 
     // Make request to Buildium API
-    const response = await buildiumFetch('POST', '/todorequests', undefined, validatedData, undefined);
+    const response = await buildiumFetch('POST', '/todorequests', undefined, validatedData, orgId);
 
     if (!response.ok) {
       const errorData = response.json ?? {};

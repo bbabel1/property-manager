@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import * as dotenv from 'dotenv'
+import { ensureBuildiumEnabledForScript } from '../ensure-enabled'
 
 dotenv.config()
 
@@ -11,6 +12,7 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey)
 // GL accounts are resolved via shared resolver in buildium-mappers
 
 async function createTransactionLinesFromTransactions() {
+  await ensureBuildiumEnabledForScript(process.env.DEFAULT_ORG_ID ?? null)
   console.log('🔄 Creating transaction lines from existing transactions...')
 
   try {

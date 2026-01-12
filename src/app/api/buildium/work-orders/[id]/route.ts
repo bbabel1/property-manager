@@ -5,6 +5,7 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumWorkOrderUpdateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 import { supabaseAdmin } from '@/lib/db';
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard';
 
 export async function GET(
   request: NextRequest,
@@ -22,10 +23,13 @@ export async function GET(
 
     // Require platform admin (service-role sync)
     await requireRole('platform_admin');
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
 
     const { id } = await params;
     const { data, error } = await supabaseAdmin.functions.invoke('buildium-sync', {
-      body: { entityType: 'workOrder', operation: 'get', entityData: { id: Number(id) } }
+      body: { entityType: 'workOrder', operation: 'get', entityData: { id: Number(id) }, orgId }
     })
     if (error || !data?.success) {
       logger.error('Buildium work order fetch via Edge failed')
@@ -66,6 +70,9 @@ export async function PUT(
 
     // Require platform admin (service-role sync)
     await requireRole('platform_admin');
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
 
     const { id } = await params;
 
@@ -76,7 +83,12 @@ export async function PUT(
     const validatedData = sanitizeAndValidate(body, BuildiumWorkOrderUpdateSchema);
 
     const { data, error } = await supabaseAdmin.functions.invoke('buildium-sync', {
-      body: { entityType: 'workOrder', operation: 'update', entityData: { ...validatedData, Id: Number(id), buildium_work_order_id: Number(id) } }
+      body: {
+        entityType: 'workOrder',
+        operation: 'update',
+        entityData: { ...validatedData, Id: Number(id), buildium_work_order_id: Number(id) },
+        orgId,
+      }
     })
     if (error || !data?.success) {
       logger.error('Buildium work order update via Edge failed')

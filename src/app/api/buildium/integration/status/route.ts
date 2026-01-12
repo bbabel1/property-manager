@@ -6,45 +6,19 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth/guards';
-import { supabaseAdmin } from '@/lib/db';
+import { requireOrgMember } from '@/lib/auth/org-guards';
 import { testBuildiumConnection } from '@/lib/buildium/credentials-manager';
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard';
 
-/**
- * Resolve orgId from request context
- */
-async function resolveOrgId(request: NextRequest, userId: string): Promise<string> {
-  // Check header first
-  const headerOrgId = request.headers.get('x-org-id');
-  if (headerOrgId) {
-    return headerOrgId.trim();
-  }
-
-  // Check cookies
-  const cookieOrgId = request.cookies.get('x-org-id')?.value;
-  if (cookieOrgId) {
-    return cookieOrgId.trim();
-  }
-
-  // Fallback to first org membership
-  const { data: membership, error } = await supabaseAdmin
-    .from('org_memberships')
-    .select('org_id')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: true })
-    .limit(1)
-    .maybeSingle();
-
-  if (error || !membership) {
-    throw new Error('ORG_CONTEXT_REQUIRED');
-  }
-
-  return membership.org_id;
-}
+// Admin-only status check; gated by Buildium enablement (toggle route remains exempt).
 
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requireAuth();
-    const orgId = await resolveOrgId(request, auth.user.id);
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
+    const { supabase: client, user } = await requireAuth();
+    await requireOrgMember({ client, userId: user.id, orgId });
 
     const result = await testBuildiumConnection(orgId);
 
@@ -82,10 +56,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (error instanceof Error && error.message === 'ORG_FORBIDDEN') {
+      return NextResponse.json(
+        { error: { code: 'ORG_FORBIDDEN', message: 'Forbidden' } },
+        { status: 403 }
+      );
+    }
+
     return NextResponse.json(
       { error: { code: 'INTERNAL_ERROR', message: 'Failed to test Buildium connection' } },
       { status: 500 }
     );
   }
 }
-

@@ -2,14 +2,18 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
 import { buildiumFetch } from '@/lib/buildium-http'
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard'
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { user } = await requireRole('platform_admin')
+    const guard = await getBuildiumOrgIdOr403(request)
+    if ('response' in guard) return guard.response
+    const { orgId } = guard
     const bankAccountId = (await params).id
     logger.info({ userId: user.id, bankAccountId, action: 'get_buildium_reconciliations_by_bank' }, 'Fetching Buildium reconciliations by bank account')
 
-    const response = await buildiumFetch('GET', `/bankaccounts/${bankAccountId}/reconciliations`, undefined, undefined, undefined)
+    const response = await buildiumFetch('GET', `/bankaccounts/${bankAccountId}/reconciliations`, undefined, undefined, orgId)
 
     if (!response.ok) {
       logger.error({ status: response.status }, 'Buildium reconciliations by bank failed')

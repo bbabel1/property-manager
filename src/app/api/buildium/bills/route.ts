@@ -5,7 +5,7 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumBillCreateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 import { buildiumFetch } from '@/lib/buildium-http';
-import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
+import { requireBuildiumEnabledOr403 } from '@/lib/buildium-route-guard';
 
 export async function GET(request: NextRequest) {
   try {
@@ -19,8 +19,10 @@ export async function GET(request: NextRequest) {
     }
 
     // Require platform admin
-    const { supabase, user } = await requireRole('platform_admin');
-    const orgId = await resolveOrgIdFromRequest(request, user.id, supabase);
+    await requireRole('platform_admin');
+    const orgIdResult = await requireBuildiumEnabledOr403(request);
+    if (orgIdResult instanceof NextResponse) return orgIdResult;
+    const orgId = orgIdResult;
 
     // Get query parameters
     const { searchParams } = new URL(request.url);
@@ -112,8 +114,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Require platform admin
-    const { supabase, user } = await requireRole('platform_admin');
-    const orgId = await resolveOrgIdFromRequest(request, user.id, supabase);
+    await requireRole('platform_admin');
+    const orgIdResult = await requireBuildiumEnabledOr403(request);
+    if (orgIdResult instanceof NextResponse) return orgIdResult;
+    const orgId = orgIdResult;
 
     // Parse and validate request body
     const body = await request.json();

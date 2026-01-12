@@ -6,6 +6,7 @@ import { BuildiumWorkOrderCreateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 import { supabaseAdmin } from '@/lib/db';
 import { mapWorkOrderFromBuildiumWithRelations as _mapWorkOrderFromBuildiumWithRelations } from '@/lib/buildium-mappers';
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard';
 
 type BuildiumFunctionResponse<T> = {
   success?: boolean;
@@ -27,6 +28,9 @@ export async function GET(request: NextRequest) {
 
     // Require platform admin (service-role sync)
     await requireRole('platform_admin');
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
 
     // Get query parameters
     const { searchParams } = new URL(request.url);
@@ -68,12 +72,12 @@ export async function GET(request: NextRequest) {
     if (offset) edgeParams.offset = Number(offset)
 
     await supabaseAdmin.functions.invoke<BuildiumFunctionResponse<unknown>>('buildium-sync', {
-      body: { entityType: 'workOrder', operation: 'syncFromBuildium', entityData: edgeParams }
+      body: { entityType: 'workOrder', operation: 'syncFromBuildium', entityData: edgeParams, orgId }
     })
 
     const searchResult: { data: BuildiumFunctionResponse<unknown[]> | null; error: unknown } =
       await supabaseAdmin.functions.invoke<BuildiumFunctionResponse<unknown[]>>('buildium-sync', {
-        body: { entityType: 'workOrder', operation: 'searchLocal', entityData: edgeParams }
+        body: { entityType: 'workOrder', operation: 'searchLocal', entityData: edgeParams, orgId }
       })
     const searchError = searchResult.error as { message?: unknown } | null
     const searchData = searchResult.data
@@ -115,6 +119,9 @@ export async function POST(request: NextRequest) {
 
     // Require platform admin (service-role sync)
     await requireRole('platform_admin');
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
 
     // Parse and validate request body
     const body: unknown = await request.json().catch(() => ({}));
@@ -124,7 +131,7 @@ export async function POST(request: NextRequest) {
 
     const creationResult: { data: BuildiumFunctionResponse<unknown> | null; error: unknown } =
       await supabaseAdmin.functions.invoke<BuildiumFunctionResponse<unknown>>('buildium-sync', {
-        body: { entityType: 'workOrder', operation: 'create', entityData: validatedData }
+        body: { entityType: 'workOrder', operation: 'create', entityData: validatedData, orgId }
       })
     const creationError = creationResult.error as { message?: unknown } | null
     const creationData = creationResult.data

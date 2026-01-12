@@ -4,6 +4,7 @@ import { logger } from '@/lib/logger'
 import { BuildiumBankAccountCreateSchema } from '@/schemas/buildium'
 import { sanitizeAndValidate } from '@/lib/sanitize'
 import { buildiumFetch } from '@/lib/buildium-http'
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard'
 
 type BuildiumBankAccount = { Name?: string | null; Description?: string | null }
 
@@ -11,6 +12,9 @@ export async function GET(request: NextRequest) {
   try {
     // Authentication
     await requireRole('platform_admin');
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
     logger.info({ action: 'get_buildium_bank_accounts' }, 'Fetching Buildium bank accounts');
 
     // Build query parameters (isActive, bankAccountType, limit, offset)
@@ -22,7 +26,7 @@ export async function GET(request: NextRequest) {
     if (searchParams.get('offset')) queryParams.offset = searchParams.get('offset')!
 
     // Buildium API call
-    const response = await buildiumFetch('GET', '/bankaccounts', queryParams, undefined, undefined);
+    const response = await buildiumFetch('GET', '/bankaccounts', queryParams, undefined, orgId);
 
     if (!response.ok) {
       throw new Error(`Buildium API error: ${response.status} ${response.statusText}`);
@@ -59,6 +63,9 @@ export async function POST(request: NextRequest) {
   try {
     // Authentication
     await requireRole('platform_admin');
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
     logger.info({ action: 'create_buildium_bank_account' }, 'Creating Buildium bank account');
 
     // Parse and validate request body
@@ -66,7 +73,7 @@ export async function POST(request: NextRequest) {
     const data = sanitizeAndValidate(body, BuildiumBankAccountCreateSchema);
 
     // Buildium API call
-    const response = await buildiumFetch('POST', '/bankaccounts', undefined, data, undefined);
+    const response = await buildiumFetch('POST', '/bankaccounts', undefined, data, orgId);
 
     if (!response.ok) {
       throw new Error(`Buildium API error: ${response.status} ${response.statusText}`);

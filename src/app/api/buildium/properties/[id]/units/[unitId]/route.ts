@@ -5,15 +5,19 @@ import { checkRateLimit } from '@/lib/rate-limit'
 import { sanitizeAndValidate } from '@/lib/sanitize'
 import { buildiumFetch } from '@/lib/buildium-http'
 import { BuildiumUnitUpdateSchema } from '@/schemas/buildium'
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard'
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string; unitId: string }> }) {
   try {
     const rate = await checkRateLimit(request)
     if (!rate.success) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
     await requireRole('platform_admin')
+    const guard = await getBuildiumOrgIdOr403(request)
+    if ('response' in guard) return guard.response
+    const { orgId } = guard
 
     const { id, unitId } = await params
-    const res = await buildiumFetch('GET', `/rentals/${id}/units/${unitId}`, undefined, undefined, undefined)
+    const res = await buildiumFetch('GET', `/rentals/${id}/units/${unitId}`, undefined, undefined, orgId)
 
     if (!res.ok) {
       const details = res.json ?? {}
@@ -33,13 +37,16 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const rate = await checkRateLimit(request)
     if (!rate.success) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
     await requireRole('platform_admin')
+    const guard = await getBuildiumOrgIdOr403(request)
+    if ('response' in guard) return guard.response
+    const { orgId } = guard
 
     const { id, unitId } = await params
     const body = await request.json()
     const validated = sanitizeAndValidate(body, BuildiumUnitUpdateSchema)
     validated.PropertyId = Number(id)
 
-    const res = await buildiumFetch('PUT', `/rentals/${id}/units/${unitId}`, undefined, validated, undefined)
+    const res = await buildiumFetch('PUT', `/rentals/${id}/units/${unitId}`, undefined, validated, orgId)
 
     if (!res.ok) {
       const details = res.json ?? {}

@@ -2,18 +2,22 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
 import { buildiumFetch } from '@/lib/buildium-http'
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard'
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string; fileId: string }> }) {
   try {
     // Authentication
     const { user } = await requireRole('platform_admin')
+    const guard = await getBuildiumOrgIdOr403(request)
+    if ('response' in guard) return guard.response
+    const { orgId } = guard
     const checkId = (await params).id;
     const fileId = (await params).fileId;
     
     logger.info({ userId: user.id, checkId, fileId, action: 'get_buildium_check_file' }, 'Fetching Buildium check file');
 
     // Buildium API call
-    const response = await buildiumFetch('GET', `/bankaccounts/checks/${checkId}/files/${fileId}`, undefined, undefined, undefined);
+    const response = await buildiumFetch('GET', `/bankaccounts/checks/${checkId}/files/${fileId}`, undefined, undefined, orgId);
 
     if (!response.ok) {
       if (response.status === 404) {
@@ -45,13 +49,16 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   try {
     // Authentication
     const { user } = await requireRole('platform_admin')
+    const guard = await getBuildiumOrgIdOr403(request)
+    if ('response' in guard) return guard.response
+    const { orgId } = guard
     const checkId = (await params).id;
     const fileId = (await params).fileId;
     
     logger.info({ userId: user.id, checkId, fileId, action: 'delete_buildium_check_file' }, 'Deleting Buildium check file');
 
     // Buildium API call
-    const response = await buildiumFetch('DELETE', `/bankaccounts/checks/${checkId}/files/${fileId}`, undefined, undefined, undefined);
+    const response = await buildiumFetch('DELETE', `/bankaccounts/checks/${checkId}/files/${fileId}`, undefined, undefined, orgId);
 
     if (!response.ok) {
       if (response.status === 404) {
@@ -81,6 +88,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   try {
     // Authentication
     const { user } = await requireRole('platform_admin');
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
     const checkId = (await params).id;
     const fileId = (await params).fileId;
     
@@ -90,7 +100,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const body = await request.json();
 
     // Buildium API call
-    const response = await buildiumFetch('POST', `/bankaccounts/checks/${checkId}/files/${fileId}/download`, undefined, body, undefined);
+    const response = await buildiumFetch('POST', `/bankaccounts/checks/${checkId}/files/${fileId}/download`, undefined, body, orgId);
 
     if (!response.ok) {
       if (response.status === 404) {

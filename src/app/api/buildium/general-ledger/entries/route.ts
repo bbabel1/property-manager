@@ -5,6 +5,7 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumGeneralLedgerEntryCreateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 import { supabase } from '@/lib/db';
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard';
 
 export async function GET(request: NextRequest) {
   try {
@@ -19,6 +20,9 @@ export async function GET(request: NextRequest) {
 
     // Require platform admin
     await requireRole('platform_admin');
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
 
     // Get query parameters
     const { searchParams } = new URL(request.url);
@@ -33,7 +37,8 @@ export async function GET(request: NextRequest) {
       body: {
         method: 'GET',
         entityType: 'glEntries',
-        params: { limit, offset, orderby, dateFrom, dateTo, glAccountId }
+        params: { limit, offset, orderby, dateFrom, dateTo, glAccountId },
+        orgId,
       }
     })
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -64,6 +69,9 @@ export async function POST(request: NextRequest) {
 
     // Require platform admin
     await requireRole('platform_admin');
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
 
     // Parse and validate request body
     const body = await request.json();
@@ -72,7 +80,7 @@ export async function POST(request: NextRequest) {
     const validatedData = sanitizeAndValidate(body, BuildiumGeneralLedgerEntryCreateSchema);
 
     const { data, error } = await supabase.functions.invoke('buildium-sync', {
-      body: { entityType: 'glEntry', operation: 'create', entityData: validatedData }
+      body: { entityType: 'glEntry', operation: 'create', entityData: validatedData, orgId }
     })
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     const entry = data?.data || data

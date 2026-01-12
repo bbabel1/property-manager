@@ -9,6 +9,7 @@ import {
 import { buildiumFetch } from '@/lib/buildium-http';
 import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
 import { supabase } from '@/lib/db';
+import { assertBuildiumEnabled, BuildiumDisabledError } from '@/lib/buildium-gate';
 import type {
   BuildiumUnit,
   BuildiumLease,
@@ -69,6 +70,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const { supabase: db, user } = await requireAuth();
     const { id } = await params;
     const orgId = await resolveOrgIdFromRequest(request, user.id, db);
+    await assertBuildiumEnabled(orgId, request.url);
 
     // Load local property (with minimal fields needed to construct Buildium payload)
     const { data: property, error: propErr } = await db
@@ -568,6 +570,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     return NextResponse.json({ success: true, buildium_property_id: buildiumId });
   } catch (error) {
+    if (error instanceof BuildiumDisabledError) {
+      return NextResponse.json(
+        { error: 'Buildium integration is disabled for this organization' },
+        { status: 403 },
+      );
+    }
     if (error instanceof Error && error.message === 'UNAUTHENTICATED') {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }

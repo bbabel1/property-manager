@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth/guards'
+import { BuildiumDisabledError, assertBuildiumEnabled } from '@/lib/buildium-gate'
+import { requireBuildiumEnabledOr403 } from '@/lib/buildium-route-guard'
 import { buildiumFetch } from '@/lib/buildium-http'
 import { mapStaffToBuildium } from '@/lib/buildium-mappers'
 import type { Database } from '@/types/database'
@@ -11,7 +13,9 @@ type StaffUpdate = Database['public']['Tables']['staff']['Update']
 export async function POST(request: NextRequest) {
   try {
     const { supabase: db, user } = await requireRole('platform_admin')
-    const orgId = await resolveOrgIdFromRequest(request, user.id, db)
+    const orgIdResult = await requireBuildiumEnabledOr403(request)
+    if (orgIdResult instanceof NextResponse) return orgIdResult
+    const orgId = orgIdResult
     await requireOrgMember({ client: db, userId: user.id, orgId })
     const body = await request.json().catch(() => ({})) as { staff_id?: number | string }
     const sidRaw = body?.staff_id
@@ -51,6 +55,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, buildiumId, data })
   } catch (e: unknown) {
     if (e instanceof Error) {
+      if (e instanceof BuildiumDisabledError) {
+        return NextResponse.json(
+          { error: 'Buildium integration is disabled for this organization' },
+          { status: 403 }
+        )
+      }
       if (e.message === 'UNAUTHENTICATED') return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
       if (e.message === 'ORG_CONTEXT_REQUIRED') return NextResponse.json({ error: 'Organization context required' }, { status: 400 })
       if (e.message === 'ORG_FORBIDDEN') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })

@@ -1669,6 +1669,7 @@ export const BuildiumApiConfigSchema = z.object({
   baseUrl: z.string().url('Base URL must be a valid URL'),
   clientId: z.string().min(3, 'Client ID is required'),
   clientSecret: z.string().min(8, 'Client secret is required'),
+  orgId: z.string().optional(),
   timeout: z.number().int().positive().default(30000),
   retryAttempts: z.number().int().min(0).max(10).default(3),
   retryDelay: z.number().int().positive().default(1000),

@@ -3,6 +3,7 @@ import { requireRole } from '@/lib/auth/guards';
 import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { buildiumFetch } from '@/lib/buildium-http';
+import { requireBuildiumEnabledOr403 } from '@/lib/buildium-route-guard';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string; paymentId: string }> }) {
   try {
@@ -17,11 +18,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     // Require platform admin
     await requireRole('platform_admin');
+    const orgIdResult = await requireBuildiumEnabledOr403(request);
+    if (orgIdResult instanceof NextResponse) return orgIdResult;
+    const orgId = orgIdResult;
 
     const { id, paymentId } = await params;
 
     // Make request to Buildium API
-    const response = await buildiumFetch('GET', `/bills/${id}/payments/${paymentId}`, undefined, undefined, undefined);
+    const response = await buildiumFetch('GET', `/bills/${id}/payments/${paymentId}`, undefined, undefined, orgId);
 
     if (!response.ok) {
       const errorData = response.json ?? {};

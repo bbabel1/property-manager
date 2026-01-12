@@ -5,6 +5,7 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumLeaseNoteUpdateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 import { buildiumFetch } from '@/lib/buildium-http';
+import { requireBuildiumEnabledOr403 } from '@/lib/buildium-route-guard';
 
 export async function GET(
   request: NextRequest,
@@ -22,11 +23,20 @@ export async function GET(
 
     // Require platform admin
     await requireRole('platform_admin');
+    const orgIdResult = await requireBuildiumEnabledOr403(request);
+    if (orgIdResult instanceof NextResponse) return orgIdResult;
+    const orgId = orgIdResult;
 
     const { buildiumLeaseId, noteId } = await params;
 
     // Make request to Buildium API
-    const response = await buildiumFetch('GET', `/leases/${buildiumLeaseId}/notes/${noteId}`, undefined, undefined, undefined);
+    const response = await buildiumFetch(
+      'GET',
+      `/leases/${buildiumLeaseId}/notes/${noteId}`,
+      undefined,
+      undefined,
+      orgId,
+    );
 
     if (!response.ok) {
       const errorData = response.json ?? {};
@@ -77,6 +87,9 @@ export async function PUT(
 
     // Require platform admin
     await requireRole('platform_admin');
+    const orgIdResult = await requireBuildiumEnabledOr403(request);
+    if (orgIdResult instanceof NextResponse) return orgIdResult;
+    const orgId = orgIdResult;
 
     const { buildiumLeaseId, noteId } = await params;
 
@@ -87,7 +100,13 @@ export async function PUT(
     const validatedData = sanitizeAndValidate(body, BuildiumLeaseNoteUpdateSchema);
 
     // Make request to Buildium API
-    const response = await buildiumFetch('PUT', `/leases/${buildiumLeaseId}/notes/${noteId}`, undefined, validatedData, undefined);
+    const response = await buildiumFetch(
+      'PUT',
+      `/leases/${buildiumLeaseId}/notes/${noteId}`,
+      undefined,
+      validatedData,
+      orgId,
+    );
 
     if (!response.ok) {
       const errorData = response.json ?? {};

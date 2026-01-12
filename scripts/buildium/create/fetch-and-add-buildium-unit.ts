@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { mapUnitFromBuildium } from '@/lib/buildium-mappers'
 import * as dotenv from 'dotenv'
+import { ensureBuildiumEnabledForScript } from '../ensure-enabled'
 
 // Load environment variables - ALWAYS use .env.local for local development
 dotenv.config({ path: '.env.local' })
@@ -19,6 +20,7 @@ async function fetchBuildiumUnit(unitId: number) {
       headers: {
         'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
         'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
+      'x-buildium-egress-allowed': '1',
         'Content-Type': 'application/json',
         'Accept': 'application/json'
       }
@@ -66,6 +68,7 @@ async function getPropertyByBuildiumId(buildiumPropertyId: number): Promise<stri
 
 async function fetchAndAddBuildiumUnit(unitId: number) {
   try {
+    await ensureBuildiumEnabledForScript(process.env.DEFAULT_ORG_ID ?? null)
     console.log(`🔍 Fetching Buildium unit ${unitId}...`)
 
     // Fetch unit from Buildium

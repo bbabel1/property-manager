@@ -3,6 +3,7 @@ import { requireRole } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { supabaseAdmin } from '@/lib/db'
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard'
 
 // POST /api/work-orders/sync/to-buildium
 // Body: { localId: string }
@@ -12,6 +13,8 @@ export async function POST(request: NextRequest) {
     if (!rate.success) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
 
     await requireRole('platform_admin')
+    const guardResult = await getBuildiumOrgIdOr403(request)
+    if ('response' in guardResult) return guardResult.response
 
     const body = (await request.json().catch(() => ({}))) as Record<string, any>
     const localId = body?.localId as string

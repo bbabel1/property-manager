@@ -3,6 +3,7 @@ import { requireRole } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
 import { buildiumFetch } from '@/lib/buildium-http'
 import { supabaseAdmin } from '@/lib/db'
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard'
 
 type BalanceResponse = {
   EndingBalance?: number | null
@@ -17,6 +18,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   try {
     // Authentication
     await requireRole('platform_admin')
+    const guard = await getBuildiumOrgIdOr403(request)
+    if ('response' in guard) return guard.response
+    const { orgId } = guard
     const reconciliationId = (await params).id;
     
     logger.info({ reconciliationId, action: 'get_buildium_reconciliation_balance' }, 'Fetching Buildium reconciliation balance');
@@ -48,7 +52,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       `/bankaccounts/${buildiumBankAccountId}/reconciliations/${reconciliationId}/balance`,
       undefined,
       undefined,
-      undefined,
+      orgId,
     );
 
     if (!response.ok) {
@@ -81,6 +85,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   try {
     // Authentication
     await requireRole('platform_admin')
+    const guard = await getBuildiumOrgIdOr403(request)
+    if ('response' in guard) return guard.response
+    const { orgId } = guard
     const reconciliationId = (await params).id;
     
     logger.info({ reconciliationId, action: 'update_buildium_reconciliation_balance' }, 'Updating Buildium reconciliation balance');
@@ -115,7 +122,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       `/bankaccounts/${buildiumBankAccountId}/reconciliations/${reconciliationId}/balance`,
       undefined,
       body,
-      undefined,
+      orgId,
     );
 
     if (!response.ok) {

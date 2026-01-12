@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { config } from 'dotenv'
 import { logger } from '../../utils/logger'
+import { ensureBuildiumEnabledForScript } from '../ensure-enabled'
 
 config()
 
@@ -33,6 +34,7 @@ async function fetchChargesFromBuildium(leaseId: string): Promise<BuildiumCharge
       'Accept': 'application/json',
       'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
       'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
+      'x-buildium-egress-allowed': '1',
     },
   })
 
@@ -89,6 +91,7 @@ async function createTransactionRecord(charge: BuildiumCharge, localLeaseId: num
 
 async function main() {
   try {
+    await ensureBuildiumEnabledForScript(process.env.DEFAULT_ORG_ID ?? null)
     logger.info(`Fetching charges for lease ${leaseId} from Buildium...`)
     const charges = await fetchChargesFromBuildium(leaseId)
     

@@ -3,6 +3,7 @@ import { requireRole } from '@/lib/auth/guards';
 import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { buildiumFetch } from '@/lib/buildium-http';
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string; historyId: string; fileId: string }> }) {
   try {
@@ -20,8 +21,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     const { id, historyId, fileId } = await params;
 
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
+
     // Make request to Buildium API
-    const response = await buildiumFetch('GET', `/tasks/${id}/history/${historyId}/files/${fileId}`, undefined, undefined, undefined);
+    const response = await buildiumFetch('GET', `/tasks/${id}/history/${historyId}/files/${fileId}`, undefined, undefined, orgId);
 
     if (!response.ok) {
       const errorData = response.json ?? {};
@@ -72,8 +77,12 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     const { id, historyId, fileId } = await params;
 
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
+
     // Make request to Buildium API
-    const response = await buildiumFetch('DELETE', `/tasks/${id}/history/${historyId}/files/${fileId}`, undefined, undefined, undefined);
+    const response = await buildiumFetch('DELETE', `/tasks/${id}/history/${historyId}/files/${fileId}`, undefined, undefined, orgId);
 
     if (!response.ok) {
       const errorData = response.json ?? {};
@@ -122,8 +131,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const { id, historyId, fileId } = await params;
 
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
+
     // Make request to Buildium API for file download
-    const response = await buildiumFetch('POST', `/tasks/${id}/history/${historyId}/files/${fileId}/download`, undefined, undefined, undefined);
+    const response = await buildiumFetch('POST', `/tasks/${id}/history/${historyId}/files/${fileId}/download`, undefined, undefined, orgId);
 
     if (!response.ok) {
       const errorData = response.json ?? {};

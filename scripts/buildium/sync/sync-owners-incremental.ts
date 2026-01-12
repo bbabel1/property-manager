@@ -1,6 +1,7 @@
 #!/usr/bin/env -S node --loader tsx
 import 'dotenv/config'
 import { createClient } from '@supabase/supabase-js'
+import { ensureBuildiumEnabledForScript } from '../ensure-enabled'
 
 function parseArgs() {
   const args = process.argv.slice(2)
@@ -26,6 +27,7 @@ async function main() {
     console.error('Missing Supabase env (NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY)')
     process.exit(1)
   }
+  await ensureBuildiumEnabledForScript(process.env.DEFAULT_ORG_ID ?? null)
   const supabase = createClient(NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY)
 
   const args = parseArgs()
@@ -56,4 +58,3 @@ async function main() {
 }
 
 main().catch((e) => { console.error(e); process.exit(1) })
-

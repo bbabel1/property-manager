@@ -9,6 +9,7 @@ config()
 
 import { logger } from '../utils/logger'
 import { supabaseAdmin } from '@/lib/db'
+import { ensureBuildiumEnabledForScript } from './ensure-enabled'
 
 const billId = 723092
 
@@ -22,6 +23,7 @@ async function fetchBillFromBuildium(billId: number) {
       headers: {
         'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
         'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
+      'x-buildium-egress-allowed': '1',
         'Content-Type': 'application/json',
         'Accept': 'application/json'
       }
@@ -162,6 +164,7 @@ function mapBillStatus(buildiumStatus: string): string {
 
 async function main() {
   try {
+    await ensureBuildiumEnabledForScript(process.env.DEFAULT_ORG_ID ?? null)
     logger.info(`Fetching bill ${billId} from Buildium...`)
     const buildiumBill = await fetchBillFromBuildium(billId)
     

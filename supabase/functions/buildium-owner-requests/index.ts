@@ -1,6 +1,8 @@
 // deno-lint-ignore-file
+import '../_shared/buildiumEgressGuard.ts';
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { buildiumFetchEdge } from '../_shared/buildiumFetch.ts'
 
 function cors() { return { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type' } }
 function v1TaskStatusToLocal(status: string | null | undefined): string { switch((status||'').toLowerCase()){case 'new':return 'open';case 'inprogress':case 'in_progress':return 'in_progress';case 'completed':return 'completed';case 'cancelled':return 'cancelled';case 'onhold':case 'on_hold':return 'on_hold';default:return 'open'} }
@@ -76,21 +78,23 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
     const bodyMaybe = req.method === 'POST' ? await req.json().catch(() => ({})) : {}
+    const orgId = typeof (bodyMaybe as any)?.orgId === 'string'
+      ? (bodyMaybe as any).orgId
+      : (typeof (bodyMaybe as any)?.org_id === 'string' ? (bodyMaybe as any).org_id : null)
     const creds = resolveBuildiumCreds(bodyMaybe?.credentials as Partial<BuildiumCredentials> | undefined)
+    if (!orgId) {
+      return new Response(JSON.stringify({ error: 'orgId required for Buildium owner requests' }), { headers: { ...headers, 'Content-Type': 'application/json' }, status: 400 })
+    }
     if (!creds.clientId || !creds.clientSecret) {
       return new Response(JSON.stringify({ error: 'Buildium credentials missing' }), { headers: { ...headers, 'Content-Type': 'application/json' }, status: 400 })
     }
-    const baseUrl = creds.baseUrl || 'https://apisandbox.buildium.com/v1'
-    const clientId = creds.clientId
-    const clientSecret = creds.clientSecret
     const url = new URL(req.url)
     const { searchParams } = url
 
     if (req.method === 'GET') {
       const qp = new URLSearchParams()
       ;['limit','offset','orderby','status','ownerId','propertyId','unitId','dateFrom','dateTo'].forEach(p => { const v = searchParams.get(p); if (v) qp.append(p, v) })
-      // Header names are case-sensitive per Buildium API documentation
-      const resp = await fetch(`${baseUrl}/rentals/ownerrequests?${qp.toString()}`, { method: 'GET', headers: { 'Accept': 'application/json', 'X-Buildium-Client-Id': clientId, 'X-Buildium-Client-Secret': clientSecret } })
+      const resp = await buildiumFetchEdge(supabase, orgId, 'GET', `/rentals/ownerrequests?${qp.toString()}`, undefined, creds)
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({}))
         return new Response(JSON.stringify({ error: 'Failed to fetch owner requests', details: err }), { headers: { ...headers, 'Content-Type': 'application/json' }, status: resp.status })
@@ -108,8 +112,7 @@ serve(async (req) => {
 
     if (req.method === 'POST') {
       const body = bodyMaybe
-      // Header names are case-sensitive per Buildium API documentation
-      const resp = await fetch(`${baseUrl}/rentals/ownerrequests`, { method: 'POST', headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-Buildium-Client-Id': clientId, 'X-Buildium-Client-Secret': clientSecret }, body: JSON.stringify(body) })
+      const resp = await buildiumFetchEdge(supabase, orgId, 'POST', `/rentals/ownerrequests`, body, creds)
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({}))
         return new Response(JSON.stringify({ error: 'Failed to create owner request', details: err }), { headers: { ...headers, 'Content-Type': 'application/json' }, status: resp.status })

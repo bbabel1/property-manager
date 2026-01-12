@@ -317,7 +317,7 @@ function computeNextWeeklyDate(
   const daysToAdd = schedule.frequency === 'Every2Weeks' ? 14 : 7
 
   // Find the next occurrence of the target day of week (week starts Monday)
-  let nextDate = new Date(currentDate)
+  const nextDate = new Date(currentDate)
   const currentDayOfWeek = getDayOfWeekInTimezone(nextDate, orgTimezone) // 1..7
   const jsTargetDay = targetDayOfWeek % 7 // convert 7->0 for JS Date math
   const jsCurrentDay = currentDayOfWeek % 7

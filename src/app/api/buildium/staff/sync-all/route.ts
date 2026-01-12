@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth/guards'
 import { getServerSupabaseClient } from '@/lib/supabase-client'
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard'
 
 type StaffSyncInvokeResult = {
   success?: boolean
@@ -9,13 +10,16 @@ type StaffSyncInvokeResult = {
   error?: string
 }
 
-export async function POST(_request: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
     await requireRole('platform_admin')
+    const guard = await getBuildiumOrgIdOr403(request)
+    if ('response' in guard) return guard.response
+    const { orgId } = guard
     const supabase = getServerSupabaseClient()
     const invokeResult: { data: StaffSyncInvokeResult | null; error: unknown } =
       await supabase.functions.invoke<StaffSyncInvokeResult>('buildium-staff-sync', {
-        body: { mode: 'manual' },
+        body: { mode: 'manual', orgId },
       })
     const invokeError = invokeResult.error as { message?: unknown } | null
     if (invokeError) {
@@ -33,10 +37,12 @@ export async function POST(_request: NextRequest) {
   }
 }
 
-export async function GET(_request: NextRequest) {
+export async function GET(request: NextRequest) {
   // Latest run status helper (require auth; use admin to bypass RLS)
   try {
     await requireRole('platform_admin')
+    const guard = await getBuildiumOrgIdOr403(request)
+    if ('response' in guard) return guard.response
     const client = getServerSupabaseClient()
     const { data, error } = await client
       .from('buildium_sync_runs')

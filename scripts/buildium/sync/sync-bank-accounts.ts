@@ -1,21 +1,14 @@
-#!/usr/bin/env node
-/* eslint-disable @typescript-eslint/no-require-imports */
-/*
-  Sync Buildium bank accounts into local Postgres.
-  - Uses .env.local for BUILDIUM_* and LOCAL_DB_URL
-  - Inserts/updates gl_accounts as needed
-  - Upserts bank_accounts by buildium_bank_id
-*/
-// Load env from .env.local first, then fallback to .env
-try {
-  require('dotenv').config({ path: '.env.local' })
-} catch {}
-try {
-  require('dotenv').config()
-} catch {}
-const { Client } = require('pg')
+#!/usr/bin/env tsx
+/* eslint-disable no-console */
 
-function env(name, def) {
+import dotenv from 'dotenv'
+import { Client } from 'pg'
+import { ensureBuildiumEnabledForScript } from '../ensure-enabled'
+
+dotenv.config({ path: '.env.local' })
+dotenv.config()
+
+function env(name: string, def?: string) {
   return process.env[name] || def
 }
 
@@ -29,7 +22,7 @@ if (!BUILDIUM_CLIENT_ID || !BUILDIUM_CLIENT_SECRET) {
 
 const LOCAL_DB_URL = env('LOCAL_DB_URL', 'postgres://postgres:postgres@localhost:54322/postgres')
 
-async function bfetch(path, params) {
+async function bfetch(path: string, params?: Record<string, unknown>) {
   const q = new URLSearchParams()
   if (params) {
     for (const [k, v] of Object.entries(params)) {
@@ -43,43 +36,54 @@ async function bfetch(path, params) {
       Accept: 'application/json',
       'x-buildium-client-id': BUILDIUM_CLIENT_ID,
       'x-buildium-client-secret': BUILDIUM_CLIENT_SECRET,
-    }
+      'x-buildium-egress-allowed': '1',
+    },
   })
   const text = await res.text()
-  let json
-  try { json = text ? JSON.parse(text) : undefined } catch { json = undefined }
+  let json: any
+  try {
+    json = text ? JSON.parse(text) : undefined
+  } catch {
+    json = undefined
+  }
   if (!res.ok) {
-    const msg = `Buildium GET ${path} -> ${res.status} ${res.statusText} ${text?.slice(0,200) || ''}`
+    const msg = `Buildium GET ${path} -> ${res.status} ${res.statusText} ${text?.slice(0, 200) || ''}`
     throw new Error(msg)
   }
   return json
 }
 
-function mapBankTypeFromBuildium(t) {
+function mapBankTypeFromBuildium(t: string | null | undefined) {
   switch (t) {
-    case 'MoneyMarket': return 'money_market'
-    case 'CertificateOfDeposit': return 'certificate_of_deposit'
-    case 'Savings': return 'savings'
-    default: return 'checking'
+    case 'MoneyMarket':
+      return 'money_market'
+    case 'CertificateOfDeposit':
+      return 'certificate_of_deposit'
+    case 'Savings':
+      return 'savings'
+    default:
+      return 'checking'
   }
 }
 
-function mapCountryFromBuildium(country) {
+function mapCountryFromBuildium(country: string | null | undefined) {
   if (!country) return 'United States'
-  // handle common Buildium concatenations
   if (country === 'UnitedStates') return 'United States'
   if (country === 'UnitedKingdom') return 'United Kingdom'
   if (country === 'UnitedArabEmirates') return 'United Arab Emirates'
-  // Fallback: insert spaces between camel-case words
-  try { return country.replace(/([a-z])([A-Z])/g, '$1 $2') } catch { return String(country) }
+  try {
+    return country.replace(/([a-z])([A-Z])/g, '$1 $2')
+  } catch {
+    return String(country)
+  }
 }
 
-async function ensureGLAccount(pg, gl) {
+async function ensureGLAccount(pg: Client, gl: any) {
   if (!gl || !gl.Id) return null
   const sel = await pg.query('SELECT id FROM public.gl_accounts WHERE buildium_gl_account_id = $1', [gl.Id])
   if (sel.rows.length) return sel.rows[0].id
   const now = new Date().toISOString()
-  const subAccounts = Array.isArray(gl.SubAccounts) ? gl.SubAccounts.map(s => String(s.Id)) : []
+  const subAccounts = Array.isArray(gl.SubAccounts) ? gl.SubAccounts.map((s: any) => String(s.Id)) : []
   const ins = await pg.query(
     `INSERT INTO public.gl_accounts (
       buildium_gl_account_id, account_number, name, description, type, sub_type,
@@ -109,13 +113,15 @@ async function ensureGLAccount(pg, gl) {
       gl.ParentGLAccountId || null,
       subAccounts,
       now,
-      now
-    ]
+      now,
+    ],
   )
-  return ins.rows[0].id
+  return ins.rows[0].id as string
 }
 
 async function main() {
+  await ensureBuildiumEnabledForScript(process.env.DEFAULT_ORG_ID ?? null)
+
   const pg = new Client({ connectionString: LOCAL_DB_URL })
   await pg.connect()
   const pageSize = 200
@@ -130,8 +136,7 @@ async function main() {
       for (const acct of accounts) {
         try {
           let glId = null
-          if (acct.GLAccount && acct.GLAccount.Id) {
-            // Ensure GL account exists locally; fetch if needed
+          if (acct?.GLAccount?.Id) {
             glId = await ensureGLAccount(pg, acct.GLAccount)
             if (!glId) {
               const remoteGL = await bfetch(`/glaccounts/${acct.GLAccount.Id}`)
@@ -150,14 +155,13 @@ async function main() {
             buildium_balance: typeof acct.Balance === 'number' ? acct.Balance : 0,
             gl_account: glId,
             country: mapCountryFromBuildium(acct.Country) || 'United States',
-            check_printing_info: (acct.CheckPrintingInfo ?? null),
-            electronic_payments: (acct.ElectronicPayments ?? null),
+            check_printing_info: acct.CheckPrintingInfo ?? null,
+            electronic_payments: acct.ElectronicPayments ?? null,
             last_source: 'buildium',
             last_source_ts: now,
             updated_at: now,
           }
 
-          // Upsert by buildium_bank_id
           const sel = await pg.query('SELECT id FROM public.bank_accounts WHERE buildium_bank_id = $1', [acct.Id])
           if (sel.rows.length) {
             await pg.query(
@@ -167,11 +171,22 @@ async function main() {
                 check_printing_info=$10, electronic_payments=$11, last_source=$12, last_source_ts=$13, updated_at=$14
                WHERE id=$15`,
               [
-                row.name, row.description, row.bank_account_type, row.account_number, row.routing_number,
-                row.is_active, row.buildium_balance, row.gl_account, row.country,
-                row.check_printing_info, row.electronic_payments, row.last_source, row.last_source_ts, row.updated_at,
-                sel.rows[0].id
-              ]
+                row.name,
+                row.description,
+                row.bank_account_type,
+                row.account_number,
+                row.routing_number,
+                row.is_active,
+                row.buildium_balance,
+                row.gl_account,
+                row.country,
+                row.check_printing_info,
+                row.electronic_payments,
+                row.last_source,
+                row.last_source_ts,
+                row.updated_at,
+                sel.rows[0].id,
+              ],
             )
             summary.updated++
           } else {
@@ -186,14 +201,27 @@ async function main() {
                 $12,$13,$14,$15,$16
               )`,
               [
-                row.buildium_bank_id, row.name, row.description, row.account_number, row.routing_number,
-                now, row.updated_at, row.is_active, row.buildium_balance, row.gl_account, row.country,
-                row.check_printing_info, row.electronic_payments, row.last_source, row.last_source_ts, row.bank_account_type
-              ]
+                row.buildium_bank_id,
+                row.name,
+                row.description,
+                row.account_number,
+                row.routing_number,
+                now,
+                row.updated_at,
+                row.is_active,
+                row.buildium_balance,
+                row.gl_account,
+                row.country,
+                row.check_printing_info,
+                row.electronic_payments,
+                row.last_source,
+                row.last_source_ts,
+                row.bank_account_type,
+              ],
             )
             summary.inserted++
           }
-        } catch (e) {
+        } catch (e: any) {
           summary.failed++
           console.warn('Failed to upsert account', acct?.Id, (e && e.message) || e)
         }
@@ -207,4 +235,7 @@ async function main() {
   }
 }
 
-main().catch((e) => { console.error(e); process.exit(1) })
+main().catch((e) => {
+  console.error(e)
+  process.exit(1)
+})

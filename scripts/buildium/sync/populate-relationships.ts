@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { config } from 'dotenv'
+import { ensureBuildiumEnabledForScript } from '../ensure-enabled'
 
 config()
 
@@ -9,6 +10,7 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
 async function populateRelationships() {
+  await ensureBuildiumEnabledForScript(process.env.DEFAULT_ORG_ID ?? null)
   console.log('🔄 Populating relationships between tables...')
 
   try {

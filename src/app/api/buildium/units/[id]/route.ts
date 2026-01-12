@@ -4,10 +4,10 @@ import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumUnitUpdateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
-import UnitService from '@/lib/unit-service'
-import { getOrgScopedBuildiumEdgeClient } from '@/lib/buildium-edge-client'
-import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
+import UnitService from '@/lib/unit-service';
+import { getOrgScopedBuildiumEdgeClient } from '@/lib/buildium-edge-client';
 import type { BuildiumUnit } from '@/types/buildium';
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -21,35 +21,22 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     // Require platform admin
-    const { supabase, user } = await requireRole('platform_admin');
-
-    // Resolve orgId from request context
-    let orgId: string | undefined;
-    try {
-      orgId = await resolveOrgIdFromRequest(request, user.id, supabase);
-    } catch (error) {
-      logger.warn({ userId: user.id, error }, 'Could not resolve orgId, falling back to env vars');
-    }
+    await requireRole('platform_admin');
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
 
     const { id } = await params;
 
     const edgeClient = await getOrgScopedBuildiumEdgeClient(orgId);
-    const proxy = await edgeClient.proxyRaw('GET', `/rentals/units/${id}`)
-    if (!proxy.success) return NextResponse.json({ error: proxy.error || 'Failed to fetch unit from Buildium' }, { status: 502 })
-    const unit = proxy.data as BuildiumUnit
+    const proxy = await edgeClient.proxyRaw('GET', `/rentals/units/${id}`);
+    if (!proxy.success) return NextResponse.json({ error: proxy.error || 'Failed to fetch unit from Buildium' }, { status: 502 });
+    const unit = proxy.data as BuildiumUnit;
     // Optional persist to DB if ?persist=true|1
-    const { searchParams } = new URL(request.url)
-    const persist = ['1','true','yes'].includes((searchParams.get('persist')||'').toLowerCase())
+    const { searchParams } = new URL(request.url);
+    const persist = ['1','true','yes'].includes((searchParams.get('persist') || '').toLowerCase());
     if (persist) {
-      let orgId: string | null = null
-      try {
-        orgId = await resolveOrgIdFromRequest(request, user.id, supabase)
-      } catch (error) {
-        logger.error({ error });
-        return NextResponse.json({ error: 'Organization context required for persist' }, { status: 400 })
-      }
-
-      try { await UnitService.persistBuildiumUnit(unit as any, orgId as string) } catch (e) { logger.error(`Persist updated unit failed: ${String(e)}`) }
+      try { await UnitService.persistBuildiumUnit(unit as any, orgId) } catch (e) { logger.error(`Persist updated unit failed: ${String(e)}`) }
     }
 
     logger.info(`Buildium unit fetched successfully`);
@@ -62,6 +49,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   } catch (error) {
     logger.error({ error });
     logger.error(`Error fetching Buildium unit`);
+
+    if (error instanceof Error && error.message === 'ORG_CONTEXT_REQUIRED') {
+      return NextResponse.json(
+        { error: 'Organization context required' },
+        { status: 400 }
+      );
+    }
 
     return NextResponse.json(
       { error: 'Internal server error' },
@@ -82,15 +76,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     // Require platform admin
-    const { user } = await requireRole('platform_admin');
-
-    // Resolve orgId from request context
-    let orgId: string | undefined;
-    try {
-      orgId = await resolveOrgIdFromRequest(request, user.id);
-    } catch (error) {
-      logger.warn({ userId: user.id, error }, 'Could not resolve orgId, falling back to env vars');
-    }
+    await requireRole('platform_admin');
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
 
     const { id } = await params;
 

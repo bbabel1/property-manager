@@ -15,6 +15,7 @@ import { createClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database'
 import { getOrgScopedBuildiumClient } from '@/lib/buildium-client'
 import { resolveUndepositedFundsGlAccountId } from '@/lib/buildium-mappers'
+import { ensureBuildiumEnabledForScript } from '../ensure-enabled'
 
 type DepositMetaRow = {
   transaction_id: string
@@ -247,6 +248,7 @@ async function retryDeposit(meta: DepositMetaRow) {
 }
 
 async function main() {
+  await ensureBuildiumEnabledForScript(process.env.DEFAULT_ORG_ID ?? null)
   console.log(`🔁 Retrying failed deposit Buildium syncs (limit ${argLimit})`)
   const failed = await fetchFailedDeposits(argLimit)
   if (!failed.length) {

@@ -24,7 +24,9 @@ export type BuildiumConfig = {
   clientSecret: string;
   webhookSecret: string;
   isEnabled: boolean;
+  disabledAt?: string | null;
   orgId?: string;
+  configVersion?: number;
   updatedAt?: string; // For cache staleness detection
 };
 
@@ -50,6 +52,7 @@ type CacheEntry = {
   config: BuildiumConfig;
   expiresAt: number;
   updatedAt: string;
+  configVersion?: number;
 };
 
 // In-memory cache: Map<orgId, CacheEntry>
@@ -173,7 +176,9 @@ export async function getOrgScopedBuildiumConfig(
             clientSecret: decryptToken(dbRow.client_secret_encrypted),
             webhookSecret: decryptToken(dbRow.webhook_secret_encrypted),
             isEnabled: dbRow.is_enabled,
+            disabledAt: dbRow.disabled_at ?? null,
             orgId: dbRow.org_id,
+            configVersion: dbRow.config_version ?? 1,
             updatedAt: dbRow.updated_at,
           };
 
@@ -188,6 +193,7 @@ export async function getOrgScopedBuildiumConfig(
             config,
             expiresAt: Date.now() + CACHE_TTL_MS,
             updatedAt: dbRow.updated_at,
+            configVersion: dbRow.config_version ?? 1,
           });
 
           return config;
@@ -228,6 +234,8 @@ export async function getOrgScopedBuildiumConfig(
       clientSecret: envClientSecret,
       webhookSecret: envWebhookSecret,
       isEnabled: true, // Env vars are always enabled
+      disabledAt: null,
+      configVersion: 1,
     };
 
     // Cache the env config
@@ -235,6 +243,7 @@ export async function getOrgScopedBuildiumConfig(
       config,
       expiresAt: Date.now() + CACHE_TTL_MS,
       updatedAt: new Date().toISOString(),
+      configVersion: 1,
     });
 
     // Log warning if orgId is undefined (for observability)
@@ -277,9 +286,17 @@ export async function storeBuildiumCredentials(
     .maybeSingle();
 
   // Prepare update data
+  const nextVersion = (existing?.config_version ?? 0) + 1;
   const updateData: Record<string, any> = {
     org_id: orgId,
     is_enabled: credentials.isEnabled ?? existing?.is_enabled ?? false,
+    disabled_at:
+      credentials.isEnabled === false
+        ? new Date().toISOString()
+        : credentials.isEnabled === true
+          ? null
+          : existing?.disabled_at ?? null,
+    config_version: nextVersion,
     updated_at: new Date().toISOString(),
   };
 
@@ -377,11 +394,21 @@ export async function storeBuildiumCredentials(
  * Delete Buildium credentials (soft delete)
  */
 export async function deleteBuildiumCredentials(orgId: string, actorUserId: string): Promise<void> {
+  const { data: existing } = await supabaseAdmin
+    .from('buildium_integrations')
+    .select('config_version')
+    .eq('org_id', orgId)
+    .is('deleted_at', null)
+    .maybeSingle();
+  const nextVersion = (existing?.config_version ?? 0) + 1;
+
   const { error } = await supabaseAdmin
     .from('buildium_integrations')
     .update({
       deleted_at: new Date().toISOString(),
       is_enabled: false,
+      disabled_at: new Date().toISOString(),
+      config_version: nextVersion,
       updated_at: new Date().toISOString(),
     })
     .eq('org_id', orgId)
@@ -411,11 +438,24 @@ export async function toggleBuildiumIntegration(
   enabled: boolean,
   actorUserId: string
 ): Promise<void> {
+  const { data: existing } = await supabaseAdmin
+    .from('buildium_integrations')
+    .select('config_version')
+    .eq('org_id', orgId)
+    .is('deleted_at', null)
+    .maybeSingle();
+
+  const nextVersion = (existing?.config_version ?? 0) + 1;
+  const disabledAt = enabled ? null : new Date().toISOString();
+  const updatedAt = new Date().toISOString();
+
   const { error } = await supabaseAdmin
     .from('buildium_integrations')
     .update({
       is_enabled: enabled,
-      updated_at: new Date().toISOString(),
+      disabled_at: disabledAt,
+      config_version: nextVersion,
+      updated_at: updatedAt,
     })
     .eq('org_id', orgId)
     .is('deleted_at', null);
@@ -429,7 +469,7 @@ export async function toggleBuildiumIntegration(
     org_id: orgId,
     actor_user_id: actorUserId,
     action: enabled ? 'ENABLE' : 'DISABLE',
-    field_changes: { is_enabled: enabled },
+    field_changes: { is_enabled: enabled, config_version: nextVersion, disabled_at: disabledAt },
   });
 
   // Invalidate cache
@@ -444,12 +484,21 @@ export async function rotateWebhookSecret(
   newSecret: string,
   actorUserId: string
 ): Promise<void> {
+  const { data: existing } = await supabaseAdmin
+    .from('buildium_integrations')
+    .select('config_version')
+    .eq('org_id', orgId)
+    .is('deleted_at', null)
+    .maybeSingle();
+  const nextVersion = (existing?.config_version ?? 0) + 1;
+
   const { error } = await supabaseAdmin
     .from('buildium_integrations')
     .update({
       webhook_secret_encrypted: encryptToken(newSecret),
       webhook_secret_rotated_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
+      config_version: nextVersion,
     })
     .eq('org_id', orgId)
     .is('deleted_at', null);
@@ -463,7 +512,7 @@ export async function rotateWebhookSecret(
     org_id: orgId,
     actor_user_id: actorUserId,
     action: 'UPDATE',
-    field_changes: { webhook_secret: maskSecret(newSecret) },
+    field_changes: { webhook_secret: maskSecret(newSecret), config_version: nextVersion },
   });
 
   // Invalidate cache
@@ -532,6 +581,7 @@ export async function testBuildiumConnection(orgId: string): Promise<{ success: 
         'Accept': 'application/json',
         'x-buildium-client-id': config.clientId,
         'x-buildium-client-secret': config.clientSecret,
+        'x-buildium-egress-allowed': '1',
       },
       signal: AbortSignal.timeout(10000), // 10 second timeout
     });

@@ -13,6 +13,7 @@ import 'dotenv/config';
 import { createClient, type PostgrestSingleResponse } from '@supabase/supabase-js';
 import { inspect } from 'node:util';
 import { computeCanonicalParties } from '@/lib/transaction-canonical';
+import { ensureBuildiumEnabledForScript } from './ensure-enabled';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || '';
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
@@ -98,6 +99,7 @@ async function fetchDetail(bankAccountId: number, transactionId: number): Promis
       'Content-Type': 'application/json',
       'x-buildium-client-id': BUILDUM_CLIENT_ID,
       'x-buildium-client-secret': BUILDUM_CLIENT_SECRET,
+      'x-buildium-egress-allowed': '1',
     },
   });
   if (!res.ok) {
@@ -227,6 +229,7 @@ async function fetchBatch(offset: number, limit: number): Promise<TxRow[]> {
 }
 
 async function main() {
+  await ensureBuildiumEnabledForScript(process.env.DEFAULT_ORG_ID ?? null);
   const limit = 50;
   let offset = 0;
   let processed = 0;

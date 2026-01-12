@@ -4,6 +4,7 @@ import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getServerSupabaseClient } from '@/lib/supabase-client';
 import type { BuildiumGLAccount, BuildiumGLAccountBalance } from '@/types/buildium';
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard';
 
 export async function GET(request: NextRequest) {
   try {
@@ -18,6 +19,9 @@ export async function GET(request: NextRequest) {
 
     // Require platform admin
     await requireRole('platform_admin');
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
 
     // Get query parameters
     const { searchParams } = new URL(request.url);
@@ -39,7 +43,7 @@ export async function GET(request: NextRequest) {
 
     // Step 1: fetch accounts from edge function
     const { data: listData, error: listErr } = await supabase.functions.invoke('buildium-sync', {
-      body: { method: 'GET', entityType: 'glAccounts', params: { limit, offset, type } }
+      body: { method: 'GET', entityType: 'glAccounts', params: { limit, offset, type }, orgId }
     })
     if (listErr) return NextResponse.json({ error: listErr.message }, { status: 500 })
     const accounts = (listData?.data || listData) as BuildiumGLAccount[] | undefined;
@@ -49,7 +53,7 @@ export async function GET(request: NextRequest) {
     for (const acc of accounts || []) {
       // Fetch each balance via edge function
       const { data: balData, error: balErr } = await supabase.functions.invoke('buildium-sync', {
-        body: { method: 'GET', entityType: 'glAccountBalance', entityId: acc.Id, asOfDate }
+        body: { method: 'GET', entityType: 'glAccountBalance', entityId: acc.Id, asOfDate, orgId }
       })
       if (!balErr) {
         const bal = (balData?.data || balData) as BuildiumGLAccountBalance | null;

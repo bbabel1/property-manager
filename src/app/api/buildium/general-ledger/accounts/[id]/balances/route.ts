@@ -3,6 +3,7 @@ import { requireRole } from '@/lib/auth/guards';
 import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { supabase } from '@/lib/db';
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -12,13 +13,16 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     await requireRole('platform_admin');
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
 
     const { id } = await params;
     const { searchParams } = new URL(request.url);
     const asOfDate = searchParams.get('asOfDate');
 
     const { data, error } = await supabase.functions.invoke('buildium-sync', {
-      body: { method: 'GET', entityType: 'glAccountBalance', entityId: id, asOfDate }
+      body: { method: 'GET', entityType: 'glAccountBalance', entityId: id, asOfDate, orgId }
     })
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     const payload = data?.data || data

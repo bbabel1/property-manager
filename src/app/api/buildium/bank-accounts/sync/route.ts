@@ -2,26 +2,18 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth/guards'
 import { getOrgScopedBuildiumEdgeClient } from '@/lib/buildium-edge-client'
 import { logger } from '@/lib/logger'
-import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id'
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard'
 
 export async function POST(request: NextRequest) {
   try {
     // Authentication
-    const { user } = await requireRole('platform_admin')
+    await requireRole('platform_admin')
+    const guard = await getBuildiumOrgIdOr403(request)
+    if ('response' in guard) return guard.response
+    const { orgId } = guard
     
     const body = await request.json()
-    const { forceSync = false, orgId: bodyOrgId } = body
-
-    // Resolve orgId from request context or body
-    let orgId: string | undefined = bodyOrgId
-    if (!orgId) {
-      try {
-        orgId = await resolveOrgIdFromRequest(request, user.id)
-      } catch (error) {
-        // If orgId resolution fails, allow undefined (will use env vars)
-        logger.warn({ userId: user.id, error }, 'Could not resolve orgId, falling back to env vars')
-      }
-    }
+    const { forceSync = false } = body
 
     logger.info({ userId: user.id, forceSync, orgId }, 'Starting bank accounts sync from Buildium')
 
@@ -88,17 +80,11 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     // Authentication
-    const { user } = await requireRole('platform_admin')
+    await requireRole('platform_admin')
+    const guard = await getBuildiumOrgIdOr403(request)
+    if ('response' in guard) return guard.response
+    const { orgId } = guard
     
-    // Resolve orgId from request context
-    let orgId: string | undefined
-    try {
-      orgId = await resolveOrgIdFromRequest(request, user.id)
-    } catch (error) {
-      // If orgId resolution fails, allow undefined (will use env vars)
-      logger.warn({ userId: user.id, error }, 'Could not resolve orgId, falling back to env vars')
-    }
-
     // Use org-scoped client helper
     const client = await getOrgScopedBuildiumEdgeClient(orgId)
     

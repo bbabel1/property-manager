@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { findOrCreateOwnerContact } from '@/lib/buildium-mappers'
 import type { BuildiumOwner } from '@/types/buildium'
 import * as dotenv from 'dotenv'
+import { ensureBuildiumEnabledForScript } from '../ensure-enabled'
 
 // Load environment variables
 dotenv.config({ path: '.env.local' })
@@ -20,6 +21,7 @@ async function fetchBuildiumOwner(ownerId: number): Promise<BuildiumOwner> {
       headers: {
         'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
         'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
+      'x-buildium-egress-allowed': '1',
         'Content-Type': 'application/json',
         'Accept': 'application/json'
       }
@@ -43,6 +45,7 @@ async function fetchBuildiumOwner(ownerId: number): Promise<BuildiumOwner> {
 
 async function fetchAndAddBuildiumOwner(ownerId: number) {
   try {
+    await ensureBuildiumEnabledForScript(process.env.DEFAULT_ORG_ID ?? null)
     console.log(`🔍 Fetching Buildium owner ${ownerId}...`)
 
     // Fetch owner from Buildium

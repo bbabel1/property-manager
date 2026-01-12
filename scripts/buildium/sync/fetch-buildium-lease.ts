@@ -1,47 +1,27 @@
 import { config } from 'dotenv'
 import { logger } from '../../utils/logger'
+import { buildiumFetch } from '@/lib/buildium-http'
+import { ensureBuildiumEnabledForScript } from '../ensure-enabled'
 
 config({ path: '.env.local' })
 
-const leaseId = '16235'
+const leaseId = process.argv[2] || '16235'
 
-async function fetchLeaseFromBuildium(leaseId: string) {
-  // Use direct Buildium API call with correct authentication
-  const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/leases/${leaseId}`
-  
-  try {
-    const response = await fetch(buildiumUrl, {
-      method: 'GET',
-      headers: {
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      }
-    })
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error(`Buildium API error: ${response.status} ${response.statusText}`)
-      console.error('Error response:', errorText)
-      throw new Error(`Buildium API error: ${response.status} ${response.statusText} - ${errorText}`)
-    }
-
-    const data = await response.json()
-    console.log('Lease data from Buildium:', JSON.stringify(data, null, 2))
-    logger.info(`Successfully fetched lease ${leaseId} from Buildium`)
-    return data
-  } catch (error) {
-    logger.error('Error fetching lease from Buildium')
-    console.error('Error details:', error)
-    throw error
+async function fetchLeaseFromBuildium(orgId: string, leaseId: string) {
+  const res = await buildiumFetch('GET', `/leases/${leaseId}`, undefined, undefined, orgId)
+  if (!res.ok || !res.json) {
+    const details = res.errorText || res.json
+    throw new Error(`Buildium API error: ${res.status} ${res.statusText} ${details ? `- ${details}` : ''}`)
   }
+  logger.info(`Successfully fetched lease ${leaseId} from Buildium`)
+  return res.json as Record<string, any>
 }
 
 async function main() {
   try {
+    const { orgId } = await ensureBuildiumEnabledForScript()
     logger.info(`Fetching lease ${leaseId} from Buildium...`)
-    const lease = await fetchLeaseFromBuildium(leaseId)
+    const lease = await fetchLeaseFromBuildium(orgId, leaseId)
     
     console.log('\nKey lease fields:')
     console.log('ID:', lease.Id)
@@ -53,9 +33,8 @@ async function main() {
     console.log('Rent Amount:', lease.RentAmount)
     console.log('Security Deposit:', lease.SecurityDepositAmount)
     
-    // Check if there are any additional fields that might contain tenant info
     console.log('\nAll lease fields:')
-    Object.keys(lease).forEach(key => {
+    Object.keys(lease || {}).forEach(key => {
       console.log(`${key}:`, (lease as any)[key])
     })
     

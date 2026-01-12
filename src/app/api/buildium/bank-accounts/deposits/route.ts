@@ -9,6 +9,7 @@ import { supabaseAdmin } from '@/lib/db'
 import { deriveDepositStatusFromBuildiumPayload } from '@/lib/buildium-mappers'
 import type { Database } from '@/types/database'
 import type { DepositStatus } from '@/types/deposits'
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard'
 
 type DepositResponse = Record<string, unknown>
 
@@ -88,14 +89,17 @@ async function upsertDepositMetaForTransaction(params: {
   }
 }
 
-export async function GET(_request: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
     // Authentication
     const { user } = await requireRole('platform_admin')
+    const guard = await getBuildiumOrgIdOr403(request)
+    if ('response' in guard) return guard.response
+    const { orgId } = guard
     logger.info({ userId: user.id, action: 'get_buildium_deposits' }, 'Fetching Buildium deposits');
 
     // Buildium API call
-    const response = await buildiumFetch('GET', '/bankaccounts/deposits', undefined, undefined, undefined);
+    const response = await buildiumFetch('GET', '/bankaccounts/deposits', undefined, undefined, orgId);
 
     if (!response.ok) {
       throw new Error(`Buildium API error: ${response.status} ${response.statusText}`);
@@ -199,6 +203,9 @@ export async function POST(request: NextRequest) {
   try {
     // Authentication
     const { user } = await requireRole('platform_admin');
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
     logger.info({ userId: user.id, action: 'create_buildium_deposit' }, 'Creating Buildium deposit');
 
     // Parse and validate request body
@@ -206,7 +213,7 @@ export async function POST(request: NextRequest) {
     const data = sanitizeAndValidate(body, BuildiumDepositCreateSchema);
 
     // Buildium API call
-    const response = await buildiumFetch('POST', '/bankaccounts/deposits', undefined, data, undefined);
+    const response = await buildiumFetch('POST', '/bankaccounts/deposits', undefined, data, orgId);
 
     if (!response.ok) {
       throw new Error(`Buildium API error: ${response.status} ${response.statusText}`);

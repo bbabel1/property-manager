@@ -7,6 +7,7 @@ import { upsertLeaseTransactionWithLines } from '@/lib/buildium-mappers';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 import { BuildiumLeaseTransactionUpdateSchema } from '@/schemas/buildium';
 import { buildiumFetch } from '@/lib/buildium-http';
+import { requireBuildiumEnabledOr403 } from '@/lib/buildium-route-guard';
 
 export async function GET(
   request: NextRequest,
@@ -25,13 +26,22 @@ export async function GET(
 
     // Require platform admin
     await requireRole('platform_admin');
+    const orgIdResult = await requireBuildiumEnabledOr403(request);
+    if (orgIdResult instanceof NextResponse) return orgIdResult;
+    const orgId = orgIdResult;
 
     const { buildiumLeaseId, transactionId } = await params;
     const { searchParams } = new URL(request.url);
     const persist = (searchParams.get('persist') || '').toLowerCase() === 'true';
 
     // Make request to Buildium API
-    const response = await buildiumFetch('GET', `/leases/${buildiumLeaseId}/transactions/${transactionId}`, undefined, undefined, undefined);
+    const response = await buildiumFetch(
+      'GET',
+      `/leases/${buildiumLeaseId}/transactions/${transactionId}`,
+      undefined,
+      undefined,
+      orgId,
+    );
 
     if (!response.ok) {
       const errorData = response.json ?? {};
@@ -91,13 +101,22 @@ export async function PUT(
       return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
     }
 
-    await requireRole('platform_admin')
+    await requireRole('platform_admin');
+    const orgIdResult = await requireBuildiumEnabledOr403(request);
+    if (orgIdResult instanceof NextResponse) return orgIdResult;
+    const orgId = orgIdResult;
     const { buildiumLeaseId, transactionId } = await params
 
     const body = await request.json()
     const validated = sanitizeAndValidate(body, BuildiumLeaseTransactionUpdateSchema)
 
-    const response = await buildiumFetch('PUT', `/leases/${buildiumLeaseId}/transactions/${transactionId}`, undefined, validated, undefined)
+    const response = await buildiumFetch(
+      'PUT',
+      `/leases/${buildiumLeaseId}/transactions/${transactionId}`,
+      undefined,
+      validated,
+      orgId,
+    );
 
     if (!response.ok) {
       const errorData = response.json ?? {}

@@ -5,6 +5,7 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumGeneralLedgerEntryUpdateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 import { supabase } from '@/lib/db';
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -19,11 +20,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     // Require platform admin
     await requireRole('platform_admin');
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
 
     const { id } = await params;
 
     const { data, error } = await supabase.functions.invoke('buildium-sync', {
-      body: { method: 'GET', entityType: 'glEntry', entityId: id }
+      body: { method: 'GET', entityType: 'glEntry', entityId: id, orgId }
     })
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     const entry = data?.data || data
@@ -59,6 +63,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     // Require platform admin
     await requireRole('platform_admin');
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
 
     const { id } = await params;
 
@@ -69,7 +76,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const validatedData = sanitizeAndValidate(body, BuildiumGeneralLedgerEntryUpdateSchema);
 
     const { data, error } = await supabase.functions.invoke('buildium-sync', {
-      body: { entityType: 'glEntry', operation: 'update', entityData: { Id: Number(id), ...validatedData } }
+      body: { entityType: 'glEntry', operation: 'update', entityData: { Id: Number(id), ...validatedData }, orgId }
     })
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     const entry = data?.data || data

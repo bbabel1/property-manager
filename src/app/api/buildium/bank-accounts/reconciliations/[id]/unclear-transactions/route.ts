@@ -2,11 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
 import { buildiumFetch } from '@/lib/buildium-http'
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard'
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Authentication
     const { user } = await requireRole('platform_admin');
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
     const reconciliationId = (await params).id;
     
     logger.info({ userId: user.id, reconciliationId, action: 'unclear_reconciliation_transactions' }, 'Unclearing Buildium reconciliation transactions');
@@ -15,7 +19,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const body = await request.json();
 
     // Buildium API call
-    const response = await buildiumFetch('POST', `/bankaccounts/reconciliations/${reconciliationId}/uncleartransactions`, undefined, body, undefined);
+    const response = await buildiumFetch('POST', `/bankaccounts/reconciliations/${reconciliationId}/uncleartransactions`, undefined, body, orgId);
 
     if (!response.ok) {
       if (response.status === 404) {

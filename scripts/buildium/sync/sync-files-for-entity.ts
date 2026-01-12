@@ -11,6 +11,7 @@ import { config } from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
 import type { BuildiumFile, BuildiumEntityType } from '@/types/buildium';
 import { resolveFileCategoryIdFromBuildium } from '@/lib/buildium-mappers';
+import { ensureBuildiumEnabledForScript } from '../ensure-enabled';
 
 config({ path: '.env.local' });
 
@@ -50,6 +51,7 @@ async function fetchFilesFromBuildium(
         headers: {
           'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
           'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
+      'x-buildium-egress-allowed': '1',
           Accept: 'application/json',
         },
       });
@@ -172,6 +174,8 @@ async function main() {
     );
     process.exit(1);
   }
+
+  await ensureBuildiumEnabledForScript(orgId);
 
   // Validate entity type
   const validEntityTypes: BuildiumEntityType[] = [

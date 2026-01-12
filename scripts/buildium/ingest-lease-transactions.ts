@@ -3,6 +3,7 @@
 import { config } from 'dotenv'
 import { createClient } from '@supabase/supabase-js'
 import { upsertLeaseTransactionWithLines } from '@/lib/buildium-mappers'
+import { ensureBuildiumEnabledForScript } from './ensure-enabled'
 
 // Prefer local overrides but fall back to .env when running outside Next.js
 config({ path: '.env.local' })
@@ -44,6 +45,7 @@ async function fetchLeaseTransactions(leaseId: number, limit = 100): Promise<any
         Accept: 'application/json',
         'x-buildium-client-id': buildiumClientId,
         'x-buildium-client-secret': buildiumClientSecret,
+      'x-buildium-egress-allowed': '1',
       },
     })
     if (!res.ok) {
@@ -60,6 +62,7 @@ async function fetchLeaseTransactions(leaseId: number, limit = 100): Promise<any
 
 async function main() {
   const leaseId = getArgLeaseId()
+  await ensureBuildiumEnabledForScript(process.env.DEFAULT_ORG_ID ?? null)
   console.log(`🔄 Ingesting Buildium lease transactions for LeaseId=${leaseId} ...`)
 
   const transactions = await fetchLeaseTransactions(leaseId)

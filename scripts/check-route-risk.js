@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+/* eslint-disable @typescript-eslint/no-require-imports */
 /**
  * Route risk gate:
  * - Fails if a route uses `supabaseAdmin || supabase`
@@ -75,4 +76,3 @@ if (issues.length) {
 } else {
   console.log('Route risk check passed: no unsafe patterns found.');
 }
-

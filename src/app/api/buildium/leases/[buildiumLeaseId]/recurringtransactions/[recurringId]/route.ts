@@ -5,6 +5,7 @@ import { checkRateLimit } from '@/lib/rate-limit'
 import { sanitizeAndValidate } from '@/lib/sanitize'
 import { buildiumFetch } from '@/lib/buildium-http'
 import { BuildiumRecurringTransactionUpdateSchema } from '@/schemas/buildium'
+import { requireBuildiumEnabledOr403 } from '@/lib/buildium-route-guard';
 
 export async function GET(
   request: NextRequest,
@@ -13,10 +14,19 @@ export async function GET(
   try {
     const rateLimitResult = await checkRateLimit(request)
     if (!rateLimitResult.success) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
-    await requireRole('platform_admin')
+    await requireRole('platform_admin');
+    const orgIdResult = await requireBuildiumEnabledOr403(request);
+    if (orgIdResult instanceof NextResponse) return orgIdResult;
+    const orgId = orgIdResult;
     const { buildiumLeaseId, recurringId } = await params
 
-    const response = await buildiumFetch('GET', `/leases/${buildiumLeaseId}/recurring-transactions/${recurringId}`, undefined, undefined, undefined)
+    const response = await buildiumFetch(
+      'GET',
+      `/leases/${buildiumLeaseId}/recurring-transactions/${recurringId}`,
+      undefined,
+      undefined,
+      orgId,
+    );
 
     if (!response.ok) {
       const errorData = response.json ?? {}
@@ -38,12 +48,21 @@ export async function PUT(
   try {
     const rateLimitResult = await checkRateLimit(request)
     if (!rateLimitResult.success) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
-    await requireRole('platform_admin')
+    await requireRole('platform_admin');
+    const orgIdResult = await requireBuildiumEnabledOr403(request);
+    if (orgIdResult instanceof NextResponse) return orgIdResult;
+    const orgId = orgIdResult;
     const { buildiumLeaseId, recurringId } = await params
     const body = await request.json()
     const validated = sanitizeAndValidate(body, BuildiumRecurringTransactionUpdateSchema)
 
-    const response = await buildiumFetch('PUT', `/leases/${buildiumLeaseId}/recurring-transactions/${recurringId}`, undefined, validated, undefined)
+    const response = await buildiumFetch(
+      'PUT',
+      `/leases/${buildiumLeaseId}/recurring-transactions/${recurringId}`,
+      undefined,
+      validated,
+      orgId,
+    );
 
     if (!response.ok) {
       const errorData = response.json ?? {}
@@ -64,10 +83,19 @@ export async function DELETE(
   try {
     const rateLimitResult = await checkRateLimit(request)
     if (!rateLimitResult.success) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
-    await requireRole('platform_admin')
+    await requireRole('platform_admin');
+    const orgIdResult = await requireBuildiumEnabledOr403(request);
+    if (orgIdResult instanceof NextResponse) return orgIdResult;
+    const orgId = orgIdResult;
     const { buildiumLeaseId, recurringId } = await params
 
-    const response = await buildiumFetch('DELETE', `/leases/${buildiumLeaseId}/recurring-transactions/${recurringId}`, undefined, undefined, undefined)
+    const response = await buildiumFetch(
+      'DELETE',
+      `/leases/${buildiumLeaseId}/recurring-transactions/${recurringId}`,
+      undefined,
+      undefined,
+      orgId,
+    );
 
     if (!response.ok) {
       const errorData = response.json ?? {}

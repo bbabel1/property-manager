@@ -2,17 +2,21 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
 import { buildiumFetch } from '@/lib/buildium-http'
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard'
 
-export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: checkId } = await params
   try {
     // Authentication
     const { user } = await requireRole('platform_admin')
+    const guard = await getBuildiumOrgIdOr403(request)
+    if ('response' in guard) return guard.response
+    const { orgId } = guard
     
     logger.info({ userId: user.id, checkId, action: 'get_buildium_check_files' }, 'Fetching Buildium check files');
 
     // Buildium API call
-    const response = await buildiumFetch('GET', `/bankaccounts/checks/${checkId}/files`, undefined, undefined, undefined);
+    const response = await buildiumFetch('GET', `/bankaccounts/checks/${checkId}/files`, undefined, undefined, orgId);
 
     if (!response.ok) {
       if (response.status === 404) {
@@ -45,13 +49,16 @@ export async function POST(request: NextRequest) {
   try {
     // Authentication
     const { user } = await requireRole('platform_admin')
+    const guard = await getBuildiumOrgIdOr403(request)
+    if ('response' in guard) return guard.response
+    const { orgId } = guard
     logger.info({ userId: user.id, action: 'upload_buildium_check_file' }, 'Uploading Buildium check file');
 
     // Parse request body
     const body = await request.json();
 
     // Buildium API call
-    const response = await buildiumFetch('POST', '/bankaccounts/checks/files', undefined, body, undefined);
+    const response = await buildiumFetch('POST', '/bankaccounts/checks/files', undefined, body, orgId);
 
     if (!response.ok) {
       throw new Error(`Buildium API error: ${response.status} ${response.statusText}`);

@@ -1,6 +1,7 @@
 #!/usr/bin/env tsx
 
 import { z } from 'zod'
+import { ensureBuildiumEnabledForScript } from './ensure-enabled'
 
 import {
   extractLeaseTransactionLineMetadataFromBuildiumLine,
@@ -45,6 +46,7 @@ const SplitSchema = z.object({
 })
 
 async function main() {
+  await ensureBuildiumEnabledForScript(process.env.DEFAULT_ORG_ID ?? null)
   const nowIso = new Date('2026-04-02T12:00:00.000Z').toISOString()
 
   // Minimal representative Buildium payload covering:
@@ -131,5 +133,4 @@ main().catch((err) => {
   console.error('❌ Sample Buildium mapping assertion failed:', err instanceof Error ? err.message : err)
   process.exit(1)
 })
-
 

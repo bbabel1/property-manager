@@ -6,8 +6,8 @@ import { BuildiumUnitCreateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 import UnitService from '@/lib/unit-service';
 import { buildiumFetch } from '@/lib/buildium-http';
-import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
 import type { BuildiumUnit } from '@/types/buildium';
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard';
 
 export async function GET(request: NextRequest) {
   try {
@@ -21,8 +21,10 @@ export async function GET(request: NextRequest) {
     }
 
     // Require platform admin
-    const { supabase, user } = await requireRole('platform_admin');
-    const orgId = await resolveOrgIdFromRequest(request, user.id, supabase);
+    await requireRole('platform_admin');
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
 
     // Get query parameters
     const { searchParams } = new URL(request.url);
@@ -109,8 +111,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Require platform admin
-    const { supabase, user } = await requireRole('platform_admin');
-    const orgId = await resolveOrgIdFromRequest(request, user.id, supabase);
+    await requireRole('platform_admin');
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
 
     // Parse and validate request body
     const body = await request.json();

@@ -6,6 +6,7 @@ import { buildiumFetch } from '@/lib/buildium-http';
 import { supabase } from '@/lib/db';
 import { upsertGLEntryWithLines } from '@/lib/buildium-mappers';
 import type { Database } from '@/types/database';
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard';
 
 type GlImportCursorRow = Database['public']['Tables']['gl_import_cursors']['Row'];
 type GlImportCursorUpsert = Database['public']['Tables']['gl_import_cursors']['Insert'];
@@ -55,6 +56,9 @@ export async function POST(request: NextRequest) {
     }
 
     await requireRole('platform_admin');
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
 
     const body: unknown = await request.json().catch(() => ({}));
     const bodyObj = isRecord(body) ? body : {};
@@ -86,7 +90,7 @@ export async function POST(request: NextRequest) {
     queryParams.limit = String(limit);
     queryParams.offset = String(offset);
 
-    const response = await buildiumFetch('GET', '/generalledger/journalentries', queryParams, undefined, undefined);
+    const response = await buildiumFetch('GET', '/generalledger/journalentries', queryParams, undefined, orgId);
 
     if (!response.ok) {
       const errorData: unknown = response.json ?? {};

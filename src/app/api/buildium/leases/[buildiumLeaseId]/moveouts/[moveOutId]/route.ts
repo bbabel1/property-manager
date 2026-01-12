@@ -3,6 +3,7 @@ import { requireRole } from '@/lib/auth/guards';
 import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { buildiumFetch } from '@/lib/buildium-http';
+import { requireBuildiumEnabledOr403 } from '@/lib/buildium-route-guard';
 
 export async function GET(
   request: NextRequest,
@@ -20,11 +21,20 @@ export async function GET(
 
     // Require platform admin
     await requireRole('platform_admin');
+    const orgIdResult = await requireBuildiumEnabledOr403(request);
+    if (orgIdResult instanceof NextResponse) return orgIdResult;
+    const orgId = orgIdResult;
 
     const { buildiumLeaseId, moveOutId } = await params;
 
     // Make request to Buildium API
-    const response = await buildiumFetch('GET', `/leases/${buildiumLeaseId}/moveouts/${moveOutId}`, undefined, undefined, undefined);
+    const response = await buildiumFetch(
+      'GET',
+      `/leases/${buildiumLeaseId}/moveouts/${moveOutId}`,
+      undefined,
+      undefined,
+      orgId,
+    );
 
     if (!response.ok) {
       const errorData = response.json ?? {};
@@ -75,11 +85,20 @@ export async function DELETE(
 
     // Require platform admin
     await requireRole('platform_admin');
+    const orgIdResult = await requireBuildiumEnabledOr403(request);
+    if (orgIdResult instanceof NextResponse) return orgIdResult;
+    const orgId = orgIdResult;
 
     const { buildiumLeaseId, moveOutId } = await params;
 
     // Make request to Buildium API
-    const response = await buildiumFetch('DELETE', `/leases/${buildiumLeaseId}/moveouts/${moveOutId}`, undefined, undefined, undefined);
+    const response = await buildiumFetch(
+      'DELETE',
+      `/leases/${buildiumLeaseId}/moveouts/${moveOutId}`,
+      undefined,
+      undefined,
+      orgId,
+    );
 
     if (!response.ok) {
       const errorData = response.json ?? {};

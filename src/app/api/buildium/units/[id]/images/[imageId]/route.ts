@@ -6,8 +6,8 @@ import { BuildiumUnitImageUpdateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 import { buildiumFetch } from '@/lib/buildium-http';
 import UnitService from '@/lib/unit-service';
-import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
 import type { BuildiumUnitImage } from '@/types/buildium';
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string; imageId: string }> }) {
   try {
@@ -21,12 +21,15 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     // Require platform admin
-    const { supabase, user } = await requireRole('platform_admin');
+    await requireRole('platform_admin');
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
 
     const { id, imageId } = await params;
 
     // Make request to Buildium API
-    const response = await buildiumFetch('GET', `/rentals/units/${id}/images/${imageId}`, undefined, undefined, undefined);
+    const response = await buildiumFetch('GET', `/rentals/units/${id}/images/${imageId}`, undefined, undefined, orgId);
 
     if (!response.ok) {
       const errorData = response.json ?? {};
@@ -47,12 +50,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const { searchParams } = new URL(request.url);
     const persist = ['1','true','yes'].includes((searchParams.get('persist')||'').toLowerCase());
     if (persist) {
-      let orgId: string | null = null;
-      try {
-        orgId = await resolveOrgIdFromRequest(request, user.id, supabase);
-      } catch {
-        return NextResponse.json({ error: 'Organization context required for persist' }, { status: 400 });
-      }
       if (image) {
         try { await UnitService.persistImages(Number(id), [image], orgId) } catch {}
       }
@@ -88,7 +85,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     // Require platform admin
-    const { supabase, user } = await requireRole('platform_admin');
+    await requireRole('platform_admin');
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
 
     const { id, imageId } = await params;
 
@@ -99,7 +99,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const validatedData = sanitizeAndValidate(body, BuildiumUnitImageUpdateSchema);
 
     // Make request to Buildium API
-    const response = await buildiumFetch('PUT', `/rentals/units/${id}/images/${imageId}`, undefined, validatedData, undefined);
+    const response = await buildiumFetch('PUT', `/rentals/units/${id}/images/${imageId}`, undefined, validatedData, orgId);
 
     if (!response.ok) {
       const errorData = response.json ?? {};
@@ -120,12 +120,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const { searchParams } = new URL(request.url);
     const persist = ['1','true','yes'].includes((searchParams.get('persist')||'').toLowerCase());
     if (persist) {
-      let orgId: string | null = null;
-      try {
-        orgId = await resolveOrgIdFromRequest(request, user.id, supabase);
-      } catch {
-        return NextResponse.json({ error: 'Organization context required for persist' }, { status: 400 });
-      }
       if (image) {
         try { await UnitService.persistImages(Number(id), [image], orgId) } catch {}
       }
@@ -162,11 +156,14 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     // Require platform admin
     await requireRole('platform_admin');
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
 
     const { id, imageId } = await params;
 
     // Make request to Buildium API
-    const response = await buildiumFetch('DELETE', `/rentals/units/${id}/images/${imageId}`, undefined, undefined, undefined);
+    const response = await buildiumFetch('DELETE', `/rentals/units/${id}/images/${imageId}`, undefined, undefined, orgId);
 
     if (!response.ok) {
       const errorData = response.json ?? {};
@@ -213,11 +210,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     // Require platform admin
     await requireRole('platform_admin');
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
 
     const { id, imageId } = await params;
 
     // Make request to Buildium API for image download
-    const response = await buildiumFetch('POST', `/rentals/units/${id}/images/${imageId}/download`, undefined, undefined, undefined);
+    const response = await buildiumFetch('POST', `/rentals/units/${id}/images/${imageId}/download`, undefined, undefined, orgId);
 
     if (!response.ok) {
       const errorData = response.json ?? {};

@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { config } from 'dotenv'
 import { logger } from '../../utils/logger'
+import { ensureBuildiumEnabledForScript } from '../ensure-enabled'
 
 config()
 
@@ -40,6 +41,7 @@ async function fetchRentScheduleFromBuildium(leaseId: string, rentId: string): P
       headers: {
         'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
         'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
+      'x-buildium-egress-allowed': '1',
         'Content-Type': 'application/json'
       }
     })
@@ -109,6 +111,7 @@ async function createRentScheduleRecord(buildiumRentSchedule: BuildiumRentSchedu
 
 async function main() {
   try {
+    await ensureBuildiumEnabledForScript(process.env.DEFAULT_ORG_ID ?? null)
     logger.info(`Fetching rent schedule ${rentId} for lease ${leaseId} from Buildium...`)
     const buildiumRentSchedule = await fetchRentScheduleFromBuildium(leaseId, rentId)
     

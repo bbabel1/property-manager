@@ -7,6 +7,7 @@
  */
 import { config } from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
+import { ensureBuildiumEnabledForScript } from './ensure-enabled';
 
 config({ path: '.env.local' });
 config();
@@ -129,6 +130,8 @@ async function main() {
     console.error('No transaction IDs provided');
     process.exit(1);
   }
+
+  await ensureBuildiumEnabledForScript(process.env.DEFAULT_ORG_ID ?? null);
 
   const arGlId = await getArGlId();
   if (!arGlId) {

@@ -6,6 +6,7 @@ import { BuildiumBulkBillPaymentCreateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 import { buildiumFetch } from '@/lib/buildium-http';
 import { requireSupabaseAdmin } from '@/lib/supabase-client';
+import { requireBuildiumEnabledOr403 } from '@/lib/buildium-route-guard';
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,6 +21,9 @@ export async function POST(request: NextRequest) {
 
     // Require platform admin
     await requireRole('platform_admin');
+    const orgIdResult = await requireBuildiumEnabledOr403(request);
+    if (orgIdResult instanceof NextResponse) return orgIdResult;
+    const orgId = orgIdResult;
 
     // Parse and validate request body
     const body = await request.json();
@@ -28,7 +32,7 @@ export async function POST(request: NextRequest) {
     const validatedData = sanitizeAndValidate(body, BuildiumBulkBillPaymentCreateSchema);
 
     // Make request to Buildium API
-    const response = await buildiumFetch('POST', '/bills/payments', undefined, validatedData, undefined);
+    const response = await buildiumFetch('POST', '/bills/payments', undefined, validatedData, orgId);
 
     if (!response.ok) {
       const errorData = response.json ?? {};
@@ -66,6 +70,9 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     await requireRole('platform_admin')
+    const orgIdResult = await requireBuildiumEnabledOr403(request);
+    if (orgIdResult instanceof NextResponse) return orgIdResult;
+    const orgId = orgIdResult;
     const supabaseAdmin = requireSupabaseAdmin('fetch Buildium bill payments')
     const rateLimitResult = await checkRateLimit(request)
     if (!rateLimitResult.success) {
@@ -83,6 +90,7 @@ export async function GET(request: NextRequest) {
     const { data, error } = await supabaseAdmin.functions.invoke('buildium-bills', {
       body: {
         op: 'list_payments',
+        orgId,
         query: { limit, offset, billId, vendorId, dateFrom, dateTo }
       }
     })

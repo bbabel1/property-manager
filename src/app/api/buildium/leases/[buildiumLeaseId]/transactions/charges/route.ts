@@ -5,6 +5,7 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumLeaseChargeCreateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 import { buildiumFetch } from '@/lib/buildium-http';
+import { requireBuildiumEnabledOr403 } from '@/lib/buildium-route-guard';
 
 export async function GET(
   request: NextRequest,
@@ -22,6 +23,9 @@ export async function GET(
 
     // Require platform admin
     await requireRole('platform_admin');
+    const orgIdResult = await requireBuildiumEnabledOr403(request);
+    if (orgIdResult instanceof NextResponse) return orgIdResult;
+    const orgId = orgIdResult;
 
     const { buildiumLeaseId } = await params;
 
@@ -42,7 +46,13 @@ export async function GET(
     if (dateTo) queryParams.dateTo = dateTo;
 
     // Make request to Buildium API
-    const response = await buildiumFetch('GET', `/leases/${buildiumLeaseId}/charges`, queryParams, undefined, undefined);
+    const response = await buildiumFetch(
+      'GET',
+      `/leases/${buildiumLeaseId}/charges`,
+      queryParams,
+      undefined,
+      orgId,
+    );
 
     if (!response.ok) {
       const errorData = response.json ?? {};
@@ -94,6 +104,9 @@ export async function POST(
 
     // Require platform admin
     await requireRole('platform_admin');
+    const orgIdResult = await requireBuildiumEnabledOr403(request);
+    if (orgIdResult instanceof NextResponse) return orgIdResult;
+    const orgId = orgIdResult;
 
     const { buildiumLeaseId } = await params;
 
@@ -104,7 +117,13 @@ export async function POST(
     const validatedData = sanitizeAndValidate(body, BuildiumLeaseChargeCreateSchema);
 
     // Make request to Buildium API
-    const response = await buildiumFetch('POST', `/leases/${buildiumLeaseId}/charges`, undefined, validatedData, undefined);
+    const response = await buildiumFetch(
+      'POST',
+      `/leases/${buildiumLeaseId}/charges`,
+      undefined,
+      validatedData,
+      orgId,
+    );
 
     if (!response.ok) {
       const errorData = response.json ?? {};

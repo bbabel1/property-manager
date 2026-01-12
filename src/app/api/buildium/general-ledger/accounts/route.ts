@@ -5,6 +5,7 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumGeneralLedgerAccountCreateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 import { getServerSupabaseClient } from '@/lib/supabase-client';
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard';
 
 export async function GET(request: NextRequest) {
   try {
@@ -19,6 +20,9 @@ export async function GET(request: NextRequest) {
 
     // Require platform admin
     await requireRole('platform_admin');
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
 
     // Get query parameters
     const { searchParams } = new URL(request.url);
@@ -36,7 +40,8 @@ export async function GET(request: NextRequest) {
       body: {
         method: 'GET',
         entityType: 'glAccounts',
-        params: { limit, offset, orderby, type, subType, isActive }
+        params: { limit, offset, orderby, type, subType, isActive },
+        orgId,
       }
     })
     if (error) {
@@ -70,6 +75,9 @@ export async function POST(request: NextRequest) {
 
     // Require platform admin
     await requireRole('platform_admin');
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
 
     // Parse and validate request body
     const body = await request.json();
@@ -83,7 +91,8 @@ export async function POST(request: NextRequest) {
       body: {
         entityType: 'glAccount',
         operation: 'create',
-        entityData: validatedData
+        entityData: validatedData,
+        orgId,
       }
     })
     if (error) {

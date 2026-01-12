@@ -5,6 +5,7 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumGeneralLedgerAccountUpdateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 import { supabase } from '@/lib/db';
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -14,10 +15,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     await requireRole('platform_admin');
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
     const { id } = await params;
 
     const { data, error } = await supabase.functions.invoke('buildium-sync', {
-      body: { method: 'GET', entityType: 'glAccount', entityId: id }
+      body: { method: 'GET', entityType: 'glAccount', entityId: id, orgId }
     })
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     const payload = data?.data || data
@@ -38,12 +42,15 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     await requireRole('platform_admin');
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
     const { id } = await params;
     const body = await request.json();
     const validatedData = sanitizeAndValidate(body, BuildiumGeneralLedgerAccountUpdateSchema);
 
     const { data, error } = await supabase.functions.invoke('buildium-sync', {
-      body: { entityType: 'glAccount', operation: 'update', entityData: { Id: Number(id), ...validatedData } }
+      body: { entityType: 'glAccount', operation: 'update', entityData: { Id: Number(id), ...validatedData }, orgId }
     })
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     const payload = data?.data || data

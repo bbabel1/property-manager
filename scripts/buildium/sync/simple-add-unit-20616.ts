@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { config } from 'dotenv'
+import { ensureBuildiumEnabledForScript } from '../ensure-enabled'
 
 config({ path: '.env.local' })
 
@@ -10,6 +11,7 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
 async function addUnit20616() {
   try {
+    await ensureBuildiumEnabledForScript(process.env.DEFAULT_ORG_ID ?? null)
     console.log('🔍 Adding unit 20616 to property 7647...')
     
     // Get the property ID for Buildium property 7647

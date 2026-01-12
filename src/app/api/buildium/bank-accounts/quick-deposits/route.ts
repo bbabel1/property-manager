@@ -3,6 +3,7 @@ import { requireRole } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
 import { buildiumFetch } from '@/lib/buildium-http'
 import { canonicalUpsertBuildiumBankTransaction } from '@/lib/buildium/canonical-upsert'
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard'
 
 type QuickDepositResponse = Record<string, unknown>
 
@@ -15,14 +16,17 @@ const coerceNumericId = (value: unknown) => {
   return null
 }
 
-export async function GET(_request: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
     // Authentication
     const { user } = await requireRole('platform_admin')
+    const guard = await getBuildiumOrgIdOr403(request)
+    if ('response' in guard) return guard.response
+    const { orgId } = guard
     logger.info({ userId: user.id, action: 'get_buildium_quick_deposits' }, 'Fetching Buildium quick deposits');
 
     // Buildium API call
-    const response = await buildiumFetch('GET', '/bankaccounts/quickdeposits', undefined, undefined, undefined);
+    const response = await buildiumFetch('GET', '/bankaccounts/quickdeposits', undefined, undefined, orgId);
 
     if (!response.ok) {
       throw new Error(`Buildium API error: ${response.status} ${response.statusText}`);
@@ -49,13 +53,16 @@ export async function POST(request: NextRequest) {
   try {
     // Authentication
     const { user } = await requireRole('platform_admin');
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
     logger.info({ userId: user.id, action: 'create_buildium_quick_deposit' }, 'Creating Buildium quick deposit');
 
     // Parse request body
     const body = await request.json();
 
     // Buildium API call
-    const response = await buildiumFetch('POST', '/bankaccounts/quickdeposits', undefined, body, undefined);
+    const response = await buildiumFetch('POST', '/bankaccounts/quickdeposits', undefined, body, orgId);
 
     if (!response.ok) {
       throw new Error(`Buildium API error: ${response.status} ${response.statusText}`);

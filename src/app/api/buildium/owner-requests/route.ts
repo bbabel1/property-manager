@@ -7,16 +7,21 @@ import { sanitizeAndValidate } from '@/lib/sanitize'
 import { requireSupabaseAdmin } from '@/lib/supabase-client'
 import { mapTaskFromBuildiumWithRelations } from '@/lib/buildium-mappers'
 import { buildiumFetch } from '@/lib/buildium-http'
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard'
 
 export async function GET(request: NextRequest) {
   try {
-    const supabaseAdmin = requireSupabaseAdmin('owner requests sync')
     const rateLimitResult = await checkRateLimit(request)
     if (!rateLimitResult.success) {
       return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
     }
 
     await requireRole('platform_admin')
+    const guard = await getBuildiumOrgIdOr403(request)
+    if ('response' in guard) return guard.response
+    const { orgId } = guard
+
+    const supabaseAdmin = requireSupabaseAdmin('owner requests sync')
 
     const { searchParams } = new URL(request.url)
     const limit = searchParams.get('limit') || '50'
@@ -40,7 +45,7 @@ export async function GET(request: NextRequest) {
     if (dateFrom) params.dateFrom = dateFrom
     if (dateTo) params.dateTo = dateTo
 
-    const response = await buildiumFetch('GET', '/rentals/ownerrequests', params, undefined, undefined)
+    const response = await buildiumFetch('GET', '/rentals/ownerrequests', params, undefined, orgId)
 
     if (!response.ok) {
       const errorData = response.json ?? {}
@@ -110,18 +115,22 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const supabaseAdmin = requireSupabaseAdmin('owner requests sync')
     const rateLimitResult = await checkRateLimit(request)
     if (!rateLimitResult.success) {
       return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
     }
 
     await requireRole('platform_admin')
+    const guard = await getBuildiumOrgIdOr403(request)
+    if ('response' in guard) return guard.response
+    const { orgId } = guard
+
+    const supabaseAdmin = requireSupabaseAdmin('owner requests sync')
 
     const body = await request.json()
     const validatedData = sanitizeAndValidate(body, BuildiumOwnerRequestCreateSchema)
 
-    const response = await buildiumFetch('POST', '/rentals/ownerrequests', undefined, validatedData, undefined)
+    const response = await buildiumFetch('POST', '/rentals/ownerrequests', undefined, validatedData, orgId)
 
     if (!response.ok) {
       const errorData = response.json ?? {}

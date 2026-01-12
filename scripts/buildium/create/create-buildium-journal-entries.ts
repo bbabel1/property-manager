@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { config } from 'dotenv'
 import { resolveGLAccountId } from '@/lib/buildium-mappers'
+import { ensureBuildiumEnabledForScript } from '../ensure-enabled'
 
 config()
 
@@ -50,6 +51,7 @@ async function fetchFullTransactionFromBuildium(transactionId: string) {
       'Accept': 'application/json',
       'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
       'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
+      'x-buildium-egress-allowed': '1',
     },
   })
 
@@ -62,6 +64,7 @@ async function fetchFullTransactionFromBuildium(transactionId: string) {
 }
 
 async function main() {
+  await ensureBuildiumEnabledForScript(process.env.DEFAULT_ORG_ID ?? null)
   console.log('🔄 Creating transaction lines from Buildium transactions...')
 
   try {

@@ -2,15 +2,19 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
 import { buildiumFetch } from '@/lib/buildium-http'
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard'
 
-export async function GET(_request: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
     // Authentication
     const { user } = await requireRole('platform_admin')
     logger.info({ userId: user.id, action: 'get_buildium_transactions' }, 'Fetching Buildium transactions');
+    const guard = await getBuildiumOrgIdOr403(request)
+    if ('response' in guard) return guard.response
+    const { orgId } = guard
 
     // Buildium API call
-    const response = await buildiumFetch('GET', '/bankaccounts/transactions', undefined, undefined, undefined);
+    const response = await buildiumFetch('GET', '/bankaccounts/transactions', undefined, undefined, orgId);
 
     if (!response.ok) {
       throw new Error(`Buildium API error: ${response.status} ${response.statusText}`);

@@ -7,6 +7,7 @@ import { getServerSupabaseClient } from '@/lib/supabase-client';
 import { mapGLAccountFromBuildiumWithSubAccounts } from '@/lib/buildium-mappers';
 import type { BuildiumGLAccountExtended } from '@/types/buildium';
 import type { Database } from '@/types/database';
+import { requireBuildiumEnabledOr403 } from '@/lib/buildium-route-guard';
 
 const isBuildiumGLAccountExtended = (value: unknown): value is BuildiumGLAccountExtended => {
   if (!value || typeof value !== 'object') return false;
@@ -21,7 +22,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
     }
 
-    await requireRole('platform_admin');
+    const { user } = await requireRole('platform_admin');
+
+    const orgIdResult = await requireBuildiumEnabledOr403(request);
+    if (orgIdResult instanceof NextResponse) return orgIdResult;
+    const orgId = orgIdResult;
 
     const body = await request.json().catch(() => ({}));
     const { type, subType, isActive, limit = 100, offset = 0 } = body || {};
@@ -33,7 +38,7 @@ export async function POST(request: NextRequest) {
     queryParams.limit = String(limit);
     queryParams.offset = String(offset);
 
-    const response = await buildiumFetch('GET', '/glaccounts', queryParams, undefined, undefined);
+    const response = await buildiumFetch('GET', '/glaccounts', queryParams, undefined, orgId);
 
     if (!response.ok) {
       const errorData = response.json ?? {};

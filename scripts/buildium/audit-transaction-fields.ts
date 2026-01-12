@@ -12,6 +12,7 @@
 import { config } from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
+import { ensureBuildiumEnabledForScript } from './ensure-enabled';
 
 config({ path: '.env.local' });
 config();
@@ -63,6 +64,7 @@ async function main() {
     console.error('No transaction IDs provided.');
     process.exit(1);
   }
+  await ensureBuildiumEnabledForScript(process.env.DEFAULT_ORG_ID ?? null);
 
   const { data: txRowsRaw, error: txErr } = await supabase
     .from('transactions')
@@ -170,5 +172,4 @@ main().catch((err) => {
   console.error('Fatal:', (err as any)?.message || err);
   process.exit(1);
 });
-
 

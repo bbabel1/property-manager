@@ -6,6 +6,7 @@ import { BuildiumCheckCreateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 import { buildiumFetch } from '@/lib/buildium-http';
 import { canonicalUpsertBuildiumBankTransaction } from '@/lib/buildium/canonical-upsert';
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard';
 
 type BuildiumCheckResponse = {
   BankAccountId?: number | string;
@@ -20,14 +21,17 @@ const BuildiumCheckCreateRequestSchema = BuildiumCheckCreateSchema.extend({
   bankAccountId: z.number().int().positive('Bank account ID must be a positive integer'),
 });
 
-export async function GET(_request: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
     // Authentication
     const { user } = await requireRole('platform_admin');
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
     logger.info({ userId: user.id, action: 'get_buildium_checks' }, 'Fetching Buildium checks');
 
     // Buildium API call
-    const response = await buildiumFetch('GET', '/bankaccounts/checks', undefined, undefined, undefined);
+    const response = await buildiumFetch('GET', '/bankaccounts/checks', undefined, undefined, orgId);
 
     if (!response.ok) {
       throw new Error(`Buildium API error: ${response.status} ${response.statusText}`);
@@ -54,6 +58,9 @@ export async function POST(request: NextRequest) {
   try {
     // Authentication
     const { user } = await requireRole('platform_admin');
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
     logger.info({ userId: user.id, action: 'create_buildium_check' }, 'Creating Buildium check');
 
     // Parse and validate request body
@@ -62,7 +69,7 @@ export async function POST(request: NextRequest) {
     const { bankAccountId: requestedBankAccountId, ...buildiumPayload } = data;
 
     // Buildium API call
-    const response = await buildiumFetch('POST', `/bankaccounts/${requestedBankAccountId}/checks`, undefined, buildiumPayload, undefined);
+    const response = await buildiumFetch('POST', `/bankaccounts/${requestedBankAccountId}/checks`, undefined, buildiumPayload, orgId);
 
     if (!response.ok) {
       throw new Error(`Buildium API error: ${response.status} ${response.statusText}`);

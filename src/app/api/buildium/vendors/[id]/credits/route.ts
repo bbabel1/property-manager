@@ -5,6 +5,7 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumVendorCreditCreateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 import { buildiumFetch } from '@/lib/buildium-http';
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard';
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -28,8 +29,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // Validate request body against schema
     const validatedData = sanitizeAndValidate(body, BuildiumVendorCreditCreateSchema);
 
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
+
     // Make request to Buildium API
-    const response = await buildiumFetch('POST', `/vendors/${id}/credits`, undefined, validatedData, undefined);
+    const response = await buildiumFetch('POST', `/vendors/${id}/credits`, undefined, validatedData, orgId);
 
     if (!response.ok) {
       const errorData = response.json ?? {};

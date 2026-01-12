@@ -1,6 +1,8 @@
 import { createClient } from '@supabase/supabase-js'
 import { mapPropertyFromBuildiumWithBankAccount } from '@/lib/buildium-mappers'
 import * as dotenv from 'dotenv'
+import { buildiumFetch } from '@/lib/buildium-http'
+import { ensureBuildiumEnabledForScript } from '../ensure-enabled'
 
 // Load environment variables
 dotenv.config({ path: '.env.local' })
@@ -12,42 +14,25 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
 
 
-async function fetchBuildiumProperty(propertyId: number) {
-  const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/rentals/${propertyId}`
-  
-  try {
-    const response = await fetch(buildiumUrl, {
-      method: 'GET',
-      headers: {
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      }
-    })
+async function fetchBuildiumProperty(orgId: string, propertyId: number) {
+  const res = await buildiumFetch('GET', `/rentals/${propertyId}`, undefined, undefined, orgId)
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error(`Buildium API error: ${response.status} ${response.statusText}`)
-      console.error('Error response:', errorText)
-      throw new Error(`Buildium API error: ${response.status} ${response.statusText} - ${errorText}`)
-    }
-
-    const data = await response.json()
-    console.log('Property data from Buildium:', JSON.stringify(data, null, 2))
-    return data
-  } catch (error) {
-    console.error('Error fetching property from Buildium:', error)
-    throw error
+  if (!res.ok || !res.json) {
+    const errorText = res.errorText || res.statusText
+    throw new Error(`Buildium API error: ${res.status} ${errorText}`)
   }
+
+  console.log('Property data from Buildium:', JSON.stringify(res.json, null, 2))
+  return res.json as Record<string, unknown>
 }
 
 async function fetchAndAddBuildiumProperty(propertyId: number) {
   try {
+    const { orgId } = await ensureBuildiumEnabledForScript()
     console.log(`🔍 Fetching Buildium property ${propertyId}...`)
 
     // Fetch property from Buildium
-    const buildiumProperty = await fetchBuildiumProperty(propertyId)
+    const buildiumProperty = await fetchBuildiumProperty(orgId, propertyId)
     console.log('✅ Successfully fetched property from Buildium:', buildiumProperty.Name)
 
     // Check if property already exists in database

@@ -140,6 +140,22 @@ vi.mock('@/lib/buildium-edge-client', () => ({
   }),
 }));
 
+vi.mock('@/lib/buildium-route-guard', () => ({
+  getBuildiumOrgIdOr403: vi.fn().mockResolvedValue({ orgId: 'org-1' }),
+}));
+
+const BuildiumDisabledError = class extends Error {};
+const assertBuildiumEnabledMock = vi.fn().mockResolvedValue(undefined);
+vi.mock('@/lib/buildium-gate', () => ({
+  assertBuildiumEnabled: assertBuildiumEnabledMock,
+  BuildiumDisabledError,
+}));
+
+vi.mock('@/lib/buildium-gate', () => ({
+  assertBuildiumEnabled: vi.fn().mockResolvedValue(undefined),
+  BuildiumDisabledError: class extends Error {},
+}));
+
 vi.mock('@/lib/sanitize', () => ({
   sanitizeAndValidate: (_body: unknown, _schema: unknown) => _body,
 }));

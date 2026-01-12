@@ -1139,8 +1139,8 @@ export async function POST(request: NextRequest) {
     docs = docs ?? [];
     const safeLeaseId = leaseIdNumber;
 
-    const orgId: string | null = lease?.org_id ?? resolvedOrgId ?? null;
-    if (!orgId) {
+    const leaseOrgId: string | null = lease?.org_id ?? resolvedOrgId ?? null;
+    if (!leaseOrgId) {
       return NextResponse.json(
         { error: 'Organization is required to seed lease accounting' },
         { status: 422 },
@@ -1156,7 +1156,7 @@ export async function POST(request: NextRequest) {
 
     let gl: Awaited<ReturnType<typeof getOrgGlSettingsOrThrow>>;
     try {
-      gl = await getOrgGlSettingsOrThrow(orgId);
+      gl = await getOrgGlSettingsOrThrow(leaseOrgId);
     } catch (glErr) {
       const message = glErr instanceof Error ? glErr.message : String(glErr);
       return NextResponse.json(

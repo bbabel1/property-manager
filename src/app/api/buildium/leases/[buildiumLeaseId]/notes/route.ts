@@ -5,8 +5,8 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumLeaseNoteCreateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 import { getOrgScopedBuildiumEdgeClient } from '@/lib/buildium-edge-client';
-import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
 import { buildiumFetch } from '@/lib/buildium-http';
+import { requireBuildiumEnabledOr403 } from '@/lib/buildium-route-guard';
 
 export async function GET(
   request: NextRequest,
@@ -23,15 +23,10 @@ export async function GET(
     }
 
     // Require platform admin
-    const { user } = await requireRole('platform_admin');
-
-    // Resolve orgId from request context
-    let orgId: string | undefined;
-    try {
-      orgId = await resolveOrgIdFromRequest(request, user.id);
-    } catch (error) {
-      logger.warn({ userId: user.id, error }, 'Could not resolve orgId, falling back to env vars');
-    }
+    await requireRole('platform_admin');
+    const orgIdResult = await requireBuildiumEnabledOr403(request);
+    if (orgIdResult instanceof NextResponse) return orgIdResult;
+    const orgId = orgIdResult;
 
     const { buildiumLeaseId } = await params;
 
@@ -48,9 +43,14 @@ export async function GET(
     if (orderby) queryParams.append('orderby', orderby);
 
     const edgeClient = await getOrgScopedBuildiumEdgeClient(orgId);
-    const res = await edgeClient.listLeaseNotes(Number(buildiumLeaseId), { limit: Number(limit), offset: Number(offset), orderby: orderby || undefined })
-    if (!res.success) return NextResponse.json({ error: res.error || 'Failed to fetch lease notes from Buildium' }, { status: 502 })
-    const notes = res.data || []
+    const res = await edgeClient.listLeaseNotes(Number(buildiumLeaseId), {
+      limit: Number(limit),
+      offset: Number(offset),
+      orderby: orderby || undefined,
+    });
+    if (!res.success)
+      return NextResponse.json({ error: res.error || 'Failed to fetch lease notes from Buildium' }, { status: 502 });
+    const notes = res.data || [];
 
     logger.info(`Buildium lease notes fetched successfully`);
 
@@ -87,6 +87,9 @@ export async function POST(
 
     // Require platform admin
     await requireRole('platform_admin');
+    const orgIdResult = await requireBuildiumEnabledOr403(request);
+    if (orgIdResult instanceof NextResponse) return orgIdResult;
+    const orgId = orgIdResult;
 
     const { buildiumLeaseId } = await params;
 
@@ -97,7 +100,13 @@ export async function POST(
     const validatedData = sanitizeAndValidate(body, BuildiumLeaseNoteCreateSchema);
 
     // Make request to Buildium API
-    const response = await buildiumFetch('POST', `/leases/${buildiumLeaseId}/notes`, undefined, validatedData, undefined);
+    const response = await buildiumFetch(
+      'POST',
+      `/leases/${buildiumLeaseId}/notes`,
+      undefined,
+      validatedData,
+      orgId,
+    );
 
     if (!response.ok) {
       const errorData: unknown = response.json ?? {};

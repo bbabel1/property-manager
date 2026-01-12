@@ -3,6 +3,7 @@ import { findOrCreateContact, findOrCreateTenant } from '@/lib/buildium-mappers'
 import { rateLimitedBuildiumRequest } from '@/lib/buildium-rate-limiter'
 import type { BuildiumTenant } from '@/types/buildium'
 import * as dotenv from 'dotenv'
+import { ensureBuildiumEnabledForScript } from '../ensure-enabled'
 
 // Load environment variables
 dotenv.config({ path: '.env.local' })
@@ -25,6 +26,7 @@ async function fetchTenantFromBuildium(tenantId: number): Promise<BuildiumTenant
         'Accept': 'application/json',
         'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
         'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
+      'x-buildium-egress-allowed': '1',
       },
     })
 
@@ -133,6 +135,7 @@ async function createLeaseContactRelationship(tenantId: string, supabase: any): 
 
 async function fetchAndAddBuildiumTenant(tenantId: number) {
   try {
+    await ensureBuildiumEnabledForScript(process.env.DEFAULT_ORG_ID ?? null)
     console.log(`🔍 Fetching Buildium tenant ${tenantId}...`)
     
     let buildiumTenant: BuildiumTenant

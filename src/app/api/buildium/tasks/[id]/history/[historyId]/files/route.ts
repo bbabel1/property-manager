@@ -5,6 +5,7 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumTaskHistoryFileUploadSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 import { buildiumFetch } from '@/lib/buildium-http';
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string; historyId: string }> }) {
   try {
@@ -34,8 +35,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (offset) queryParams.offset = offset;
     if (orderby) queryParams.orderby = orderby;
 
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
+
     // Make request to Buildium API
-    const response = await buildiumFetch('GET', `/tasks/${id}/history/${historyId}/files`, queryParams, undefined, undefined);
+    const response = await buildiumFetch('GET', `/tasks/${id}/history/${historyId}/files`, queryParams, undefined, orgId);
 
     if (!response.ok) {
       const errorData = response.json ?? {};
@@ -93,8 +98,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // Validate request body against schema
     const validatedData = sanitizeAndValidate(body, BuildiumTaskHistoryFileUploadSchema);
 
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
+
     // Make request to Buildium API
-    const response = await buildiumFetch('POST', `/tasks/${id}/history/${historyId}/files`, undefined, validatedData, undefined);
+    const response = await buildiumFetch('POST', `/tasks/${id}/history/${historyId}/files`, undefined, validatedData, orgId);
 
     if (!response.ok) {
       const errorData = response.json ?? {};

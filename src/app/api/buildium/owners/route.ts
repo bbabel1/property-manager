@@ -6,6 +6,7 @@ import { BuildiumOwnerCreateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 import { buildiumFetch } from '@/lib/buildium-http';
 import type { BuildiumOwner } from '@/types/buildium';
+import { requireBuildiumEnabledOr403 } from '@/lib/buildium-route-guard';
 
 export async function GET(request: NextRequest) {
   try {
@@ -19,7 +20,10 @@ export async function GET(request: NextRequest) {
     }
 
     // Require platform admin
-    await requireRole('platform_admin');
+    const { user } = await requireRole('platform_admin');
+    const orgIdResult = await requireBuildiumEnabledOr403(request);
+    if (orgIdResult instanceof NextResponse) return orgIdResult;
+    const orgId = orgIdResult;
 
     // Get query parameters
     const { searchParams } = new URL(request.url);
@@ -41,7 +45,7 @@ export async function GET(request: NextRequest) {
     if (lastupdatedto) params.lastupdatedto = lastupdatedto;
 
     // Make request to Buildium API
-    const response = await buildiumFetch('GET', '/rentals/owners', params, undefined, undefined);
+    const response = await buildiumFetch('GET', '/rentals/owners', params, undefined, orgId);
 
     if (!response.ok) {
       const errorData: unknown = response.json ?? {};
@@ -109,7 +113,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Require platform admin
-    await requireRole('platform_admin');
+    const { user } = await requireRole('platform_admin');
+    const orgIdResult = await requireBuildiumEnabledOr403(request);
+    if (orgIdResult instanceof NextResponse) return orgIdResult;
+    const orgId = orgIdResult;
 
     // Parse and validate request body
     const body: unknown = await request.json().catch(() => ({}));
@@ -118,7 +125,7 @@ export async function POST(request: NextRequest) {
     const validatedData = sanitizeAndValidate(body, BuildiumOwnerCreateSchema);
 
     // Make request to Buildium API
-    const response = await buildiumFetch('POST', '/rentals/owners', undefined, validatedData, undefined);
+    const response = await buildiumFetch('POST', '/rentals/owners', undefined, validatedData, orgId);
 
     if (!response.ok) {
       const errorData: unknown = response.json ?? {};

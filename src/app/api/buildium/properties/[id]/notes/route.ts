@@ -6,6 +6,7 @@ import { BuildiumPropertyNoteCreateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 import { supabaseAdmin } from '@/lib/db';
 import { resolveResourceOrg, requireOrgMember, requireOrgAdmin } from '@/lib/auth/org-guards';
+import { assertBuildiumEnabled, BuildiumDisabledError } from '@/lib/buildium-gate';
 
 const TABLE = 'property_notes'
 
@@ -50,6 +51,24 @@ async function resolveLocalPropertyId(propertyRef: string) {
   return null
 }
 
+async function guardBuildiumEnabled(
+  request: NextRequest,
+  orgId: string,
+): Promise<NextResponse | null> {
+  try {
+    await assertBuildiumEnabled(orgId, request.url);
+    return null;
+  } catch (error) {
+    if (error instanceof BuildiumDisabledError) {
+      return NextResponse.json(
+        { error: { code: 'BUILDIUM_DISABLED', message: error.message } },
+        { status: 403 },
+      );
+    }
+    throw error;
+  }
+}
+
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Check rate limiting
@@ -77,6 +96,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Property org not found' }, { status: 404 })
     }
     await requireOrgMember({ client: auth.supabase, userId: auth.user.id, orgId: resolvedOrg.orgId })
+    const guardResponse = await guardBuildiumEnabled(request, resolvedOrg.orgId)
+    if (guardResponse) return guardResponse
 
     const { searchParams } = new URL(request.url)
     const limitRaw = Number(searchParams.get('limit') ?? '50')
@@ -150,6 +171,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'Property org not found' }, { status: 404 })
     }
     await requireOrgAdmin({ client: auth.supabase, userId: auth.user.id, orgId: resolvedOrg.orgId })
+    const guardResponse = await guardBuildiumEnabled(request, resolvedOrg.orgId)
+    if (guardResponse) return guardResponse
 
     // Parse and validate request body
     const body = await request.json();

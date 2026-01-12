@@ -3,8 +3,8 @@ import { requireAuth } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
 import { checkRateLimit } from '@/lib/rate-limit'
 import UnitService from '@/lib/unit-service'
-import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id'
 import { requireOrgMember } from '@/lib/auth/org-guards'
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard'
 
 // POST /api/units/sync/from-buildium
 // Body: { propertyIds?: number[]|string, lastUpdatedFrom?, lastUpdatedTo?, orderby?, limit?, offset? }
@@ -13,8 +13,11 @@ export async function POST(request: NextRequest) {
     const rate = await checkRateLimit(request)
     if (!rate.success) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
 
+    const guardResult = await getBuildiumOrgIdOr403(request)
+    if ('response' in guardResult) return guardResult.response
+    const { orgId } = guardResult
+
     const { supabase: db, user } = await requireAuth()
-    const orgId = await resolveOrgIdFromRequest(request, user.id, db)
     await requireOrgMember({ client: db, userId: user.id, orgId })
 
     const body = (await request.json().catch(() => ({}))) as Record<string, any>

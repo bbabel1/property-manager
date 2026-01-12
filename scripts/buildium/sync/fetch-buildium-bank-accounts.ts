@@ -1,34 +1,24 @@
 import { config } from 'dotenv'
 config({ path: '.env.local' })
 
+import { buildiumFetch } from '@/lib/buildium-http'
+import { ensureBuildiumEnabledForScript } from '../ensure-enabled'
+
 async function fetchBuildiumBankAccounts() {
-  try {
-    console.log('🔍 Fetching all Buildium bank accounts...')
-    
-    // Use the v1 bankaccounts endpoint (previous /banking/accounts path returns 404)
-    const response = await fetch(`${process.env.BUILDIUM_BASE_URL}/bankaccounts`, {
-      method: 'GET',
-      headers: {
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      }
-    })
+  const { orgId } = await ensureBuildiumEnabledForScript()
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
-    }
+  console.log('🔍 Fetching all Buildium bank accounts...')
+  const response = await buildiumFetch('GET', '/bankaccounts', undefined, undefined, orgId)
 
-    const bankAccounts = await response.json()
-    console.log('✅ Bank accounts fetched successfully:')
-    console.log(JSON.stringify(bankAccounts, null, 2))
-    
-    return bankAccounts
-  } catch (error) {
-    console.error('❌ Error fetching bank accounts:', error)
-    throw error
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status} ${response.errorText || ''}`)
   }
+
+  const bankAccounts = response.json
+  console.log('✅ Bank accounts fetched successfully:')
+  console.log(JSON.stringify(bankAccounts, null, 2))
+    
+  return bankAccounts
 }
 
 // Run the function

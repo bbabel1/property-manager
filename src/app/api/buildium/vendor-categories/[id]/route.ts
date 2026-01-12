@@ -5,6 +5,7 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumVendorCategoryUpdateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 import { buildiumFetch } from '@/lib/buildium-http';
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -23,7 +24,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const { id } = await params;
 
     // Make request to Buildium API
-    const response = await buildiumFetch('GET', `/vendorcategories/${id}`, undefined, undefined, undefined);
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
+
+    const response = await buildiumFetch('GET', `/vendorcategories/${id}`, undefined, undefined, orgId);
 
     if (!response.ok) {
       const errorData = response.json ?? {};
@@ -81,7 +86,11 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const validatedData = sanitizeAndValidate(body, BuildiumVendorCategoryUpdateSchema);
 
     // Make request to Buildium API
-    const response = await buildiumFetch('PUT', `/vendorcategories/${id}`, undefined, validatedData, undefined);
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
+
+    const response = await buildiumFetch('PUT', `/vendorcategories/${id}`, undefined, validatedData, orgId);
 
     if (!response.ok) {
       const errorData = response.json ?? {};

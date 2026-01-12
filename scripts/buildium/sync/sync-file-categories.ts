@@ -8,6 +8,7 @@
 import { config } from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
 import type { BuildiumFileCategory } from '@/types/buildium';
+import { ensureBuildiumEnabledForScript } from '../ensure-enabled';
 
 config({ path: '.env.local' });
 
@@ -37,6 +38,7 @@ async function fetchFileCategoriesFromBuildium(): Promise<BuildiumFileCategory[]
         headers: {
           'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
           'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
+      'x-buildium-egress-allowed': '1',
           Accept: 'application/json',
         },
       });
@@ -139,6 +141,8 @@ async function main() {
     console.error('Usage: npx tsx scripts/buildium/sync/sync-file-categories.ts <orgId>');
     process.exit(1);
   }
+
+  await ensureBuildiumEnabledForScript(orgId);
 
   try {
     console.log('Starting Buildium file categories sync process');

@@ -6,8 +6,8 @@ import { BuildiumUnitImageUploadSchema, BuildiumUnitImageOrderUpdateSchema } fro
 import { sanitizeAndValidate } from '@/lib/sanitize';
 import { buildiumFetch } from '@/lib/buildium-http';
 import UnitService from '@/lib/unit-service';
-import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
 import type { BuildiumUnitImage } from '@/types/buildium';
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard';
 
 export async function GET(
   request: NextRequest,
@@ -24,12 +24,15 @@ export async function GET(
     }
 
     // Require platform admin
-    const { supabase, user } = await requireRole('platform_admin');
+    await requireRole('platform_admin');
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
 
     const { id } = await params;
 
     // Make request to Buildium API
-    const response = await buildiumFetch('GET', `/rentals/units/${id}/images`, undefined, undefined, undefined);
+    const response = await buildiumFetch('GET', `/rentals/units/${id}/images`, undefined, undefined, orgId);
 
     if (!response.ok) {
       const errorData = response.json ?? {};
@@ -50,12 +53,6 @@ export async function GET(
     const { searchParams } = new URL(request.url);
     const persist = ['1','true','yes'].includes((searchParams.get('persist')||'').toLowerCase());
     if (persist) {
-      let orgId: string | null = null;
-      try {
-        orgId = await resolveOrgIdFromRequest(request, user.id, supabase);
-      } catch {
-        return NextResponse.json({ error: 'Organization context required for persist' }, { status: 400 });
-      }
       try { await UnitService.persistImages(Number(id), images, orgId) } catch {}
     }
 
@@ -93,7 +90,10 @@ export async function POST(
     }
 
     // Require platform admin
-    const { supabase, user } = await requireRole('platform_admin');
+    await requireRole('platform_admin');
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId: guardOrgId } = guard;
 
     const { id } = await params;
 
@@ -104,7 +104,7 @@ export async function POST(
     const validatedData = sanitizeAndValidate(body, BuildiumUnitImageUploadSchema) as any;
 
     // Make request to Buildium API
-    const response = await buildiumFetch('POST', `/rentals/units/${id}/images`, undefined, validatedData, undefined);
+    const response = await buildiumFetch('POST', `/rentals/units/${id}/images`, undefined, validatedData, guardOrgId);
 
     if (!response.ok) {
       const errorData = response.json ?? {};
@@ -122,12 +122,7 @@ export async function POST(
     const rawImage = (response.json ?? null) as any;
     const imagePayload = rawImage && typeof rawImage === 'object' && 'data' in rawImage ? (rawImage as any).data : rawImage;
     const image = (imagePayload as BuildiumUnitImage | null | undefined) ?? null;
-    let orgId: string | null = null;
-    try {
-      orgId = await resolveOrgIdFromRequest(request, user.id, supabase);
-    } catch {
-      return NextResponse.json({ error: 'Organization context required for persist' }, { status: 400 });
-    }
+    const orgId = guardOrgId;
     if (image) {
       try { await UnitService.persistImages(Number(id), [image], orgId) } catch {}
     }
@@ -165,7 +160,10 @@ export async function PUT(
     }
 
     // Require platform admin
-    const { supabase, user } = await requireRole('platform_admin');
+    await requireRole('platform_admin');
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId: guardOrgId } = guard;
 
     const { id } = await params;
 
@@ -176,7 +174,7 @@ export async function PUT(
     const validatedData = sanitizeAndValidate(body, BuildiumUnitImageOrderUpdateSchema);
 
     // Make request to Buildium API
-    const response = await buildiumFetch('PUT', `/rentals/units/${id}/images/order`, undefined, validatedData, undefined);
+    const response = await buildiumFetch('PUT', `/rentals/units/${id}/images/order`, undefined, validatedData, guardOrgId);
 
     if (!response.ok) {
       const errorData = response.json ?? {};
@@ -194,12 +192,7 @@ export async function PUT(
     const rawImages = (response.json ?? null) as any;
     const imagesPayload = Array.isArray(rawImages?.data) ? rawImages.data : rawImages;
     const images: BuildiumUnitImage[] = Array.isArray(imagesPayload) ? imagesPayload : [];
-    let orgId: string | null = null;
-    try {
-      orgId = await resolveOrgIdFromRequest(request, user.id, supabase);
-    } catch {
-      return NextResponse.json({ error: 'Organization context required for persist' }, { status: 400 });
-    }
+    const orgId = guardOrgId;
     try { await UnitService.persistImages(Number(id), images, orgId) } catch {}
 
     logger.info(`Buildium unit image order updated successfully`);

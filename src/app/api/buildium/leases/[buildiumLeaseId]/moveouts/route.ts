@@ -5,6 +5,7 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumLeaseMoveOutCreateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 import { buildiumFetch } from '@/lib/buildium-http';
+import { requireBuildiumEnabledOr403 } from '@/lib/buildium-route-guard';
 
 export async function GET(
   request: NextRequest,
@@ -22,6 +23,9 @@ export async function GET(
 
     // Require platform admin
     await requireRole('platform_admin');
+    const orgIdResult = await requireBuildiumEnabledOr403(request);
+    if (orgIdResult instanceof NextResponse) return orgIdResult;
+    const orgId = orgIdResult;
 
     const { buildiumLeaseId } = await params;
 
@@ -38,7 +42,13 @@ export async function GET(
     if (orderby) queryParams.orderby = orderby;
 
     // Make request to Buildium API
-    const response = await buildiumFetch('GET', `/leases/${buildiumLeaseId}/moveouts`, queryParams, undefined, undefined);
+    const response = await buildiumFetch(
+      'GET',
+      `/leases/${buildiumLeaseId}/moveouts`,
+      queryParams,
+      undefined,
+      orgId,
+    );
 
     if (!response.ok) {
       const errorData = response.json ?? {};
@@ -90,6 +100,9 @@ export async function POST(
 
     // Require platform admin
     await requireRole('platform_admin');
+    const orgIdResult = await requireBuildiumEnabledOr403(request);
+    if (orgIdResult instanceof NextResponse) return orgIdResult;
+    const orgId = orgIdResult;
 
     const { buildiumLeaseId } = await params;
 
@@ -100,7 +113,13 @@ export async function POST(
     const validatedData = sanitizeAndValidate(body, BuildiumLeaseMoveOutCreateSchema);
 
     // Make request to Buildium API
-    const response = await buildiumFetch('POST', `/leases/${buildiumLeaseId}/moveouts`, undefined, validatedData, undefined);
+    const response = await buildiumFetch(
+      'POST',
+      `/leases/${buildiumLeaseId}/moveouts`,
+      undefined,
+      validatedData,
+      orgId,
+    );
 
     if (!response.ok) {
       const errorData = response.json ?? {};

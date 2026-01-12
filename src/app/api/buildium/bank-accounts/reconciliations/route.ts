@@ -3,6 +3,7 @@ import { requireRole } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
 import { buildiumFetch } from '@/lib/buildium-http'
 import { supabaseAdmin } from '@/lib/db'
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard'
 
 type ReconciliationResponse = Record<string, unknown>
 
@@ -15,14 +16,17 @@ const coerceNumericId = (value: unknown) => {
   return null
 }
 
-export async function GET(_request: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
     // Authentication
     await requireRole('platform_admin')
+    const guard = await getBuildiumOrgIdOr403(request)
+    if ('response' in guard) return guard.response
+    const { orgId } = guard
     logger.info({ action: 'get_buildium_reconciliations' }, 'Fetching Buildium reconciliations');
 
     // Buildium API call
-    const response = await buildiumFetch('GET', '/bankaccounts/reconciliations', undefined, undefined, undefined);
+    const response = await buildiumFetch('GET', '/bankaccounts/reconciliations', undefined, undefined, orgId);
 
     if (!response.ok) {
       throw new Error(`Buildium API error: ${response.status} ${response.statusText}`);
@@ -49,13 +53,16 @@ export async function POST(request: NextRequest) {
   try {
     // Authentication
     await requireRole('platform_admin')
+    const guard = await getBuildiumOrgIdOr403(request)
+    if ('response' in guard) return guard.response
+    const { orgId } = guard
     logger.info({ action: 'create_buildium_reconciliation' }, 'Creating Buildium reconciliation');
 
     // Parse request body
     const body = (await request.json()) as Record<string, unknown>;
 
     // Buildium API call
-    const response = await buildiumFetch('POST', '/bankaccounts/reconciliations', undefined, body, undefined);
+    const response = await buildiumFetch('POST', '/bankaccounts/reconciliations', undefined, body, orgId);
 
     if (!response.ok) {
       throw new Error(`Buildium API error: ${response.status} ${response.statusText}`);

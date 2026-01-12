@@ -4149,6 +4149,7 @@ async function fetchBuildiumResource<T>(path: string, orgId?: string): Promise<T
       Accept: 'application/json',
       'x-buildium-client-id': config.clientId,
       'x-buildium-client-secret': config.clientSecret,
+      'x-buildium-egress-allowed': '1',
     },
   });
   if (!resp.ok) {

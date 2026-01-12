@@ -6,6 +6,7 @@ import { BuildiumBillPaymentCreateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 import { buildiumFetch } from '@/lib/buildium-http';
 import type { BuildiumBill } from '@/types/buildium';
+import { requireBuildiumEnabledOr403 } from '@/lib/buildium-route-guard';
 
 type BuildiumBillLine = NonNullable<BuildiumBill['Lines']>[number] & {
   GLAccount?: { Id?: number | null } | number | null;
@@ -48,6 +49,9 @@ export async function GET(
 
     // Require platform admin
     await requireRole('platform_admin');
+    const orgIdResult = await requireBuildiumEnabledOr403(request);
+    if (orgIdResult instanceof NextResponse) return orgIdResult;
+    const orgId = orgIdResult;
 
     const { id } = await context.params;
 
@@ -64,7 +68,7 @@ export async function GET(
     if (orderby) queryParams.orderby = orderby;
 
     // Make request to Buildium API
-    const response = await buildiumFetch('GET', `/bills/${id}/payments`, queryParams, undefined, undefined);
+    const response = await buildiumFetch('GET', `/bills/${id}/payments`, queryParams, undefined, orgId);
 
     if (!response.ok) {
       const errorData: unknown = response.json ?? {};
@@ -117,6 +121,9 @@ export async function POST(
 
     // Require platform admin
     await requireRole('platform_admin');
+    const orgIdResult = await requireBuildiumEnabledOr403(request);
+    if (orgIdResult instanceof NextResponse) return orgIdResult;
+    const orgId = orgIdResult;
 
     const { id } = await context.params;
 
@@ -127,7 +134,7 @@ export async function POST(
     const validatedData = sanitizeAndValidate(body, BuildiumBillPaymentCreateSchema);
 
     // Buildium requires payment lines; fetch the bill to mirror its lines
-    const billResponse = await buildiumFetch('GET', `/bills/${id}`, undefined, undefined, undefined);
+    const billResponse = await buildiumFetch('GET', `/bills/${id}`, undefined, undefined, orgId);
 
     if (!billResponse.ok) {
       const errorData: unknown = billResponse.json ?? {};
@@ -263,7 +270,7 @@ export async function POST(
     };
 
     // Make request to Buildium API
-    const response = await buildiumFetch('POST', `/bills/${id}/payments`, undefined, payload, undefined);
+    const response = await buildiumFetch('POST', `/bills/${id}/payments`, undefined, payload, orgId);
 
     if (!response.ok) {
       const errorData: unknown = response.json ?? {};

@@ -4,8 +4,8 @@ import { checkRateLimit } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { supabaseAdmin } from '@/lib/db'
 import { getOrgScopedBuildiumEdgeClient } from '@/lib/buildium-edge-client'
-import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id'
 import { upsertOwnerFromBuildium } from '@/lib/buildium-mappers'
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard'
 
 // Sync a single Buildium owner into the local database (contacts + owners)
 // POST /api/buildium/owners/:id/sync
@@ -16,15 +16,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
     }
 
-    const { user } = await requireRole('platform_admin')
-    
-    // Resolve orgId from request context
-    let orgId: string | undefined;
-    try {
-      orgId = await resolveOrgIdFromRequest(request, user.id);
-    } catch (error) {
-      logger.warn({ userId: user.id, error }, 'Could not resolve orgId, falling back to env vars');
-    }
+    await requireRole('platform_admin')
+    const guard = await getBuildiumOrgIdOr403(request)
+    if ('response' in guard) return guard.response
+    const { orgId } = guard
 
     const { id } = await params
     const buildiumId = Number(id)

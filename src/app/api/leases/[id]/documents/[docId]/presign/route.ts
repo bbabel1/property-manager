@@ -55,9 +55,9 @@ export async function GET(
       typeof lease.buildium_lease_id === 'number'
         ? lease.buildium_lease_id
         : Number(lease.buildium_lease_id);
-    const orgId = typeof lease.org_id === 'string' ? lease.org_id : null;
+    const leaseOrgId = typeof lease.org_id === 'string' ? lease.org_id : null;
 
-    if (!orgId) {
+    if (!leaseOrgId) {
       return NextResponse.json({ error: 'Lease organization missing' }, { status: 400 });
     }
 
@@ -70,7 +70,7 @@ export async function GET(
       .from('files')
       .select('id, storage_provider, bucket, storage_key, external_url, sha256, buildium_file_id')
       .eq('id', fileId)
-      .eq('org_id', orgId)
+      .eq('org_id', leaseOrgId)
       .eq('entity_type', 'Leases')
       .eq('entity_id', buildiumLeaseId)
       .is('deleted_at', null)
@@ -123,7 +123,7 @@ export async function GET(
         return NextResponse.json({ error: 'Missing Buildium file id' }, { status: 400 });
       }
 
-      const res = await buildiumFetch('POST', `/files/${buildiumFileId}/download`, undefined, undefined, orgId);
+      const res = await buildiumFetch('POST', `/files/${buildiumFileId}/download`, undefined, undefined, leaseOrgId);
       if (!res.ok) {
         return NextResponse.json(
           { error: 'Buildium download URL failed', status: res.status },

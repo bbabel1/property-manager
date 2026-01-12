@@ -1,4 +1,5 @@
 import { config } from 'dotenv'
+import { ensureBuildiumEnabledForScript } from '../ensure-enabled'
 config({ path: '.env.local' })
 
 type JournalQuery = {
@@ -40,6 +41,7 @@ async function fetchJournalEntryFromBuildium(journalEntryId: string) {
       'Accept': 'application/json',
       'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
       'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
+      'x-buildium-egress-allowed': '1',
     },
   })
 
@@ -73,6 +75,7 @@ async function fetchJournalEntriesFromBuildium(params: JournalQuery) {
 
 async function main() {
   try {
+    await ensureBuildiumEnabledForScript(process.env.DEFAULT_ORG_ID ?? null)
     // Default: last 30 days, GL account IDs sourced from Buildium bank accounts
     const glAccounts = [10407, 10408, 10409, 10410, 10411, 10412, 10413, 10414, 10415, 10416, 13162, 13163, 14011, 14368]
     const now = new Date()

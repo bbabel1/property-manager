@@ -1,6 +1,8 @@
 // deno-lint-ignore-file
+import '../_shared/buildiumEgressGuard.ts';
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { buildiumFetchEdge } from '../_shared/buildiumFetch.ts'
 
 type Json = Record<string, any>
 type BuildiumCredentials = { baseUrl: string; clientId: string; clientSecret: string }
@@ -14,20 +16,18 @@ function cors() {
   }
 }
 
-async function buildium<T>(method: string, path: string, body?: any): Promise<T> {
+async function buildium<T>(
+  supabase: any,
+  orgId: string,
+  method: string,
+  path: string,
+  body?: any,
+): Promise<T> {
   const creds = currentBuildiumCreds
-  const baseUrl = (creds?.baseUrl || 'https://apisandbox.buildium.com/v1').replace(/\/$/, '')
   if (!creds?.clientId || !creds?.clientSecret) {
     throw new Error('Buildium credentials not provided')
   }
-  const headers: HeadersInit = {
-    'Accept': 'application/json',
-    'Content-Type': 'application/json',
-    // Header names are case-sensitive per Buildium API documentation
-    'X-Buildium-Client-Id': creds.clientId,
-    'X-Buildium-Client-Secret': creds.clientSecret
-  }
-  const res = await fetch(`${baseUrl}${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined })
+  const res = await buildiumFetchEdge(supabase, orgId, method, path, body, creds)
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     throw new Error(`${res.status} ${res.statusText} - ${err?.Message || err?.message || 'Buildium error'}`)
@@ -271,12 +271,16 @@ serve(async (req) => {
     const payload = body.payload
     const persist = Boolean(body.persist)
     const credsRaw = body.credentials as Partial<BuildiumCredentials> | undefined
+    const orgId = typeof body?.orgId === 'string' ? body.orgId : (typeof body?.org_id === 'string' ? body.org_id : null)
     currentBuildiumCreds = {
       baseUrl: (credsRaw?.baseUrl || Deno.env.get('BUILDIUM_BASE_URL') || 'https://apisandbox.buildium.com/v1').replace(/\/$/, ''),
       clientId: (credsRaw?.clientId || Deno.env.get('BUILDIUM_CLIENT_ID') || '').trim(),
       clientSecret: (credsRaw?.clientSecret || Deno.env.get('BUILDIUM_CLIENT_SECRET') || '').trim(),
     }
 
+    if (!orgId) {
+      return new Response(JSON.stringify({ success: false, error: 'orgId required for Buildium lease transaction API' }), { headers, status: 400 })
+    }
     if (!currentBuildiumCreds.clientId || !currentBuildiumCreds.clientSecret) {
       return new Response(JSON.stringify({ success: false, error: 'Missing Buildium credentials' }), { headers, status: 400 })
     }
@@ -289,42 +293,42 @@ serve(async (req) => {
         for (const k of ['orderby','offset','limit','dateFrom','dateTo']) {
           if (body?.[k] != null) qp.set(k, String(body[k]))
         }
-        data = await buildium<any[]>('GET', `/leases/${leaseId}/transactions?${qp.toString()}`)
+        data = await buildium<any[]>(supabase, orgId, 'GET', `/leases/${leaseId}/transactions?${qp.toString()}`)
         break
       }
       case 'get': {
-        data = await buildium<any>('GET', `/leases/${leaseId}/transactions/${transactionId}`)
+        data = await buildium<any>(supabase, orgId, 'GET', `/leases/${leaseId}/transactions/${transactionId}`)
         if (persist) await upsertWithLines(supabase, data, body?.AccountId ?? null)
         break
       }
       case 'create': {
-        data = await buildium<any>('POST', `/leases/${leaseId}/transactions`, payload)
+        data = await buildium<any>(supabase, orgId, 'POST', `/leases/${leaseId}/transactions`, payload)
         if (persist) await upsertWithLines(supabase, data, body?.AccountId ?? null)
         break
       }
       case 'update': {
-        data = await buildium<any>('PUT', `/leases/${leaseId}/transactions/${transactionId}`, payload)
+        data = await buildium<any>(supabase, orgId, 'PUT', `/leases/${leaseId}/transactions/${transactionId}`, payload)
         if (persist) await upsertWithLines(supabase, data, body?.AccountId ?? null)
         break
       }
       case 'listRecurring': {
-        data = await buildium<any[]>('GET', `/leases/${leaseId}/recurringtransactions`)
+        data = await buildium<any[]>(supabase, orgId, 'GET', `/leases/${leaseId}/recurringtransactions`)
         break
       }
       case 'getRecurring': {
-        data = await buildium<any>('GET', `/leases/${leaseId}/recurringtransactions/${recurringId}`)
+        data = await buildium<any>(supabase, orgId, 'GET', `/leases/${leaseId}/recurringtransactions/${recurringId}`)
         break
       }
       case 'createRecurring': {
-        data = await buildium<any>('POST', `/leases/${leaseId}/recurringtransactions`, payload)
+        data = await buildium<any>(supabase, orgId, 'POST', `/leases/${leaseId}/recurringtransactions`, payload)
         break
       }
       case 'updateRecurring': {
-        data = await buildium<any>('PUT', `/leases/${leaseId}/recurringtransactions/${recurringId}`, payload)
+        data = await buildium<any>(supabase, orgId, 'PUT', `/leases/${leaseId}/recurringtransactions/${recurringId}`, payload)
         break
       }
       case 'deleteRecurring': {
-        await buildium<void>('DELETE', `/leases/${leaseId}/recurringtransactions/${recurringId}`)
+        await buildium<void>(supabase, orgId, 'DELETE', `/leases/${leaseId}/recurringtransactions/${recurringId}`)
         data = { deleted: true }
         break
       }

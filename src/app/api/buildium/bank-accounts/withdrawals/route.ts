@@ -4,15 +4,19 @@ import { logger } from '@/lib/logger'
 import { BuildiumWithdrawalCreateSchema } from '@/schemas/buildium'
 import { sanitizeAndValidate } from '@/lib/sanitize'
 import { buildiumFetch } from '@/lib/buildium-http'
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard'
 
-export async function GET(_request: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
     // Authentication
     const { user } = await requireRole('platform_admin')
+    const guard = await getBuildiumOrgIdOr403(request)
+    if ('response' in guard) return guard.response
+    const { orgId } = guard
     logger.info({ userId: user.id, action: 'get_buildium_withdrawals' }, 'Fetching Buildium withdrawals');
 
     // Buildium API call
-    const response = await buildiumFetch('GET', '/bankaccounts/withdrawals', undefined, undefined, undefined);
+    const response = await buildiumFetch('GET', '/bankaccounts/withdrawals', undefined, undefined, orgId);
 
     if (!response.ok) {
       throw new Error(`Buildium API error: ${response.status} ${response.statusText}`);
@@ -39,6 +43,9 @@ export async function POST(request: NextRequest) {
   try {
     // Authentication
     const { user } = await requireRole('platform_admin');
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
     logger.info({ userId: user.id, action: 'create_buildium_withdrawal' }, 'Creating Buildium withdrawal');
 
     // Parse and validate request body
@@ -46,7 +53,7 @@ export async function POST(request: NextRequest) {
     const data = sanitizeAndValidate(body, BuildiumWithdrawalCreateSchema);
 
     // Buildium API call
-    const response = await buildiumFetch('POST', '/bankaccounts/withdrawals', undefined, data, undefined);
+    const response = await buildiumFetch('POST', '/bankaccounts/withdrawals', undefined, data, orgId);
 
     if (!response.ok) {
       throw new Error(`Buildium API error: ${response.status} ${response.statusText}`);

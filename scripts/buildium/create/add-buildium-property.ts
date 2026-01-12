@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import type { CountryEnum, StatusEnum } from '@/types/properties'
 import * as dotenv from 'dotenv'
+import { ensureBuildiumEnabledForScript } from '../ensure-enabled'
 
 // Load environment variables
 dotenv.config({ path: '.env' })
@@ -167,7 +168,8 @@ if (require.main === module) {
     process.exit(1)
   }
   
-  addBuildiumProperty(propertyId)
+  ensureBuildiumEnabledForScript(process.env.DEFAULT_ORG_ID ?? null)
+    .then(() => addBuildiumProperty(propertyId))
     .then(() => {
       console.log('Script completed successfully')
       process.exit(0)

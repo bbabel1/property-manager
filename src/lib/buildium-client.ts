@@ -48,6 +48,7 @@ import {
   sanitizeForBuildium,
   validateBuildiumResponse,
 } from './buildium-mappers';
+import { assertBuildiumEnabled } from './buildium-gate';
 type LocalGLAccountInput = Parameters<typeof mapGLAccountToBuildium>[0];
 
 export type BuildiumUploadTicket = {
@@ -62,6 +63,7 @@ export class BuildiumClient {
   private baseUrl: string;
   private clientId: string;
   private clientSecret: string;
+  private orgId?: string;
   private timeout: number;
   private retryAttempts: number;
   private retryDelay: number;
@@ -70,6 +72,7 @@ export class BuildiumClient {
     this.baseUrl = config.baseUrl;
     this.clientId = config.clientId;
     this.clientSecret = config.clientSecret;
+    this.orgId = config.orgId;
     this.timeout = config.timeout || 30000;
     this.retryAttempts = config.retryAttempts || 3;
     this.retryDelay = config.retryDelay || 1000;
@@ -1048,12 +1051,20 @@ export class BuildiumClient {
   // ============================================================================
 
   public async makeRequest<T>(method: string, endpoint: string, data?: unknown): Promise<T> {
+    if (this.orgId) {
+      await assertBuildiumEnabled(
+        this.orgId,
+        `buildium-client ${method.toUpperCase()} ${endpoint}`,
+      );
+    }
+
     const url = `${this.baseUrl}${endpoint}`;
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       Accept: 'application/json',
       'x-buildium-client-id': this.clientId,
       'x-buildium-client-secret': this.clientSecret,
+      'x-buildium-egress-allowed': '1',
     };
 
     const config: RequestInit = {
@@ -1241,6 +1252,9 @@ export async function getOrgScopedBuildiumClient(
   config?: Partial<BuildiumApiConfig>,
 ): Promise<BuildiumClient> {
   const { getOrgScopedBuildiumConfig } = await import('./buildium/credentials-manager');
+  if (orgId) {
+    await assertBuildiumEnabled(orgId, 'getOrgScopedBuildiumClient');
+  }
   const credentials = await getOrgScopedBuildiumConfig(orgId);
 
   if (!credentials) {
@@ -1259,6 +1273,7 @@ export async function getOrgScopedBuildiumClient(
     retryAttempts: config?.retryAttempts || 3,
     retryDelay: config?.retryDelay || 1000,
     ...config,
+    orgId: orgId ?? config?.orgId,
   };
 
   return new BuildiumClient(clientConfig);
@@ -1277,6 +1292,9 @@ export async function createBuildiumClientWithOrg(
   config?: Partial<BuildiumApiConfig>,
 ): Promise<BuildiumClient> {
   console.warn('createBuildiumClientWithOrg called - please migrate to getOrgScopedBuildiumClient');
+  if (orgId) {
+    await assertBuildiumEnabled(orgId, 'createBuildiumClientWithOrg');
+  }
   return getOrgScopedBuildiumClient(orgId, config);
 }
 

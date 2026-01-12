@@ -6,6 +6,7 @@ config({ path: resolve(process.cwd(), '.env') })
 
 import { createClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database'
+import { ensureBuildiumEnabledForScript } from '../ensure-enabled'
 
 const admin = createClient<Database>(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -14,6 +15,7 @@ const admin = createClient<Database>(
 )
 
 async function main() {
+  await ensureBuildiumEnabledForScript(process.env.DEFAULT_ORG_ID ?? null)
   const { data, error } = await admin
     .from('reconciliation_log')
     .select('id, buildium_reconciliation_id, statement_ending_date, ending_balance, is_finished, bank_gl_account_id')
@@ -30,4 +32,3 @@ async function main() {
 }
 
 main().catch(console.error)
-

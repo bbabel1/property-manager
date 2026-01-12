@@ -16,6 +16,7 @@ import { buildiumFetch } from '@/lib/buildium-http'
 import { logger } from '@/lib/logger'
 import type { Database as DatabaseSchema } from '@/types/database'
 import { syncBuildiumReconciliationTransactions } from '@/lib/buildium-reconciliation-sync'
+import { ensureBuildiumEnabledForScript } from '../ensure-enabled'
 
 type BankAccountRow = Pick<DatabaseSchema['public']['Tables']['gl_accounts']['Row'], 'id' | 'buildium_gl_account_id'>
 type PropertyAccountRow = Pick<
@@ -63,6 +64,8 @@ async function main() {
       persistSession: false,
     },
   })
+
+  const { orgId: defaultOrgId } = await ensureBuildiumEnabledForScript(process.env.DEFAULT_ORG_ID ?? null)
 
   const includeFinished = process.argv.includes('--includeFinished') || process.argv.includes('--include-finished')
   const bankAccountId = process.argv.find(arg => arg.startsWith('--bankAccountId='))?.split('=')[1]

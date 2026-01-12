@@ -16,6 +16,7 @@
 import { config } from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
 import { upsertLeaseTransactionWithLines } from '@/lib/buildium-mappers';
+import { ensureBuildiumEnabledForScript } from './ensure-enabled';
 
 config({ path: '.env.local' });
 config();
@@ -46,6 +47,7 @@ async function fetchBuildiumTransaction(leaseId: number, txId: number) {
       Accept: 'application/json',
       'x-buildium-client-id': buildiumClientId,
       'x-buildium-client-secret': buildiumClientSecret,
+      'x-buildium-egress-allowed': '1',
     },
   });
   if (!res.ok) {
@@ -103,6 +105,7 @@ async function main() {
     console.error('No transaction IDs provided.');
     process.exit(1);
   }
+  await ensureBuildiumEnabledForScript(process.env.DEFAULT_ORG_ID ?? null);
 
   for (const txId of ids) {
     try {

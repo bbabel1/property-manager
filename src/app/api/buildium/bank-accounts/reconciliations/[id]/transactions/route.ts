@@ -2,17 +2,21 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
 import { buildiumFetch } from '@/lib/buildium-http'
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard'
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Authentication
     const { user } = await requireRole('platform_admin');
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
     const reconciliationId = (await params).id;
     
     logger.info({ userId: user.id, reconciliationId, action: 'get_buildium_reconciliation_transactions' }, 'Fetching Buildium reconciliation transactions');
 
     // Buildium API call
-    const response = await buildiumFetch('GET', `/bankaccounts/reconciliations/${reconciliationId}/transactions`, undefined, undefined, undefined);
+    const response = await buildiumFetch('GET', `/bankaccounts/reconciliations/${reconciliationId}/transactions`, undefined, undefined, orgId);
 
     if (!response.ok) {
       if (response.status === 404) {

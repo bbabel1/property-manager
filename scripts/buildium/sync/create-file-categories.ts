@@ -8,6 +8,7 @@
 import { config } from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
 import type { BuildiumFileCategory } from '@/types/buildium';
+import { ensureBuildiumEnabledForScript } from '../ensure-enabled';
 
 config({ path: '.env.local' });
 
@@ -36,6 +37,7 @@ async function fetchFileCategoriesFromBuildium(): Promise<BuildiumFileCategory[]
     headers: {
       'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
       'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
+      'x-buildium-egress-allowed': '1',
       'Content-Type': 'application/json',
       Accept: 'application/json',
     },
@@ -188,6 +190,8 @@ async function createNewCategories(
 
 async function main() {
   const orgIdArg = process.argv[2];
+
+  await ensureBuildiumEnabledForScript(orgIdArg ?? process.env.DEFAULT_ORG_ID ?? null);
 
   try {
     console.log('Starting Buildium file categories creation process...\n');

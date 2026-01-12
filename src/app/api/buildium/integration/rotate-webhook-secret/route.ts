@@ -6,15 +6,18 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth/guards';
-import { supabase } from '@/lib/db';
 import { rotateWebhookSecret } from '@/lib/buildium/credentials-manager';
-import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
 import { requireOrgMember } from '@/lib/auth/org-guards';
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard';
+
+// Webhook rotation is gated by Buildium enablement (toggle route remains exempt).
 
 export async function POST(request: NextRequest) {
   try {
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
     const { supabase: client, user } = await requireAuth();
-    const orgId = await resolveOrgIdFromRequest(request, user.id, client);
     await requireOrgMember({ client, userId: user.id, orgId });
     const body = await request.json();
 
@@ -42,6 +45,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: { code: 'missing_org', message: 'Organization context required' } },
         { status: 400 }
+      );
+    }
+
+    if (error instanceof Error && error.message === 'ORG_FORBIDDEN') {
+      return NextResponse.json(
+        { error: { code: 'ORG_FORBIDDEN', message: 'Forbidden' } },
+        { status: 403 }
       );
     }
 

@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { config } from 'dotenv'
 import { logger } from '../../utils/logger'
 import { resolveGLAccountId } from '@/lib/buildium-mappers'
+import { ensureBuildiumEnabledForScript } from '../ensure-enabled'
 
 config()
 
@@ -14,6 +15,7 @@ const buildiumGLAccountIds = ['3', '5'] // Rent Income and Security Deposit Liab
 
 async function main() {
   try {
+    await ensureBuildiumEnabledForScript(process.env.DEFAULT_ORG_ID ?? null)
     logger.info(`Fetching ${buildiumGLAccountIds.length} GL accounts from Buildium...`)
     const createdGLAccountIds: string[] = []
     

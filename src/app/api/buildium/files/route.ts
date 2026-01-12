@@ -5,6 +5,7 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumFileUploadSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 import { buildiumFetch } from '@/lib/buildium-http';
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard';
 
 export async function GET(request: NextRequest) {
   try {
@@ -19,6 +20,9 @@ export async function GET(request: NextRequest) {
 
     // Require platform admin
     await requireRole('platform_admin');
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
 
     // Get query parameters
     const { searchParams } = new URL(request.url);
@@ -41,7 +45,7 @@ export async function GET(request: NextRequest) {
     if (dateTo) queryParams.dateTo = dateTo;
 
     // Make request to Buildium API
-    const response = await buildiumFetch('GET', '/files', queryParams, undefined, undefined);
+    const response = await buildiumFetch('GET', '/files', queryParams, undefined, orgId);
 
     if (!response.ok) {
       const errorData = response.json ?? {};
@@ -90,6 +94,9 @@ export async function POST(request: NextRequest) {
 
     // Require platform admin
     await requireRole('platform_admin');
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
 
     // Parse and validate request body
     const body = await request.json();
@@ -98,7 +105,7 @@ export async function POST(request: NextRequest) {
     const validatedData = sanitizeAndValidate(body, BuildiumFileUploadSchema);
 
     // Make request to Buildium API
-    const response = await buildiumFetch('POST', '/files', undefined, validatedData, undefined);
+    const response = await buildiumFetch('POST', '/files', undefined, validatedData, orgId);
 
     if (!response.ok) {
       const errorData = response.json ?? {};

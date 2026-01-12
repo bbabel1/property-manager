@@ -7,6 +7,7 @@ import { sanitizeAndValidate } from '@/lib/sanitize';
 import { buildiumFetch } from '@/lib/buildium-http';
 import UnitService from '@/lib/unit-service';
 import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard';
 
 type BuildiumUnitNote = Parameters<typeof UnitService.persistNotes>[1][number];
 
@@ -23,6 +24,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     // Require platform admin
     const { supabase, user } = await requireRole('platform_admin');
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
 
     const { id } = await params;
 
@@ -39,7 +43,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (orderby) queryParams.orderby = orderby;
 
     // Make request to Buildium API
-    const response = await buildiumFetch('GET', `/rentals/units/${id}/notes`, queryParams, undefined, undefined);
+    const response = await buildiumFetch('GET', `/rentals/units/${id}/notes`, queryParams, undefined, orgId);
 
     if (!response.ok) {
       const errorData = response.json ?? {};
@@ -101,6 +105,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     // Require platform admin
     const { supabase, user } = await requireRole('platform_admin');
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId: guardOrgId } = guard;
 
     const { id } = await params;
 
@@ -111,7 +118,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const validatedData = sanitizeAndValidate(body, BuildiumUnitNoteCreateSchema) as any;
 
     // Make request to Buildium API
-    const response = await buildiumFetch('POST', `/rentals/units/${id}/notes`, undefined, validatedData, undefined);
+    const response = await buildiumFetch('POST', `/rentals/units/${id}/notes`, undefined, validatedData, guardOrgId);
 
     if (!response.ok) {
       const errorData = response.json ?? {};

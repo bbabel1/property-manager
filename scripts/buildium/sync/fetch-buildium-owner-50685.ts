@@ -1,8 +1,10 @@
 import { config } from 'dotenv'
+import { ensureBuildiumEnabledForScript } from '../ensure-enabled'
 config({ path: '.env.local' })
 
 async function fetchBuildiumOwner() {
   try {
+    await ensureBuildiumEnabledForScript(process.env.DEFAULT_ORG_ID ?? null)
     console.log('🔍 Fetching Buildium owner 50685...')
     
     const response = await fetch(`${process.env.BUILDIUM_BASE_URL}/rentals/owners/50685`, {
@@ -10,6 +12,7 @@ async function fetchBuildiumOwner() {
       headers: {
         'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
         'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
+      'x-buildium-egress-allowed': '1',
         'Content-Type': 'application/json',
         'Accept': 'application/json'
       }

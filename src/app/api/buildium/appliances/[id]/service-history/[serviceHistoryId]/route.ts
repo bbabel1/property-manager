@@ -3,6 +3,7 @@ import { requireRole } from '@/lib/auth/guards';
 import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { buildiumFetch } from '@/lib/buildium-http';
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string; serviceHistoryId: string }> }) {
   try {
@@ -17,11 +18,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     // Require platform admin
     await requireRole('platform_admin');
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
 
     const { id, serviceHistoryId } = await params;
 
     // Make request to Buildium API
-    const response = await buildiumFetch('GET', `/rentals/appliances/${id}/servicehistory/${serviceHistoryId}`, undefined, undefined, undefined);
+    const response = await buildiumFetch('GET', `/rentals/appliances/${id}/servicehistory/${serviceHistoryId}`, undefined, undefined, orgId);
 
     if (!response.ok) {
       const errorData = response.json ?? {};
@@ -64,6 +68,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     await requireRole('platform_admin')
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
     const { id, serviceHistoryId } = await params
     const body = await request.json()
 
@@ -73,7 +80,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const { sanitizeAndValidate } = await import('@/lib/sanitize')
     const validated = sanitizeAndValidate(body, BuildiumApplianceServiceHistoryCreateSchema)
 
-    const response = await buildiumFetch('PUT', `/rentals/appliances/${id}/servicehistory/${serviceHistoryId}`, undefined, validated, undefined)
+    const response = await buildiumFetch('PUT', `/rentals/appliances/${id}/servicehistory/${serviceHistoryId}`, undefined, validated, orgId)
 
     if (!response.ok) {
       const errorData = response.json ?? {}

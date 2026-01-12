@@ -1,5 +1,6 @@
 import { config } from 'dotenv'
 import { logger } from '../../utils/logger'
+import { ensureBuildiumEnabledForScript } from '../ensure-enabled'
 
 config({ path: '.env.local' })
 
@@ -15,6 +16,7 @@ async function fetchRentScheduleFromBuildium(rentId: string) {
     headers: {
       'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
       'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
+      'x-buildium-egress-allowed': '1',
       'Content-Type': 'application/json'
     }
   })
@@ -32,6 +34,7 @@ async function fetchRentScheduleFromBuildium(rentId: string) {
 
 async function main() {
   try {
+    await ensureBuildiumEnabledForScript(process.env.DEFAULT_ORG_ID ?? null)
     logger.info(`Fetching rent schedule ${rentId} from Buildium...`)
     const rentSchedule = await fetchRentScheduleFromBuildium(rentId)
 

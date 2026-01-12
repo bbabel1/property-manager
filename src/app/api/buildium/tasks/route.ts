@@ -3,6 +3,7 @@ import { requireRole } from '@/lib/auth/guards';
 import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { buildiumFetch } from '@/lib/buildium-http';
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard';
 
 export async function GET(request: NextRequest) {
   try {
@@ -42,8 +43,12 @@ export async function GET(request: NextRequest) {
     if (dateFrom) queryParams.dateFrom = dateFrom;
     if (dateTo) queryParams.dateTo = dateTo;
 
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
+
     // Make request to Buildium API
-    const response = await buildiumFetch('GET', '/tasks', queryParams, undefined, undefined);
+    const response = await buildiumFetch('GET', '/tasks', queryParams, undefined, orgId);
 
     if (!response.ok) {
       const errorData = response.json ?? {};

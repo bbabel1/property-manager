@@ -239,6 +239,7 @@ export class BuildiumEndpointValidator {
           'Content-Type': 'application/json',
           'x-buildium-client-id': this.clientId,
           'x-buildium-client-secret': this.clientSecret,
+          'x-buildium-egress-allowed': '1',
         },
         signal: AbortSignal.timeout(10000) // 10 second timeout
       }

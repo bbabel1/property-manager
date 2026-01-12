@@ -6,6 +6,8 @@ import { buildiumFetch } from '@/lib/buildium-http'
 import { mapBankAccountFromBuildiumWithGLAccount } from '@/lib/buildium-mappers'
 import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id'
 import { requireOrgMember } from '@/lib/auth/org-guards'
+import { assertBuildiumEnabled, BuildiumDisabledError } from '@/lib/buildium-gate'
+import { requireBuildiumEnabledOr403 } from '@/lib/buildium-route-guard'
 
 type BuildiumBankAccount = {
   Id: number
@@ -27,7 +29,9 @@ export async function POST(request: NextRequest) {
   try {
     const user = await requireUser(request)
     const db = await getSupabaseServerClient()
-    const orgId = await resolveOrgIdFromRequest(request, user.id, db)
+    const orgIdResult = await requireBuildiumEnabledOr403(request)
+    if (orgIdResult instanceof NextResponse) return orgIdResult
+    const orgId = orgIdResult
     await requireOrgMember({ client: db, userId: user.id, orgId })
     const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
     const forceSync = Boolean(body?.forceSync)
@@ -139,6 +143,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, fetched: totalFetched, ...summary })
   } catch (error) {
     if (error instanceof Error) {
+      if (error instanceof BuildiumDisabledError) {
+        return NextResponse.json(
+          { error: 'Buildium integration is disabled for this organization' },
+          { status: 403 }
+        )
+      }
       if (error.message === 'UNAUTHENTICATED') {
         return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
       }

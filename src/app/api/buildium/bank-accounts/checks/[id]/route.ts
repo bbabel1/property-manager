@@ -4,17 +4,21 @@ import { logger } from '@/lib/logger'
 import { BuildiumCheckUpdateSchema } from '@/schemas/buildium'
 import { sanitizeAndValidate } from '@/lib/sanitize'
 import { buildiumFetch } from '@/lib/buildium-http'
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard'
 
-export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: checkId } = await params
   try {
     // Authentication
     const { user } = await requireRole('platform_admin')
+    const guard = await getBuildiumOrgIdOr403(request)
+    if ('response' in guard) return guard.response
+    const { orgId } = guard
     
     logger.info({ userId: user.id, checkId, action: 'get_buildium_check' }, 'Fetching Buildium check details');
 
     // Buildium API call
-    const response = await buildiumFetch('GET', `/bankaccounts/checks/${checkId}`, undefined, undefined, undefined);
+    const response = await buildiumFetch('GET', `/bankaccounts/checks/${checkId}`, undefined, undefined, orgId);
 
     if (!response.ok) {
       if (response.status === 404) {
@@ -47,6 +51,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   try {
     // Authentication
     const { user } = await requireRole('platform_admin')
+    const guard = await getBuildiumOrgIdOr403(request)
+    if ('response' in guard) return guard.response
+    const { orgId } = guard
     
     logger.info({ userId: user.id, checkId, action: 'update_buildium_check' }, 'Updating Buildium check');
 
@@ -55,7 +62,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const data = sanitizeAndValidate(body, BuildiumCheckUpdateSchema);
 
     // Buildium API call
-    const response = await buildiumFetch('PUT', `/bankaccounts/checks/${checkId}`, undefined, data, undefined);
+    const response = await buildiumFetch('PUT', `/bankaccounts/checks/${checkId}`, undefined, data, orgId);
 
     if (!response.ok) {
       if (response.status === 404) {

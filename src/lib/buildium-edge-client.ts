@@ -22,6 +22,7 @@ import type {
   BuildiumBankAccount,
   BuildiumPropertyImage,
 } from '@/types/buildium'
+import { assertBuildiumEnabled } from './buildium-gate'
 
 type EdgeResult<T = unknown> = { success: boolean; data?: T; error?: string }
 type EdgeListResult<T = unknown> = { success: boolean; data?: T[]; error?: string }
@@ -31,10 +32,14 @@ type EdgeIdResult = { success: boolean; buildiumId?: number; error?: string }
 
 export class BuildiumEdgeClient {
   private supabaseUrl: string
+  private orgId?: string
   private credentials?: { baseUrl: string; clientId: string; clientSecret: string }
 
-  constructor(creds?: Pick<BuildiumConfig, 'baseUrl' | 'clientId' | 'clientSecret'>) {
+  constructor(
+    creds?: Pick<BuildiumConfig, 'baseUrl' | 'clientId' | 'clientSecret' | 'orgId'>,
+  ) {
     this.supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+    this.orgId = creds?.orgId
     if (creds?.clientId && creds?.clientSecret) {
       this.credentials = {
         baseUrl: (creds.baseUrl || 'https://apisandbox.buildium.com/v1').replace(/\/$/, ''),
@@ -53,8 +58,14 @@ export class BuildiumEdgeClient {
   /**
    * Helper method to add credentials to request body
    */
-  private withCreds<T extends Record<string, unknown>>(body: T): T & { credentials?: BuildiumEdgeClient['credentials'] } {
-    return { ...body, credentials: this.credentials }
+  private withCreds<T extends Record<string, unknown>>(body: T): T & {
+    credentials?: BuildiumEdgeClient['credentials']
+    orgId?: string
+  } {
+    if (!this.orgId) {
+      throw new Error('orgId required for Buildium edge operations');
+    }
+    return { ...body, credentials: this.credentials, orgId: this.orgId }
   }
 
   // ============================================================================
@@ -1305,6 +1316,9 @@ export class BuildiumEdgeClient {
 export async function getOrgScopedBuildiumEdgeClient(
   orgId?: string | undefined,
 ): Promise<BuildiumEdgeClient> {
+  if (orgId) {
+    await assertBuildiumEnabled(orgId, 'getOrgScopedBuildiumEdgeClient')
+  }
   const { getOrgScopedBuildiumConfig } = await import('./buildium/credentials-manager');
   const credentials = await getOrgScopedBuildiumConfig(orgId);
 
@@ -1320,6 +1334,7 @@ export async function getOrgScopedBuildiumEdgeClient(
     baseUrl: credentials.baseUrl,
     clientId: credentials.clientId,
     clientSecret: credentials.clientSecret,
+    orgId: orgId,
   });
 }
 

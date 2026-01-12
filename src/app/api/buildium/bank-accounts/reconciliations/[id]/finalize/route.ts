@@ -3,11 +3,15 @@ import { requireRole } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
 import { buildiumFetch } from '@/lib/buildium-http'
 import { supabaseAdmin } from '@/lib/db'
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard'
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Authentication
     await requireRole('platform_admin')
+    const guard = await getBuildiumOrgIdOr403(request)
+    if ('response' in guard) return guard.response
+    const { orgId } = guard
     const reconciliationId = (await params).id;
     
     logger.info({ reconciliationId, action: 'finalize_reconciliation' }, 'Finalizing Buildium reconciliation');
@@ -16,7 +20,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const body = await request.json();
 
     // Buildium API call
-    const response = await buildiumFetch('POST', `/bankaccounts/reconciliations/${reconciliationId}/finalize`, undefined, body, undefined);
+    const response = await buildiumFetch('POST', `/bankaccounts/reconciliations/${reconciliationId}/finalize`, undefined, body, orgId);
 
     if (!response.ok) {
       if (response.status === 404) {

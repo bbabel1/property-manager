@@ -3,6 +3,7 @@
 import { config } from 'dotenv'
 import { createClient } from '@supabase/supabase-js'
 import { upsertLeaseTransactionWithLines } from '@/lib/buildium-mappers'
+import { ensureBuildiumEnabledForScript } from './ensure-enabled'
 
 config({ path: '.env.local' })
 config()
@@ -24,6 +25,7 @@ async function fetchTransaction(leaseId: number, txId: number): Promise<any> {
       Accept: 'application/json',
       'x-buildium-client-id': buildiumClientId,
       'x-buildium-client-secret': buildiumClientSecret,
+      'x-buildium-egress-allowed': '1',
     },
   })
   if (!res.ok) {
@@ -34,6 +36,7 @@ async function fetchTransaction(leaseId: number, txId: number): Promise<any> {
 }
 
 async function main() {
+  await ensureBuildiumEnabledForScript(process.env.DEFAULT_ORG_ID ?? null)
   console.log('🔄 Backfilling Buildium transactions to populate new fields and payment splits')
   let offset = 0
   let processed = 0

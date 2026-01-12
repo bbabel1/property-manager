@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { config } from 'dotenv'
+import { ensureBuildiumEnabledForScript } from '../ensure-enabled'
 
 config({ path: '.env.local' })
 
@@ -19,6 +20,7 @@ async function fetchAllTransactionsFromBuildium(leaseId: string) {
       'Accept': 'application/json',
       'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
       'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
+      'x-buildium-egress-allowed': '1',
     },
   })
 
@@ -65,6 +67,7 @@ async function createTransactionRecord(transaction: any) {
 
 async function main() {
   try {
+    await ensureBuildiumEnabledForScript(process.env.DEFAULT_ORG_ID ?? null)
     console.log(`Fetching all transactions for lease ${leaseId} from Buildium...`)
     const transactions = await fetchAllTransactionsFromBuildium(leaseId)
     

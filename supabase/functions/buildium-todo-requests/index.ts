@@ -1,6 +1,8 @@
 // deno-lint-ignore-file
+import '../_shared/buildiumEgressGuard.ts';
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { buildiumFetchEdge } from '../_shared/buildiumFetch.ts'
 
 function cors() {
   return {
@@ -254,13 +256,16 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
     const bodyMaybe = req.method === 'POST' ? await req.json().catch(() => ({})) : {}
+    const orgId = typeof (bodyMaybe as any)?.orgId === 'string'
+      ? (bodyMaybe as any).orgId
+      : (typeof (bodyMaybe as any)?.org_id === 'string' ? (bodyMaybe as any).org_id : null)
     const creds = resolveBuildiumCreds(bodyMaybe?.credentials as Partial<BuildiumCredentials> | undefined)
+    if (!orgId) {
+      return new Response(JSON.stringify({ error: 'orgId required for Buildium to-do requests' }), { headers: { ...headers, 'Content-Type': 'application/json' }, status: 400 })
+    }
     if (!creds.clientId || !creds.clientSecret) {
       return new Response(JSON.stringify({ error: 'Buildium credentials missing' }), { headers: { ...headers, 'Content-Type': 'application/json' }, status: 400 })
     }
-    const baseUrl = creds.baseUrl || 'https://apisandbox.buildium.com/v1'
-    const clientId = creds.clientId
-    const clientSecret = creds.clientSecret
 
     const url = new URL(req.url)
     const { searchParams } = url
@@ -272,11 +277,14 @@ serve(async (req) => {
         if (v) qp.append(p, v)
       })
 
-      // Header names are case-sensitive per Buildium API documentation
-      const resp = await fetch(`${baseUrl}/todorequests?${qp.toString()}`, {
-        method: 'GET',
-        headers: { 'Accept': 'application/json', 'X-Buildium-Client-Id': clientId, 'X-Buildium-Client-Secret': clientSecret }
-      })
+      const resp = await buildiumFetchEdge(
+        supabase,
+        orgId,
+        'GET',
+        `/todorequests?${qp.toString()}`,
+        undefined,
+        creds,
+      )
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({}))
         return new Response(JSON.stringify({ error: 'Failed to fetch to-do requests', details: err }), { headers: { ...headers, 'Content-Type': 'application/json' }, status: resp.status })
@@ -303,12 +311,14 @@ serve(async (req) => {
 
     if (req.method === 'POST') {
       const body = bodyMaybe
-      // Header names are case-sensitive per Buildium API documentation
-      const resp = await fetch(`${baseUrl}/todorequests`, {
-        method: 'POST',
-        headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-Buildium-Client-Id': clientId, 'X-Buildium-Client-Secret': clientSecret },
-        body: JSON.stringify(body)
-      })
+      const resp = await buildiumFetchEdge(
+        supabase,
+        orgId,
+        'POST',
+        `/todorequests`,
+        body,
+        creds,
+      )
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({}))
         return new Response(JSON.stringify({ error: 'Failed to create to-do request', details: err }), { headers: { ...headers, 'Content-Type': 'application/json' }, status: resp.status })

@@ -6,6 +6,8 @@ import { buildiumFetch } from '@/lib/buildium-http'
 import { supabaseAdmin } from '@/lib/db'
 import { upsertOwnerFromBuildium } from '@/lib/buildium-mappers'
 import type { BuildiumOwner } from '@/types/buildium'
+import { requireBuildiumEnabledOr403 } from '@/lib/buildium-route-guard'
+import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id'
 
 // Bulk sync Buildium owners into the local database.
 // Body supports either { ids: number[] } or a filter window:
@@ -19,6 +21,9 @@ export async function POST(request: NextRequest) {
 
     const auth = await requireRole('platform_admin')
     const userId = auth.user.id
+    const orgIdResult = await requireBuildiumEnabledOr403(request)
+    if (orgIdResult instanceof NextResponse) return orgIdResult
+    const orgId = orgIdResult
 
     const body = await request.json().catch(() => ({}))
     const ids: number[] | undefined = Array.isArray(body?.ids) ? body.ids : undefined
@@ -33,7 +38,7 @@ export async function POST(request: NextRequest) {
       // Fetch each owner by id from Buildium
       const unique = [...new Set(ids.filter(n => Number.isFinite(n) && n > 0))]
       for (const id of unique) {
-        const res = await buildiumFetch('GET', `/rentals/owners/${id}`, undefined, undefined, undefined)
+        const res = await buildiumFetch('GET', `/rentals/owners/${id}`, undefined, undefined, orgId)
         if (res.ok) {
           const data = (res.json ?? {}) as BuildiumOwner
           owners.push(data)
@@ -49,7 +54,7 @@ export async function POST(request: NextRequest) {
       if (lastupdatedfrom) queryParams.lastupdatedfrom = lastupdatedfrom
       if (lastupdatedto) queryParams.lastupdatedto = lastupdatedto
 
-      const res = await buildiumFetch('GET', '/rentals/owners', queryParams, undefined, undefined)
+      const res = await buildiumFetch('GET', '/rentals/owners', queryParams, undefined, orgId)
       if (!res.ok) {
         const txt = typeof res.json === 'string' ? res.json : JSON.stringify(res.json ?? {})
         return NextResponse.json({ error: 'Failed to list Buildium owners', details: txt }, { status: res.status })

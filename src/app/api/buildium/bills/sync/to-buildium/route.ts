@@ -6,6 +6,7 @@ import { buildiumFetch } from '@/lib/buildium-http'
 import { requireSupabaseAdmin } from '@/lib/supabase-client'
 import { mapTransactionBillToBuildium } from '@/lib/buildium-mappers'
 import type { BuildiumBillExtended } from '@/types/buildium'
+import { requireBuildiumEnabledOr403 } from '@/lib/buildium-route-guard'
 
 // POST /api/buildium/bills/sync/to-buildium
 // Body: { localId: string }
@@ -15,6 +16,9 @@ export async function POST(request: NextRequest) {
     if (!rate.success) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
 
     await requireRole('platform_admin')
+    const orgIdResult = await requireBuildiumEnabledOr403(request)
+    if (orgIdResult instanceof NextResponse) return orgIdResult
+    const orgId = orgIdResult
 
     const body = await request.json().catch(() => ({}))
     const localId = body?.localId as string
@@ -44,7 +48,7 @@ export async function POST(request: NextRequest) {
     const isUpdate = typeof tx.buildium_bill_id === 'number' && tx.buildium_bill_id > 0
     const path = isUpdate ? `/bills/${tx.buildium_bill_id}` : '/bills'
 
-    const response = await buildiumFetch(isUpdate ? 'PUT' : 'POST', path, undefined, payload, undefined)
+    const response = await buildiumFetch(isUpdate ? 'PUT' : 'POST', path, undefined, payload, orgId)
 
     if (!response.ok) {
       const errorData = response.json ?? {}

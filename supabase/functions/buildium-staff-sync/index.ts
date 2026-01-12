@@ -1,6 +1,8 @@
 // deno-lint-ignore-file
+import '../_shared/buildiumEgressGuard.ts';
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
+import { buildiumFetchEdge } from "../_shared/buildiumFetch.ts"
 
 type RunSummary = {
   scanned: number
@@ -27,6 +29,7 @@ serve(async (req) => {
   const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
   const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
   const body = await req.json().catch(() => ({} as Record<string, unknown>))
+  const orgId = typeof body?.orgId === 'string' ? body.orgId as string : (typeof body?.org_id === 'string' ? body.org_id as string : null)
   const creds = resolveBuildiumCreds(body?.credentials as Partial<BuildiumCredentials> | undefined)
   const BUILDIUM_BASE = creds.baseUrl
   const BUILDIUM_CLIENT_ID = creds.clientId
@@ -59,6 +62,12 @@ serve(async (req) => {
   }
 
   try {
+    if (!orgId) {
+      summary.errors.push('orgId required for Buildium staff sync')
+      await writeResult('failed')
+      return new Response(JSON.stringify({ error: 'orgId required' }), { status: 400 })
+    }
+
     if (!BUILDIUM_BASE || !BUILDIUM_CLIENT_ID || !BUILDIUM_CLIENT_SECRET) {
       summary.errors.push('Buildium credentials missing')
       await writeResult('failed')
@@ -70,15 +79,8 @@ serve(async (req) => {
     const limit = 100
     let totalReceived = 0
     for (let page = 0; page < 100; page++) { // hard safety limit
-      const ep = `${BUILDIUM_BASE.replace(/\/$/, '')}/users?limit=${limit}&offset=${offset}`
-      const res = await fetch(ep, {
-        headers: {
-          'Accept': 'application/json',
-          // Header names are case-sensitive per Buildium API documentation
-          'X-Buildium-Client-Id': BUILDIUM_CLIENT_ID,
-          'X-Buildium-Client-Secret': BUILDIUM_CLIENT_SECRET,
-        }
-      })
+      const ep = `/users?limit=${limit}&offset=${offset}`
+      const res = await buildiumFetchEdge(sb, orgId, 'GET', ep, undefined, creds)
       if (!res.ok) {
         const details = await res.text().catch(()=>'')
         summary.errors.push(`Buildium users fetch failed: ${res.status} ${details}`)
@@ -129,12 +131,10 @@ serve(async (req) => {
       let poffset = 0
       const plimit = 100
       for (let p = 0; p < 200; p++) {
-        const purl1 = `${BUILDIUM_BASE.replace(/\/$/, '')}/rentals/properties?limit=${plimit}&offset=${poffset}`
-        const purl2 = `${BUILDIUM_BASE.replace(/\/$/, '')}/properties?limit=${plimit}&offset=${poffset}`
-        // Header names are case-sensitive per Buildium API documentation
-        const headers = { 'Accept':'application/json','X-Buildium-Client-Id':BUILDIUM_CLIENT_ID,'X-Buildium-Client-Secret':BUILDIUM_CLIENT_SECRET }
-        let pres = await fetch(purl1, { headers })
-        if (!pres.ok) pres = await fetch(purl2, { headers })
+        const purl1 = `/rentals/properties?limit=${plimit}&offset=${poffset}`
+        const purl2 = `/properties?limit=${plimit}&offset=${poffset}`
+        let pres = await buildiumFetchEdge(sb, orgId, 'GET', purl1, undefined, creds)
+        if (!pres.ok) pres = await buildiumFetchEdge(sb, orgId, 'GET', purl2, undefined, creds)
         if (!pres.ok) { summary.errors.push(`Buildium properties fetch failed: ${pres.status}`); break }
         const props = await pres.json().catch(()=>[] as any[])
         if (!Array.isArray(props) || props.length === 0) break

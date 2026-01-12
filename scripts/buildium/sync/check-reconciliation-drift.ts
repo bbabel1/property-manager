@@ -6,6 +6,7 @@
 
 import { config } from 'dotenv';
 import { resolve } from 'path';
+import { ensureBuildiumEnabledForScript } from '../ensure-enabled';
 
 // Try loading .env.local first, then .env
 config({ path: resolve(process.cwd(), '.env.local') });
@@ -24,6 +25,7 @@ async function main() {
     if (!serviceRoleKey) console.error('   - SUPABASE_SERVICE_ROLE_KEY');
     process.exit(1);
   }
+  await ensureBuildiumEnabledForScript(process.env.DEFAULT_ORG_ID ?? null);
 
   const admin = createClient<Database>(supabaseUrl, serviceRoleKey, {
     auth: {

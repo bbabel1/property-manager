@@ -5,7 +5,7 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumTenantCreateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 import { getOrgScopedBuildiumEdgeClient } from '@/lib/buildium-edge-client';
-import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard';
 
 export async function GET(request: NextRequest) {
   try {
@@ -16,15 +16,10 @@ export async function GET(request: NextRequest) {
     }
 
     // Require platform admin
-    const { user } = await requireRole('platform_admin');
-
-    // Resolve orgId from request context (optional for platform admin routes)
-    let orgId: string | undefined;
-    try {
-      orgId = await resolveOrgIdFromRequest(request, user.id);
-    } catch (error) {
-      logger.warn({ userId: user.id, error }, 'Could not resolve orgId, falling back to env vars');
-    }
+    await requireRole('platform_admin');
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
 
     // Get query parameters
     const { searchParams } = new URL(request.url);
@@ -82,15 +77,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Require platform admin
-    const { user } = await requireRole('platform_admin');
-
-    // Resolve orgId from request context (optional for platform admin routes)
-    let orgId: string | undefined;
-    try {
-      orgId = await resolveOrgIdFromRequest(request, user.id);
-    } catch (error) {
-      logger.warn({ userId: user.id, error }, 'Could not resolve orgId, falling back to env vars');
-    }
+    await requireRole('platform_admin');
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
 
     // Parse and validate request body
     const body = await request.json();

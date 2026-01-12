@@ -33,7 +33,7 @@ export async function POST(
     await requireOrgMember({ client: supabase, userId: user.id, orgId })
     if (!hasSupabaseAdmin()) return NextResponse.json({ error: 'Server missing admin key' }, { status: 500 })
     const supabaseAdmin = requireSupabaseAdmin('lease documents presign')
-    const supabase = await getSupabaseServerClient()
+    const supabaseServer = await getSupabaseServerClient()
     const { id } = await params
     const leaseIdNum = Number(id)
     if (!leaseIdNum) return NextResponse.json({ error: 'Invalid leaseId' }, { status: 400 })
@@ -63,7 +63,7 @@ export async function POST(
       .eq('id', leaseIdNum)
       .eq('org_id', orgId)
       .maybeSingle<Pick<LeaseRow, 'id' | 'org_id' | 'property_id'>>()
-    const { data: lease } = await supabase
+    const { data: lease } = await supabaseServer
       .from('lease')
       .select('id, org_id, property_id')
       .eq('id', leaseIdNum)
@@ -90,8 +90,8 @@ export async function POST(
     const ext = extFromMime(mimeType)
     const rand = randomUUID()
     const safeName = typeof fileName === 'string' && fileName.length > 0 ? fileName.replace(/[^A-Za-z0-9._-]+/g, '_') : `${rand}.${ext}`
-    const orgId = lease?.org_id ?? propertyRow.org_id
-    const storage_path = `org/${orgId}/leases/${lease?.id}/${rand}-${safeName}`
+    const storageOrgId = lease?.org_id ?? propertyRow.org_id
+    const storage_path = `org/${storageOrgId}/leases/${lease?.id}/${rand}-${safeName}`
 
     const expiresIn = 15 * 60 // 15 min
     const { data: signData, error: signErr } = await supabaseAdmin.storage

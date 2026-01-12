@@ -5,6 +5,7 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumBillFileUploadSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 import { buildiumFetch } from '@/lib/buildium-http';
+import { requireBuildiumEnabledOr403 } from '@/lib/buildium-route-guard';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -19,11 +20,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     // Require platform admin
     await requireRole('platform_admin');
+    const orgIdResult = await requireBuildiumEnabledOr403(request);
+    if (orgIdResult instanceof NextResponse) return orgIdResult;
+    const orgId = orgIdResult;
 
     const { id } = await params;
 
     // Make request to Buildium API
-    const response = await buildiumFetch('GET', `/bills/${id}/files`, undefined, undefined, undefined);
+    const response = await buildiumFetch('GET', `/bills/${id}/files`, undefined, undefined, orgId);
 
     if (!response.ok) {
       const errorData = response.json ?? {};
@@ -72,6 +76,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     // Require platform admin
     await requireRole('platform_admin');
+    const orgIdResult = await requireBuildiumEnabledOr403(request);
+    if (orgIdResult instanceof NextResponse) return orgIdResult;
+    const orgId = orgIdResult;
 
     const { id } = await params;
 
@@ -82,7 +89,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const validatedData = sanitizeAndValidate(body, BuildiumBillFileUploadSchema);
 
     // Make request to Buildium API
-    const response = await buildiumFetch('POST', `/bills/${id}/files`, undefined, validatedData, undefined);
+    const response = await buildiumFetch('POST', `/bills/${id}/files`, undefined, validatedData, orgId);
 
     if (!response.ok) {
       const errorData = response.json ?? {};

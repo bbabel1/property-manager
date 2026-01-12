@@ -5,21 +5,16 @@ import { checkRateLimit } from '@/lib/rate-limit'
 import { sanitizeAndValidate } from '@/lib/sanitize'
 import { BuildiumUnitCreateSchema } from '@/schemas/buildium'
 import { getOrgScopedBuildiumEdgeClient } from '@/lib/buildium-edge-client'
-import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id'
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard'
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const rate = await checkRateLimit(request)
     if (!rate.success) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
-    const { user } = await requireRole('platform_admin')
-
-    // Resolve orgId from request context
-    let orgId: string | undefined;
-    try {
-      orgId = await resolveOrgIdFromRequest(request, user.id);
-    } catch (error) {
-      logger.warn({ userId: user.id, error }, 'Could not resolve orgId, falling back to env vars');
-    }
+    await requireRole('platform_admin')
+    const guard = await getBuildiumOrgIdOr403(request)
+    if ('response' in guard) return guard.response
+    const { orgId } = guard
 
     const { searchParams } = new URL(request.url)
     const limit = searchParams.get('limit') || '50'
@@ -47,15 +42,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   try {
     const rate = await checkRateLimit(request)
     if (!rate.success) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
-    const { user } = await requireRole('platform_admin')
-
-    // Resolve orgId from request context
-    let orgId: string | undefined;
-    try {
-      orgId = await resolveOrgIdFromRequest(request, user.id);
-    } catch (error) {
-      logger.warn({ userId: user.id, error }, 'Could not resolve orgId, falling back to env vars');
-    }
+    await requireRole('platform_admin')
+    const guard = await getBuildiumOrgIdOr403(request)
+    if ('response' in guard) return guard.response
+    const { orgId } = guard
 
     const { id } = await params
     const body = await request.json()

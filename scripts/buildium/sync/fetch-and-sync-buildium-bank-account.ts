@@ -3,6 +3,7 @@
 import { config } from 'dotenv'
 import { createClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database'
+import { ensureBuildiumEnabledForScript } from '../ensure-enabled'
 
 // Load environment variables
 config({ path: '.env.local' })
@@ -36,6 +37,7 @@ async function fetchBuildiumBankAccount(): Promise<BuildiumBankAccount> {
     headers: {
       'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
       'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
+      'x-buildium-egress-allowed': '1',
       'Content-Type': 'application/json',
       'Accept': 'application/json'
     }
@@ -179,6 +181,7 @@ async function syncBankAccountToDatabase(buildiumAccount: BuildiumBankAccount, g
 
 async function main() {
   try {
+    await ensureBuildiumEnabledForScript(process.env.DEFAULT_ORG_ID ?? null)
     console.log('🚀 Starting Buildium bank account sync...')
     
     // 1. Fetch bank account from Buildium

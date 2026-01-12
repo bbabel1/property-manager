@@ -5,6 +5,7 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumOwnerNoteCreateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 import { buildiumFetch } from '@/lib/buildium-http';
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -19,6 +20,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     // Require platform admin
     await requireRole('platform_admin');
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
 
     const { id } = await params;
 
@@ -35,7 +39,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (orderby) queryParams.orderby = orderby;
 
     // Make request to Buildium API
-    const response = await buildiumFetch('GET', `/rentals/owners/${id}/notes`, queryParams, undefined, undefined);
+    const response = await buildiumFetch('GET', `/rentals/owners/${id}/notes`, queryParams, undefined, orgId);
 
     if (!response.ok) {
       const errorData = response.json ?? {};
@@ -84,6 +88,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     // Require platform admin
     await requireRole('platform_admin');
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
 
     const { id } = await params;
 
@@ -94,7 +101,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const validatedData = sanitizeAndValidate(body, BuildiumOwnerNoteCreateSchema);
 
     // Make request to Buildium API
-    const response = await buildiumFetch('POST', `/rentals/owners/${id}/notes`, undefined, validatedData, undefined);
+    const response = await buildiumFetch('POST', `/rentals/owners/${id}/notes`, undefined, validatedData, orgId);
 
     if (!response.ok) {
       const errorData = response.json ?? {};

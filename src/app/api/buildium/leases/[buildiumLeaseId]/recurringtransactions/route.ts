@@ -5,6 +5,7 @@ import { checkRateLimit } from '@/lib/rate-limit'
 import { sanitizeAndValidate } from '@/lib/sanitize'
 import { BuildiumRecurringTransactionCreateSchema } from '@/schemas/buildium'
 import { buildiumFetch } from '@/lib/buildium-http'
+import { requireBuildiumEnabledOr403 } from '@/lib/buildium-route-guard';
 
 export async function GET(
   request: NextRequest,
@@ -14,7 +15,10 @@ export async function GET(
     const rateLimitResult = await checkRateLimit(request)
     if (!rateLimitResult.success) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
 
-    await requireRole('platform_admin')
+    await requireRole('platform_admin');
+    const orgIdResult = await requireBuildiumEnabledOr403(request);
+    if (orgIdResult instanceof NextResponse) return orgIdResult;
+    const orgId = orgIdResult;
     const { buildiumLeaseId } = await params
     const { searchParams } = new URL(request.url)
     const orderby = searchParams.get('orderby') || undefined
@@ -25,7 +29,13 @@ export async function GET(
     if (offset) queryParams.offset = offset
     if (limit) queryParams.limit = limit
 
-    const response = await buildiumFetch('GET', `/leases/${buildiumLeaseId}/recurring-transactions`, queryParams, undefined, undefined)
+    const response = await buildiumFetch(
+      'GET',
+      `/leases/${buildiumLeaseId}/recurring-transactions`,
+      queryParams,
+      undefined,
+      orgId,
+    );
 
     if (!response.ok) {
       const errorData = response.json ?? {}
@@ -50,12 +60,21 @@ export async function POST(
     const rateLimitResult = await checkRateLimit(request)
     if (!rateLimitResult.success) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
 
-    await requireRole('platform_admin')
+    await requireRole('platform_admin');
+    const orgIdResult = await requireBuildiumEnabledOr403(request);
+    if (orgIdResult instanceof NextResponse) return orgIdResult;
+    const orgId = orgIdResult;
     const { buildiumLeaseId } = await params
     const body = await request.json()
     const validated = sanitizeAndValidate(body, BuildiumRecurringTransactionCreateSchema)
 
-    const response = await buildiumFetch('POST', `/leases/${buildiumLeaseId}/recurring-transactions`, undefined, validated, undefined)
+    const response = await buildiumFetch(
+      'POST',
+      `/leases/${buildiumLeaseId}/recurring-transactions`,
+      undefined,
+      validated,
+      orgId,
+    );
 
     if (!response.ok) {
       const errorData = response.json ?? {}

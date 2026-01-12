@@ -4,6 +4,7 @@ import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
 import { resolvePropertyIdentifier } from '@/lib/public-id-utils';
 import { supabaseAdmin } from '@/lib/db';
 import { resolveUndepositedFundsGlAccountId } from '@/lib/buildium-mappers';
+import { assertBuildiumEnabled, BuildiumDisabledError } from '@/lib/buildium-gate';
 import type { Database } from '@/types/database';
 
 type TransactionRow = Pick<
@@ -39,6 +40,7 @@ export async function PATCH(
     const { internalId: propertyId } = await resolvePropertyIdentifier(slug);
     const { supabase: db, user } = await requireAuth();
     const orgId = await resolveOrgIdFromRequest(request, user.id, db);
+    await assertBuildiumEnabled(orgId, request.url);
 
     const { data: property, error: propertyError } = await db
       .from('properties')
@@ -180,6 +182,12 @@ export async function PATCH(
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (error instanceof BuildiumDisabledError) {
+      return NextResponse.json(
+        { error: 'Buildium integration is disabled for this organization' },
+        { status: 403 },
+      );
+    }
     if (error instanceof Error) {
       if (error.message === 'UNAUTHENTICATED') {
         return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
@@ -208,6 +216,7 @@ export async function DELETE(
     const { internalId: propertyId } = await resolvePropertyIdentifier(slug);
     const { supabase: db, user } = await requireAuth();
     const orgId = await resolveOrgIdFromRequest(request, user.id, db);
+    await assertBuildiumEnabled(orgId, request.url);
 
     const { data: property, error: propertyError } = await db
       .from('properties')
@@ -443,6 +452,12 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (error instanceof BuildiumDisabledError) {
+      return NextResponse.json(
+        { error: 'Buildium integration is disabled for this organization' },
+        { status: 403 },
+      );
+    }
     if (error instanceof Error) {
       if (error.message === 'UNAUTHENTICATED') {
         return NextResponse.json({ error: 'Authentication required' }, { status: 401 });

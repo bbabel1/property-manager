@@ -6,6 +6,7 @@ import { sanitizeAndValidate } from '@/lib/sanitize';
 import { BuildiumBillFileUpdateSchema } from '@/schemas/buildium';
 import { buildiumFetch } from '@/lib/buildium-http';
 import { requireSupabaseAdmin } from '@/lib/supabase-client'
+import { requireBuildiumEnabledOr403 } from '@/lib/buildium-route-guard';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string; fileId: string }> }) {
   try {
@@ -20,11 +21,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     // Require platform admin
     await requireRole('platform_admin');
+    const orgIdResult = await requireBuildiumEnabledOr403(request);
+    if (orgIdResult instanceof NextResponse) return orgIdResult;
+    const orgId = orgIdResult;
 
     const { id, fileId } = await params;
 
     // Make request to Buildium API
-    const response = await buildiumFetch('GET', `/bills/${id}/files/${fileId}`, undefined, undefined, undefined);
+    const response = await buildiumFetch('GET', `/bills/${id}/files/${fileId}`, undefined, undefined, orgId);
 
     if (!response.ok) {
       const errorData = response.json ?? {};
@@ -72,11 +76,14 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     // Require platform admin
     await requireRole('platform_admin');
+    const orgIdResult = await requireBuildiumEnabledOr403(request);
+    if (orgIdResult instanceof NextResponse) return orgIdResult;
+    const orgId = orgIdResult;
 
     const { id, fileId } = await params;
 
     // Make request to Buildium API
-    const response = await buildiumFetch('DELETE', `/bills/${id}/files/${fileId}`, undefined, undefined, undefined);
+    const response = await buildiumFetch('DELETE', `/bills/${id}/files/${fileId}`, undefined, undefined, orgId);
 
     if (!response.ok) {
       const errorData = response.json ?? {};
@@ -111,7 +118,6 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string; fileId: string }> }) {
   try {
-    const supabaseAdmin = requireSupabaseAdmin('bill file download request')
     // Check rate limiting
     const rateLimitResult = await checkRateLimit(request);
     if (!rateLimitResult.success) {
@@ -123,11 +129,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     // Require platform admin
     await requireRole('platform_admin');
+    const orgIdResult = await requireBuildiumEnabledOr403(request);
+    if (orgIdResult instanceof NextResponse) return orgIdResult;
+    const orgId = orgIdResult;
+    const supabaseAdmin = requireSupabaseAdmin('bill file download request')
 
     const { id, fileId } = await params;
 
     const { data, error } = await supabaseAdmin.functions.invoke('buildium-bills', {
-      body: { op: 'file_downloadrequest', billId: id, fileId }
+      body: { op: 'file_downloadrequest', billId: id, fileId, orgId }
     })
     if (error || !data?.success) {
       return NextResponse.json({ error: 'Failed to download bill file from Buildium', details: error?.message || data?.error }, { status: 502 })
@@ -163,6 +173,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     await requireRole('platform_admin');
+    const orgIdResult = await requireBuildiumEnabledOr403(request);
+    if (orgIdResult instanceof NextResponse) return orgIdResult;
+    const orgId = orgIdResult;
     const { id, fileId } = await params;
 
     const body = await request.json();
@@ -170,7 +183,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     const supabaseAdmin = requireSupabaseAdmin('bill file update')
     const { data, error } = await supabaseAdmin.functions.invoke('buildium-bills', {
-      body: { op: 'file_update', billId: id, fileId, payload: validated }
+      body: { op: 'file_update', billId: id, fileId, payload: validated, orgId }
     })
     if (error || !data?.success) {
       return NextResponse.json({ error: 'Failed to update bill file in Buildium', details: error?.message || data?.error }, { status: 502 })

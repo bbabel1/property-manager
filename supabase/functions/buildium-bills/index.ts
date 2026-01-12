@@ -1,5 +1,8 @@
 // deno-lint-ignore-file
+import '../_shared/buildiumEgressGuard.ts';
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
+import { buildiumFetchEdge } from "../_shared/buildiumFetch.ts"
 
 type BuildiumCredentials = { baseUrl: string; clientId: string; clientSecret: string }
 
@@ -8,16 +11,6 @@ function resolveCreds(input?: Partial<BuildiumCredentials> | null): BuildiumCred
   const clientId = (input?.clientId || Deno.env.get('BUILDIUM_CLIENT_ID') || '').trim()
   const clientSecret = (input?.clientSecret || Deno.env.get('BUILDIUM_CLIENT_SECRET') || '').trim()
   return { baseUrl, clientId, clientSecret }
-}
-
-function buildiumHeaders(creds: BuildiumCredentials) {
-  return {
-    'Accept': 'application/json',
-    'Content-Type': 'application/json',
-    // Header names are case-sensitive per Buildium API documentation
-    'X-Buildium-Client-Id': creds.clientId,
-    'X-Buildium-Client-Secret': creds.clientSecret,
-  }
 }
 
 serve(async (req) => {
@@ -31,11 +24,20 @@ serve(async (req) => {
 
   try {
     const body = await req.json().catch(() => ({}))
+    const orgId = typeof body?.orgId === 'string' ? body.orgId : (typeof body?.org_id === 'string' ? body.org_id : null)
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    const supabase = createClient(supabaseUrl, serviceKey)
     const creds = resolveCreds(body?.credentials as Partial<BuildiumCredentials> | undefined)
+    if (!orgId) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'orgId required for Buildium requests' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 },
+      )
+    }
     if (!creds.clientId || !creds.clientSecret) {
       return new Response(JSON.stringify({ success: false, error: 'Buildium credentials missing' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 })
     }
-    const baseUrl = creds.baseUrl || 'https://apisandbox.buildium.com/v1'
     const op = String(body?.op || '')
 
     if (op === 'list_payments') {
@@ -47,8 +49,8 @@ serve(async (req) => {
       if (q.vendorId) params.set('vendorId', String(q.vendorId))
       if (q.dateFrom) params.set('dateFrom', String(q.dateFrom))
       if (q.dateTo) params.set('dateTo', String(q.dateTo))
-      const url = `${baseUrl}/bills/payments?${params.toString()}`
-      const res = await fetch(url, { headers: buildiumHeaders(creds) })
+      const url = `/bills/payments?${params.toString()}`
+      const res = await buildiumFetchEdge(supabase, orgId, 'GET', url, undefined, creds)
       const data = await res.json().catch(() => ({}))
       return new Response(JSON.stringify({ success: res.ok, data, status: res.status }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 })
     }
@@ -57,8 +59,8 @@ serve(async (req) => {
       const billId = body?.billId
       const fileId = body?.fileId
       const payload = body?.payload || {}
-      const url = `${baseUrl}/bills/${billId}/files/${fileId}`
-      const res = await fetch(url, { method: 'PUT', headers: buildiumHeaders(creds), body: JSON.stringify(payload) })
+      const url = `/bills/${billId}/files/${fileId}`
+      const res = await buildiumFetchEdge(supabase, orgId, 'PUT', url, payload, creds)
       const data = await res.json().catch(() => ({}))
       return new Response(JSON.stringify({ success: res.ok, data, status: res.status }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 })
     }
@@ -66,8 +68,8 @@ serve(async (req) => {
     if (op === 'file_downloadrequest') {
       const billId = body?.billId
       const fileId = body?.fileId
-      const url = `${baseUrl}/bills/${billId}/files/${fileId}/downloadrequest`
-      const res = await fetch(url, { method: 'POST', headers: buildiumHeaders(creds) })
+      const url = `/bills/${billId}/files/${fileId}/downloadrequest`
+      const res = await buildiumFetchEdge(supabase, orgId, 'POST', url, undefined, creds)
       const data = await res.json().catch(() => ({}))
       return new Response(JSON.stringify({ success: res.ok, data, status: res.status }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 })
     }

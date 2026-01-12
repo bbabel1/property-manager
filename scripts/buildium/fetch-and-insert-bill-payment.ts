@@ -6,6 +6,8 @@ import {
   resolveGLAccountId,
   mapPaymentMethodToEnum
 } from '@/lib/buildium-mappers'
+import { buildiumFetch } from '@/lib/buildium-http'
+import { ensureBuildiumEnabledForScript } from './ensure-enabled'
 
 // Load environment variables first
 config()
@@ -63,28 +65,17 @@ async function resolveLocalUnitId(buildiumUnitId: number | null | undefined) {
   }
 }
 
-async function fetchBillPaymentFromBuildium(billId: number, paymentId: number) {
-  // Use direct Buildium API call with correct authentication
-  const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/bills/${billId}/payments/${paymentId}`
-  
+async function fetchBillPaymentFromBuildium(billId: number, paymentId: number, orgId: string) {
   logger.info(`Fetching bill payment ${paymentId} for bill ${billId} from Buildium...`)
-  
-  const response = await fetch(buildiumUrl, {
-    method: 'GET',
-    headers: {
-      'Accept': 'application/json',
-      'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-      'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-    },
-  })
+
+  const response = await buildiumFetch('GET', `/bills/${billId}/payments/${paymentId}`, undefined, undefined, orgId)
 
   if (!response.ok) {
-    const errorText = await response.text()
     logger.error(`Buildium API error: ${response.status} ${response.statusText}`)
-    throw new Error(`Buildium API error: ${response.status} ${response.statusText} - ${errorText}`)
+    throw new Error(`Buildium API error: ${response.status} ${response.statusText} - ${response.errorText ?? ''}`)
   }
 
-  const data = await response.json()
+  const data = response.json
   console.log('Bill payment data from Buildium:', JSON.stringify(data, null, 2))
   logger.info(`Successfully fetched bill payment ${paymentId} from Buildium`)
   return data
@@ -307,6 +298,8 @@ async function insertBillPaymentIntoDatabase(buildiumPayment: any, billId: numbe
 // Note: GL account resolution is handled by resolveGLAccountId()
 
 async function main() {
+  const { orgId } = await ensureBuildiumEnabledForScript(process.env.DEFAULT_ORG_ID ?? null)
+
   const billId = Number(process.argv[2])
   const paymentId = Number(process.argv[3])
 
@@ -321,7 +314,7 @@ async function main() {
     logger.info(`Payment ID: ${paymentId}`)
 
     // Step 1: Fetch bill payment from Buildium
-    const buildiumPayment = await fetchBillPaymentFromBuildium(billId, paymentId)
+    const buildiumPayment = await fetchBillPaymentFromBuildium(billId, paymentId, orgId)
 
     // Step 2: Insert into database
     const insertedPayment = await insertBillPaymentIntoDatabase(buildiumPayment, billId)

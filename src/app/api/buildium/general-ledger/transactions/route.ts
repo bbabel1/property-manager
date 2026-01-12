@@ -3,6 +3,7 @@ import { requireRole } from '@/lib/auth/guards';
 import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { supabase } from '@/lib/db';
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard';
 
 export async function GET(request: NextRequest) {
   try {
@@ -17,6 +18,9 @@ export async function GET(request: NextRequest) {
 
     // Require platform admin
     await requireRole('platform_admin');
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
 
     // Get query parameters
     const { searchParams } = new URL(request.url);
@@ -28,7 +32,7 @@ export async function GET(request: NextRequest) {
     const glAccountId = searchParams.get('glAccountId') || searchParams.get('accountId');
 
     const { data, error } = await supabase.functions.invoke('buildium-sync', {
-      body: { method: 'GET', entityType: 'glTransactions', params: { limit, offset, orderby, dateFrom, dateTo, glAccountId } }
+      body: { method: 'GET', entityType: 'glTransactions', params: { limit, offset, orderby, dateFrom, dateTo, glAccountId }, orgId }
     })
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     const transactions = data?.data || data

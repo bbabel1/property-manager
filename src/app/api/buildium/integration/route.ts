@@ -8,6 +8,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth/guards';
+import { requireOrgMember } from '@/lib/auth/org-guards';
 import { supabaseAdmin } from '@/lib/db';
 import {
   storeBuildiumCredentials,
@@ -15,43 +16,17 @@ import {
   validateBuildiumBaseUrl,
   type BuildiumCredentials,
 } from '@/lib/buildium/credentials-manager';
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard';
 
-/**
- * Resolve orgId from request context
- */
-async function resolveOrgId(request: NextRequest, userId: string): Promise<string> {
-  // Check header first
-  const headerOrgId = request.headers.get('x-org-id');
-  if (headerOrgId) {
-    return headerOrgId.trim();
-  }
-
-  // Check cookies
-  const cookieOrgId = request.cookies.get('x-org-id')?.value;
-  if (cookieOrgId) {
-    return cookieOrgId.trim();
-  }
-
-  // Fallback to first org membership
-  const { data: membership, error } = await supabaseAdmin
-    .from('org_memberships')
-    .select('org_id')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: true })
-    .limit(1)
-    .maybeSingle();
-
-  if (error || !membership) {
-    throw new Error('ORG_CONTEXT_REQUIRED');
-  }
-
-  return membership.org_id;
-}
+// Management endpoints are now gated by Buildium enablement, with the toggle route as the only exemption.
 
 export async function GET(request: NextRequest) {
   try {
-    const auth = await requireAuth();
-    const orgId = await resolveOrgId(request, auth.user.id);
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
+    const { supabase: client, user } = await requireAuth();
+    await requireOrgMember({ client, userId: user.id, orgId });
 
     // Get integration from DB
     const { data: integration, error } = await supabaseAdmin
@@ -125,6 +100,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    if (error instanceof Error && error.message === 'ORG_FORBIDDEN') {
+      return NextResponse.json(
+        { error: { code: 'ORG_FORBIDDEN', message: 'Forbidden' } },
+        { status: 403 }
+      );
+    }
+
     return NextResponse.json(
       { error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch Buildium integration' } },
       { status: 500 }
@@ -134,8 +116,11 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const auth = await requireAuth();
-    const orgId = await resolveOrgId(request, auth.user.id);
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
+    const { supabase: client, user } = await requireAuth();
+    await requireOrgMember({ client, userId: user.id, orgId });
     const body = await request.json();
 
     // Validate base_url if provided
@@ -170,7 +155,7 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    await storeBuildiumCredentials(orgId, credentials, auth.user.id);
+    await storeBuildiumCredentials(orgId, credentials, user.id);
 
     return NextResponse.json({ success: true });
   } catch (error) {
@@ -190,6 +175,13 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    if (error instanceof Error && error.message === 'ORG_FORBIDDEN') {
+      return NextResponse.json(
+        { error: { code: 'ORG_FORBIDDEN', message: 'Forbidden' } },
+        { status: 403 }
+      );
+    }
+
     return NextResponse.json(
       { error: { code: 'INTERNAL_ERROR', message: error instanceof Error ? error.message : 'Failed to update Buildium integration' } },
       { status: 500 }
@@ -199,10 +191,13 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const auth = await requireAuth();
-    const orgId = await resolveOrgId(request, auth.user.id);
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
+    const { supabase: client, user } = await requireAuth();
+    await requireOrgMember({ client, userId: user.id, orgId });
 
-    await deleteBuildiumCredentials(orgId, auth.user.id);
+    await deleteBuildiumCredentials(orgId, user.id);
 
     return NextResponse.json({ success: true });
   } catch (error) {
@@ -219,6 +214,13 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json(
         { error: { code: 'missing_org', message: 'Organization context required' } },
         { status: 400 }
+      );
+    }
+
+    if (error instanceof Error && error.message === 'ORG_FORBIDDEN') {
+      return NextResponse.json(
+        { error: { code: 'ORG_FORBIDDEN', message: 'Forbidden' } },
+        { status: 403 }
       );
     }
 

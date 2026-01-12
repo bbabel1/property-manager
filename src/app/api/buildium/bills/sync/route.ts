@@ -7,6 +7,7 @@ import { requireSupabaseAdmin, SupabaseAdminUnavailableError } from '@/lib/supab
 
 import { upsertBillWithLines } from '@/lib/buildium-mappers'
 import type { BuildiumBillWithLines } from '@/types/buildium'
+import { requireBuildiumEnabledOr403 } from '@/lib/buildium-route-guard'
 
 const toNumber = (value: unknown): number | null => {
   const num = typeof value === 'number' ? value : Number(value)
@@ -91,12 +92,21 @@ const normalizeBillPayload = (bill: unknown): BuildiumBillWithLines | null => {
 export async function GET(request: NextRequest) {
   try {
     const isCron = request.headers.get('x-cron-secret') === process.env.CRON_SECRET
+    let orgId: string
     if (!isCron) {
       const rate = await checkRateLimit(request)
       if (!rate.success) {
         return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
       }
-      await requireRole('platform_admin')
+      const { user } = await requireRole('platform_admin')
+      const guardResult = await requireBuildiumEnabledOr403(request)
+      if (guardResult instanceof NextResponse) return guardResult
+      orgId = guardResult
+    }
+    if (isCron) {
+      const guardResult = await requireBuildiumEnabledOr403(request)
+      if (guardResult instanceof NextResponse) return guardResult
+      orgId = guardResult
     }
 
     const { searchParams } = new URL(request.url)
@@ -119,7 +129,7 @@ export async function GET(request: NextRequest) {
     if (dateFrom) queryParams.dateFrom = dateFrom
     if (dateTo) queryParams.dateTo = dateTo
 
-    const response = await buildiumFetch('GET', '/bills', queryParams, undefined, undefined)
+    const response = await buildiumFetch('GET', '/bills', queryParams, undefined, orgId)
 
     if (!response.ok) {
       const details = response.json ?? {}
@@ -174,6 +184,9 @@ export async function POST(request: NextRequest) {
       }
       await requireRole('platform_admin')
     }
+
+    const guardResult = await requireBuildiumEnabledOr403(request)
+    if (guardResult instanceof NextResponse) return guardResult
 
     // Accept a single Buildium bill payload and upsert it
     const admin = requireSupabaseAdmin('buildium bills sync POST')

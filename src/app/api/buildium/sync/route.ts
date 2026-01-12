@@ -3,6 +3,7 @@ import { requireRole } from '@/lib/auth/guards'
 import { getOrgScopedBuildiumEdgeClient } from '@/lib/buildium-edge-client'
 import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id'
 import { logger } from '@/lib/logger'
+import { requireBuildiumEnabledOr403 } from '@/lib/buildium-route-guard'
 
 export async function GET(request: NextRequest) {
   try {
@@ -15,13 +16,9 @@ export async function GET(request: NextRequest) {
     const entityType = searchParams.get('entityType');
     const entityId = searchParams.get('entityId');
 
-    // Resolve orgId from request context (optional for platform admin routes)
-    let orgId: string | undefined;
-    try {
-      orgId = await resolveOrgIdFromRequest(request, user.id);
-    } catch (error) {
-      logger.warn({ userId: user.id, error }, 'Could not resolve orgId, falling back to env vars');
-    }
+    const orgIdResult = await requireBuildiumEnabledOr403(request);
+    if (orgIdResult instanceof NextResponse) return orgIdResult;
+    const orgId = orgIdResult;
 
     // Use org-scoped client
     const edgeClient = await getOrgScopedBuildiumEdgeClient(orgId);
@@ -76,13 +73,9 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { entityType } = body;
 
-    // Resolve orgId from request context (optional for platform admin routes)
-    let orgId: string | undefined;
-    try {
-      orgId = await resolveOrgIdFromRequest(request, user.id);
-    } catch (error) {
-      logger.warn({ userId: user.id, error }, 'Could not resolve orgId, falling back to env vars');
-    }
+    const orgIdResult = await requireBuildiumEnabledOr403(request);
+    if (orgIdResult instanceof NextResponse) return orgIdResult;
+    const orgId = orgIdResult;
 
     // Use org-scoped client
     const edgeClient = await getOrgScopedBuildiumEdgeClient(orgId);

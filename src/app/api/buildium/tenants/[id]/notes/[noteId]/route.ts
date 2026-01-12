@@ -5,6 +5,7 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumTenantNoteUpdateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 import { buildiumFetch } from '@/lib/buildium-http';
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string; noteId: string }> }) {
   try {
@@ -19,11 +20,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     // Require platform admin
     await requireRole('platform_admin');
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
 
     const { id, noteId } = await params;
 
     // Make request to Buildium API
-    const response = await buildiumFetch('GET', `/rentals/tenants/${id}/notes/${noteId}`, undefined, undefined, undefined);
+    const response = await buildiumFetch('GET', `/rentals/tenants/${id}/notes/${noteId}`, undefined, undefined, orgId);
 
     if (!response.ok) {
       const errorData = response.json ?? {};
@@ -71,6 +75,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     // Require platform admin
     await requireRole('platform_admin');
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
 
     const { id, noteId } = await params;
 
@@ -81,7 +88,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const validatedData = sanitizeAndValidate(body, BuildiumTenantNoteUpdateSchema);
 
     // Make request to Buildium API
-    const response = await buildiumFetch('PUT', `/rentals/tenants/${id}/notes/${noteId}`, undefined, validatedData, undefined);
+    const response = await buildiumFetch('PUT', `/rentals/tenants/${id}/notes/${noteId}`, undefined, validatedData, orgId);
 
     if (!response.ok) {
       const errorData = response.json ?? {};

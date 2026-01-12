@@ -4,16 +4,20 @@ import { logger } from '@/lib/logger'
 import { BuildiumBankAccountUpdateSchema } from '@/schemas/buildium'
 import { sanitizeAndValidate } from '@/lib/sanitize'
 import { buildiumFetch } from '@/lib/buildium-http'
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard'
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Authentication
     await requireRole('platform_admin')
+    const guard = await getBuildiumOrgIdOr403(request)
+    if ('response' in guard) return guard.response
+    const { orgId } = guard
     const bankAccountId = (await params).id;
     
     logger.info({ bankAccountId, action: 'get_buildium_bank_account' }, 'Fetching Buildium bank account details');
 
-    const prox = await buildiumFetch('GET', `/bankaccounts/${bankAccountId}`)
+    const prox = await buildiumFetch('GET', `/bankaccounts/${bankAccountId}`, undefined, undefined, orgId)
     if (!prox.ok) {
       if (prox.status === 404) {
         return NextResponse.json(
@@ -43,6 +47,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   try {
     // Authentication
     await requireRole('platform_admin')
+    const guard = await getBuildiumOrgIdOr403(request)
+    if ('response' in guard) return guard.response
+    const { orgId } = guard
     const bankAccountId = (await params).id;
     
     logger.info({ bankAccountId, action: 'update_buildium_bank_account' }, 'Updating Buildium bank account');
@@ -51,7 +58,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const body = await request.json();
     const data = sanitizeAndValidate(body, BuildiumBankAccountUpdateSchema);
 
-    const prox = await buildiumFetch('PUT', `/bankaccounts/${bankAccountId}`, undefined, data)
+    const prox = await buildiumFetch('PUT', `/bankaccounts/${bankAccountId}`, undefined, data, orgId)
     if (!prox.ok) {
       if (prox.status === 404) {
         return NextResponse.json(

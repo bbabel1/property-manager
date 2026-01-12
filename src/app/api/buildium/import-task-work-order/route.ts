@@ -7,6 +7,7 @@ import { requireRole } from '@/lib/auth/guards';
 import type { Database } from '@/types/database';
 import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
 import { requireOrgMember } from '@/lib/auth/org-guards';
+import { requireBuildiumEnabledOr403 } from '@/lib/buildium-route-guard';
 
 type TaskUpdate = Database['public']['Tables']['tasks']['Update'];
 type TaskInsert = Database['public']['Tables']['tasks']['Insert'];
@@ -119,7 +120,9 @@ async function upsertWorkOrderFromBuildium(
 export async function POST(request: NextRequest) {
   try {
     const { supabase: db, user } = await requireRole('platform_admin');
-    const orgId = await resolveOrgIdFromRequest(request, user.id, db);
+    const orgIdResult = await requireBuildiumEnabledOr403(request);
+    if (orgIdResult instanceof NextResponse) return orgIdResult;
+    const orgId = orgIdResult;
     await requireOrgMember({ client: db, userId: user.id, orgId });
     const body: unknown = await request.json().catch(() => ({}));
     const bodyObj = isRecord(body) ? body : {};

@@ -5,9 +5,10 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumEdgeClient, getOrgScopedBuildiumEdgeClient } from '@/lib/buildium-edge-client';
 import { BuildiumPropertyImageUploadSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
-import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
 import { requireOrgMember } from '@/lib/auth/org-guards';
 import { hasRole } from '@/lib/auth/roles';
+import { BuildiumDisabledError } from '@/lib/buildium-gate';
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -24,8 +25,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     // Authentication
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
     const { supabase: db, user } = await requireAuth();
-    const orgId = await resolveOrgIdFromRequest(request, user.id, db);
     await requireOrgMember({ client: db, userId: user.id, orgId });
 
     logger.info(
@@ -51,7 +54,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (!property) {
       return NextResponse.json({ error: 'Property not found' }, { status: 404 });
     }
-
     // Get property images from database
     const { data: images, error } = await db
       .from('property_images')
@@ -84,6 +86,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       if (error.message === 'ORG_FORBIDDEN') {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
+      if (error instanceof BuildiumDisabledError) {
+        return NextResponse.json(
+          { error: { code: 'BUILDIUM_DISABLED', message: error.message } },
+          { status: 403 },
+        );
+      }
     }
 
     logger.error(
@@ -109,8 +117,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     // Authentication
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
     const { supabase: db, user, roles, orgRoles } = await requireAuth();
-    const orgId = await resolveOrgIdFromRequest(request, user.id, db);
     await requireOrgMember({ client: db, userId: user.id, orgId });
 
     logger.info(
@@ -292,6 +302,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       }
       if (error.message === 'ORG_FORBIDDEN') {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+      if (error instanceof BuildiumDisabledError) {
+        return NextResponse.json(
+          { error: { code: 'BUILDIUM_DISABLED', message: error.message } },
+          { status: 403 },
+        );
       }
     }
 

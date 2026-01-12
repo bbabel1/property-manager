@@ -1,4 +1,5 @@
 // deno-lint-ignore-file
+import '../_shared/buildiumEgressGuard.ts';
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { verifyBuildiumSignature } from '../_shared/buildiumSignature.ts';
@@ -15,35 +16,47 @@ import { routeLeaseTransactionWebhookEvent } from '../_shared/eventRouting.ts';
 import { emitRoutingTelemetry } from '../_shared/telemetry.ts';
 import { sendPagerDutyEvent } from '../_shared/pagerDuty.ts';
 import { resolveLeaseWithOrg } from '../_shared/leaseResolver.ts';
+import { assertBuildiumEnabledEdge } from '../_shared/buildiumGate.ts';
+import { buildiumFetchEdge } from '../_shared/buildiumFetch.ts';
 
 type BuildiumCredentials = { baseUrl: string; clientId: string; clientSecret: string };
 
 // Buildium API Client for lease transactions
 class BuildiumClient {
+  private supabase: any;
+  private orgId?: string;
   private baseUrl: string;
   private clientId: string;
   private clientSecret: string;
 
-  constructor(opts?: { baseUrl?: string; clientId?: string; clientSecret?: string }) {
+  constructor(opts?: { baseUrl?: string; clientId?: string; clientSecret?: string; supabase: any; orgId?: string }) {
     if (!opts?.clientId || !opts?.clientSecret) {
       throw new Error('Missing Buildium credentials for lease transactions');
     }
+    this.supabase = opts.supabase;
+    this.orgId = opts.orgId;
     this.baseUrl = (opts.baseUrl || 'https://apisandbox.buildium.com/v1').replace(/\/$/, '');
     this.clientId = opts.clientId;
     this.clientSecret = opts.clientSecret;
   }
 
   private async makeRequest<T>(method: string, endpoint: string): Promise<T> {
-    const url = `${this.baseUrl}${endpoint}`;
-    const headers = {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-      // Header names are case-sensitive per Buildium API documentation
-      'X-Buildium-Client-Id': this.clientId,
-      'X-Buildium-Client-Secret': this.clientSecret,
-    };
-
-    const response = await fetch(url, { method, headers });
+    if (!this.orgId) {
+      throw new Error('orgId required for Buildium lease transaction fetch');
+    }
+    await assertBuildiumEnabledEdge(this.supabase, this.orgId);
+    const response = await buildiumFetchEdge(
+      this.supabase,
+      this.orgId,
+      method,
+      endpoint,
+      undefined,
+      {
+        baseUrl: this.baseUrl,
+        clientId: this.clientId,
+        clientSecret: this.clientSecret,
+      },
+    );
 
     if (!response.ok) {
       throw new Error(`Buildium API error: ${response.status} ${response.statusText}`);
@@ -953,15 +966,92 @@ serve(async (req) => {
       );
     }
 
+    // Resolve orgId (required for gating). Prefer explicit payload field; fallback to Buildium AccountId lookup.
+    let orgId =
+      typeof (payload as any)?.orgId === 'string'
+        ? (payload as any).orgId
+        : (typeof (payload as any)?.org_id === 'string' ? (payload as any).org_id : null);
+
+    if (!orgId) {
+      const accountIdRaw =
+        (payload as any)?.accountId ??
+        (payload as any)?.AccountId ??
+        (payload as any)?.account_id ??
+        (payload.Events[0] as any)?.AccountId ??
+        null;
+      const accountIdNum = Number(accountIdRaw);
+      if (Number.isFinite(accountIdNum) && accountIdNum > 0) {
+        orgId = (await resolveOrgIdFromBuildiumAccount(supabase, accountIdNum)) ?? null;
+      }
+    }
+
+    if (!orgId) {
+      return new Response(
+        JSON.stringify({ error: 'orgId is required for Buildium lease transaction processing' }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 400,
+        },
+      );
+    }
+
     // Initialize Buildium client (allow per-request override for testing/local)
-    const buildiumClient = new BuildiumClient(payload.credentials as BuildiumCredentials);
+    const buildiumClient = new BuildiumClient({
+      ...(payload.credentials as BuildiumCredentials),
+      supabase,
+      orgId,
+    });
+
+    const markEventsIgnoredDisabled = async (eventsToIgnore: BuildiumWebhookEvent[]) => {
+      for (const event of eventsToIgnore) {
+        try {
+          const storeResult = await insertBuildiumWebhookEventRecord(supabase, event, {
+            webhookType: 'lease-transactions',
+            signature: verification.signature ?? null,
+          });
+
+          if (storeResult.status === 'inserted' || storeResult.status === 'duplicate') {
+            await supabase
+              .from('buildium_webhook_events')
+              .update({
+                processed: true,
+                processed_at: new Date().toISOString(),
+                status: 'ignored_disabled',
+                retry_count: 0,
+                error_message: 'Buildium integration is disabled',
+              })
+              .eq('buildium_webhook_id', storeResult.normalized.buildiumWebhookId)
+              .eq('event_name', storeResult.normalized.eventName)
+              .eq('event_created_at', storeResult.normalized.eventCreatedAt);
+          }
+        } catch (err) {
+          console.warn('buildium-lease-transactions ignored-disabled storage failed', {
+            error: (err as Error)?.message,
+          });
+        }
+      }
+    };
 
     // Log webhook event
     console.log('Received lease transaction webhook with', payload.Events.length, 'events');
 
     // Process webhook events (only lease transaction events) with idempotent insert
     const results = [];
-    for (const event of payload.Events) {
+    for (let idx = 0; idx < payload.Events.length; idx++) {
+      const event = payload.Events[idx];
+
+      try {
+        await assertBuildiumEnabledEdge(supabase, orgId);
+      } catch (error) {
+        await markEventsIgnoredDisabled(payload.Events.slice(idx));
+        return new Response(
+          JSON.stringify({ ignored: true, reason: 'integration_disabled' }),
+          {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 200,
+          },
+        );
+      }
       const eventType = deriveEventType(event as Record<string, unknown>);
 
       const storeResult = await insertBuildiumWebhookEventRecord(supabase, event, {

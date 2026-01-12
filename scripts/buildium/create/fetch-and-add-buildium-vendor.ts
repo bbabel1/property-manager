@@ -5,6 +5,7 @@ import { mapVendorFromBuildiumWithCategory } from '@/lib/buildium-mappers'
 import { rateLimitedBuildiumRequest } from '@/lib/buildium-rate-limiter'
 import type { BuildiumVendor } from '@/types/buildium'
 import type { Database } from '@/types/database'
+import { ensureBuildiumEnabledForScript } from '../ensure-enabled'
 
 dotenv.config({ path: '.env.local' })
 
@@ -28,6 +29,7 @@ async function fetchBuildiumVendor(vendorId: number): Promise<BuildiumVendor> {
         Accept: 'application/json',
         'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID ?? '',
         'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET ?? '',
+      'x-buildium-egress-allowed': '1',
       },
     })
 
@@ -45,6 +47,7 @@ async function fetchBuildiumVendor(vendorId: number): Promise<BuildiumVendor> {
 
 async function fetchAndAddBuildiumVendor(vendorId: number) {
   try {
+    await ensureBuildiumEnabledForScript(process.env.DEFAULT_ORG_ID ?? null)
     const buildiumVendor = await fetchBuildiumVendor(vendorId)
 
     const { data: existingVendor, error: findError } = await supabase

@@ -15,6 +15,7 @@ import {
   getOrgScopedBuildiumConfig,
   type BuildiumConfig,
 } from '@/lib/buildium/credentials-manager';
+import { logger } from '@/lib/logger';
 import {
   parseBuildiumGLAccountPayload,
   parseBuildiumPropertyPayload,
@@ -53,6 +54,18 @@ let buildiumCreds: BuildiumConfig | null = null;
 const getBuildiumBaseUrl = (creds?: BuildiumConfig | null) =>
   (creds?.baseUrl || 'https://apisandbox.buildium.com/v1').replace(/\/+$/, '');
 const orgCache = new Map<string, string | null>();
+
+const fetchIntegrationEnabledStatus = async (orgId: string | null) => {
+  if (!orgId) return null;
+  const { data, error } = await admin
+    .from('buildium_integrations')
+    .select('is_enabled')
+    .eq('org_id', orgId)
+    .is('deleted_at', null)
+    .maybeSingle();
+  if (error && error.code !== 'PGRST116') throw error;
+  return data?.is_enabled ?? null;
+};
 
 const toIncomingRecord = (value: unknown): IncomingBuildiumEvent => {
   if (value && typeof value === 'object' && !Array.isArray(value)) {
@@ -537,7 +550,10 @@ export async function POST(req: NextRequest) {
   }
 
   const { orgId, accountId } = await resolveOrgContextFromEvents(events);
+  const integrationEnabled = await fetchIntegrationEnabledStatus(orgId ?? null);
   const config = await getOrgScopedBuildiumConfig(orgId ?? undefined);
+  const signatureHeader = req.headers.get('x-buildium-signature') || '';
+
   if (!config) {
     await sendPagerDutyEvent({
       summary: 'Buildium webhook missing credentials',
@@ -550,7 +566,6 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  buildiumCreds = config;
   const webhookSecretToUse = config.webhookSecret || process.env.BUILDIUM_WEBHOOK_SECRET || '';
   const sigCheck = verifySignature(req, raw, webhookSecretToUse);
   if (!sigCheck.ok) {
@@ -568,7 +583,37 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const signatureHeader = req.headers.get('x-buildium-signature') || '';
+  // If explicitly disabled in DB, acknowledge and store as ignored_disabled
+  if (integrationEnabled === false) {
+    for (const event of events) {
+      try {
+        const storeResult = await insertBuildiumWebhookEventRecord(admin, event, {
+          webhookType: 'buildium-webhook',
+          signature: signatureHeader || null,
+        });
+        if (storeResult.status === 'inserted' || storeResult.status === 'duplicate') {
+          await admin
+            .from('buildium_webhook_events')
+            .update({
+              status: 'ignored_disabled',
+              error_message: 'Buildium integration is disabled',
+              processed: true,
+              processed_at: new Date().toISOString(),
+            })
+            .eq('buildium_webhook_id', storeResult.normalized?.buildiumWebhookId || '')
+            .eq('event_name', storeResult.normalized?.eventName || '')
+            .eq('event_created_at', storeResult.normalized?.eventCreatedAt || '');
+        }
+      } catch (err) {
+        console.warn('[buildium-webhook] Failed to store ignored event:', err);
+      }
+    }
+
+    logger.info({ orgId }, 'Buildium integration disabled, webhook ignored');
+    return NextResponse.json({ ignored: true, reason: 'integration_disabled' }, { status: 200 });
+  }
+
+  buildiumCreds = config;
   const results: {
     eventId: string | number | null;
     status: 'processed' | 'duplicate' | 'error' | 'invalid' | 'tombstoned';
@@ -597,6 +642,7 @@ export async function POST(req: NextRequest) {
           Accept: 'application/json',
           'x-buildium-client-id': creds.clientId,
           'x-buildium-client-secret': creds.clientSecret,
+          'x-buildium-egress-allowed': '1',
         },
       },
     );
@@ -619,6 +665,7 @@ export async function POST(req: NextRequest) {
         Accept: 'application/json',
         'x-buildium-client-id': creds.clientId,
         'x-buildium-client-secret': creds.clientSecret,
+        'x-buildium-egress-allowed': '1',
       },
     });
     if (!res.ok) {
@@ -641,6 +688,7 @@ export async function POST(req: NextRequest) {
         Accept: 'application/json',
         'x-buildium-client-id': creds.clientId,
         'x-buildium-client-secret': creds.clientSecret,
+        'x-buildium-egress-allowed': '1',
       },
     });
     if (!res.ok) {
@@ -660,6 +708,7 @@ export async function POST(req: NextRequest) {
         Accept: 'application/json',
         'x-buildium-client-id': creds.clientId,
         'x-buildium-client-secret': creds.clientSecret,
+        'x-buildium-egress-allowed': '1',
       },
     });
     if (!res.ok) {
@@ -682,6 +731,7 @@ export async function POST(req: NextRequest) {
         Accept: 'application/json',
         'x-buildium-client-id': creds.clientId,
         'x-buildium-client-secret': creds.clientSecret,
+        'x-buildium-egress-allowed': '1',
       },
     });
     if (!res.ok) {
@@ -704,6 +754,7 @@ export async function POST(req: NextRequest) {
         Accept: 'application/json',
         'x-buildium-client-id': creds.clientId,
         'x-buildium-client-secret': creds.clientSecret,
+        'x-buildium-egress-allowed': '1',
       },
     });
     if (!res.ok) {
@@ -723,6 +774,7 @@ export async function POST(req: NextRequest) {
         Accept: 'application/json',
         'x-buildium-client-id': creds.clientId,
         'x-buildium-client-secret': creds.clientSecret,
+        'x-buildium-egress-allowed': '1',
       },
     });
     if (!res.ok) {
@@ -747,6 +799,7 @@ export async function POST(req: NextRequest) {
         Accept: 'application/json',
         'x-buildium-client-id': creds.clientId,
         'x-buildium-client-secret': creds.clientSecret,
+        'x-buildium-egress-allowed': '1',
       },
     });
     if (!res.ok) {
@@ -804,6 +857,7 @@ export async function POST(req: NextRequest) {
         Accept: 'application/json',
         'x-buildium-client-id': creds.clientId,
         'x-buildium-client-secret': creds.clientSecret,
+        'x-buildium-egress-allowed': '1',
       },
     });
     if (!res.ok) {
@@ -827,6 +881,7 @@ export async function POST(req: NextRequest) {
         Accept: 'application/json',
         'x-buildium-client-id': creds.clientId,
         'x-buildium-client-secret': creds.clientSecret,
+        'x-buildium-egress-allowed': '1',
       },
     });
     if (!res.ok) {
@@ -1004,6 +1059,7 @@ export async function POST(req: NextRequest) {
         Accept: 'application/json',
         'x-buildium-client-id': creds.clientId,
         'x-buildium-client-secret': creds.clientSecret,
+        'x-buildium-egress-allowed': '1',
       },
     });
     if (!res.ok) {
@@ -1301,6 +1357,7 @@ export async function POST(req: NextRequest) {
         Accept: 'application/json',
         'x-buildium-client-id': creds.clientId,
         'x-buildium-client-secret': creds.clientSecret,
+        'x-buildium-egress-allowed': '1',
       },
     });
     if (!res.ok) {
@@ -1324,6 +1381,7 @@ export async function POST(req: NextRequest) {
         Accept: 'application/json',
         'x-buildium-client-id': creds.clientId,
         'x-buildium-client-secret': creds.clientSecret,
+        'x-buildium-egress-allowed': '1',
       },
     });
     if (!res.ok) {
@@ -1347,6 +1405,7 @@ export async function POST(req: NextRequest) {
         Accept: 'application/json',
         'x-buildium-client-id': creds.clientId,
         'x-buildium-client-secret': creds.clientSecret,
+        'x-buildium-egress-allowed': '1',
       },
     });
     if (!res.ok) {
@@ -1370,6 +1429,7 @@ export async function POST(req: NextRequest) {
         Accept: 'application/json',
         'x-buildium-client-id': creds.clientId,
         'x-buildium-client-secret': creds.clientSecret,
+        'x-buildium-egress-allowed': '1',
       },
     });
     if (!res.ok) {
@@ -1393,6 +1453,7 @@ export async function POST(req: NextRequest) {
         Accept: 'application/json',
         'x-buildium-client-id': creds.clientId,
         'x-buildium-client-secret': creds.clientSecret,
+        'x-buildium-egress-allowed': '1',
       },
     });
     if (!res.ok) {

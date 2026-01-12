@@ -1,6 +1,9 @@
 // deno-lint-ignore-file
+import '../_shared/buildiumEgressGuard.ts';
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { assertBuildiumEnabledEdge } from '../_shared/buildiumGate.ts';
+import { buildiumFetchEdge } from '../_shared/buildiumFetch.ts';
 import {
   buildCanonicalTransactionPatch,
   type PaidByCandidate,
@@ -423,6 +426,8 @@ function resolveBuildiumCredentials(input?: Partial<BuildiumCredentials> | null)
 
 // Buildium API Client - Direct API calls with client credentials
 class BuildiumClient {
+  private supabase: any;
+  private orgId: string;
   private baseUrl: string;
   private clientId: string;
   private clientSecret: string;
@@ -431,6 +436,8 @@ class BuildiumClient {
   private retryDelay: number;
 
   constructor(config: {
+    supabase: any;
+    orgId: string;
     baseUrl?: string;
     clientId?: string;
     clientSecret?: string;
@@ -438,6 +445,8 @@ class BuildiumClient {
     retryAttempts?: number;
     retryDelay?: number;
   }) {
+    this.supabase = config.supabase;
+    this.orgId = config.orgId;
     this.baseUrl = (config.baseUrl || 'https://apisandbox.buildium.com/v1').replace(/\/$/, '');
     this.clientId = config.clientId || '';
     this.clientSecret = config.clientSecret || '';
@@ -447,6 +456,8 @@ class BuildiumClient {
   }
 
   async makeRequest<T>(method: string, endpoint: string, data?: any): Promise<T> {
+    await assertBuildiumEnabledEdge(this.supabase, this.orgId);
+
     const url = `${this.baseUrl}${endpoint}`;
 
     // Lightweight debug to confirm headers and base URL are populated (avoid logging secrets)
@@ -456,22 +467,6 @@ class BuildiumClient {
       hasClientId: !!this.clientId,
       hasClientSecret: !!this.clientSecret,
     });
-
-    const config: RequestInit = {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-        // Buildium header names are case-sensitive
-        'X-Buildium-Client-Id': this.clientId,
-        'X-Buildium-Client-Secret': this.clientSecret,
-      },
-      signal: AbortSignal.timeout(this.timeout),
-    };
-
-    if (data && method !== 'GET') {
-      config.body = JSON.stringify(data);
-    }
 
     // #region agent log
     fetch('http://127.0.0.1:7242/ingest/10e44e33-6af1-4518-9366-235df67f3a5e', {
@@ -484,7 +479,13 @@ class BuildiumClient {
           method,
           endpoint,
           url,
-          headerNames: Object.keys(config.headers as Record<string, string>),
+          headerNames: [
+            'Accept',
+            'Content-Type',
+            'X-Buildium-Client-Id',
+            'X-Buildium-Client-Secret',
+            'x-buildium-egress-allowed',
+          ],
           baseUrl: this.baseUrl,
         },
         timestamp: Date.now(),
@@ -499,7 +500,23 @@ class BuildiumClient {
 
     for (let attempt = 0; attempt <= this.retryAttempts; attempt++) {
       try {
-        const response = await fetch(url, config);
+        const requestInit: RequestInit = {
+          signal: AbortSignal.timeout(this.timeout),
+        };
+
+        const response = await buildiumFetchEdge(
+          this.supabase,
+          this.orgId,
+          method,
+          endpoint,
+          method !== 'GET' ? data : undefined,
+          {
+            baseUrl: this.baseUrl,
+            clientId: this.clientId,
+            clientSecret: this.clientSecret,
+          },
+          requestInit,
+        );
 
         if (!response.ok) {
           const text = await response.text();
@@ -2869,6 +2886,16 @@ serve(async (req) => {
           ? await req.json().catch(() => ({}))
           : {};
 
+    const orgId = typeof (body as any)?.orgId === 'string'
+      ? (body as any).orgId
+      : (typeof (body as any)?.org_id === 'string' ? (body as any).org_id : null);
+    if (!orgId) {
+      return new Response(JSON.stringify({ success: false, error: 'orgId required for Buildium sync' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400,
+      });
+    }
+
     const buildiumCreds = resolveBuildiumCredentials(body?.credentials as Partial<BuildiumCredentials> | undefined);
     if (!buildiumCreds.clientId || !buildiumCreds.clientSecret) {
       // Return 200 so Supabase client does not treat this as transport failure
@@ -2880,6 +2907,8 @@ serve(async (req) => {
 
     // Initialize Buildium client
     const buildiumClient = new BuildiumClient({
+      supabase,
+      orgId,
       baseUrl: buildiumCreds.baseUrl,
       clientId: buildiumCreds.clientId,
       clientSecret: buildiumCreds.clientSecret,

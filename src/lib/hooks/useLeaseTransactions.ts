@@ -1,5 +1,5 @@
 "use client"
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { BuildiumEdgeClient, getOrgScopedBuildiumEdgeClient } from '@/lib/buildium-edge-client'
 import type { 
   BuildiumLeaseTransaction, 
@@ -23,50 +23,53 @@ export function useLeaseTransactions(options: UseLeaseTransactionsOptions) {
   const { leaseId, orgId, limit, offset, orderby, dateFrom, dateTo } = options
   const [client, setClient] = useState<BuildiumEdgeClient | null>(null)
   const [clientLoading, setClientLoading] = useState(true)
+  const [items, setItems] = useState<BuildiumLeaseTransaction[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   
   // Create client with org-scoped credentials if orgId is provided
   useEffect(() => {
     let mounted = true
     setClientLoading(true)
+    setError(null)
     
-    if (orgId) {
-      getOrgScopedBuildiumEdgeClient(orgId)
-        .then((orgClient) => {
-          if (mounted) {
-            setClient(orgClient)
-            setClientLoading(false)
-          }
-        })
-        .catch((error) => {
-          console.error('Failed to create org-scoped Buildium client:', error)
-          if (mounted) {
-            // Fall back to default client
-            setClient(new BuildiumEdgeClient())
-            setClientLoading(false)
-          }
-        })
-    } else {
-      // Fall back to default client (env vars)
+    if (!orgId) {
       if (mounted) {
-        setClient(new BuildiumEdgeClient())
+        setError('orgId required for Buildium lease transactions')
+        setClient(null)
         setClientLoading(false)
       }
+      return () => { mounted = false }
     }
+
+    getOrgScopedBuildiumEdgeClient(orgId)
+      .then((orgClient) => {
+        if (mounted) {
+          setClient(orgClient)
+          setClientLoading(false)
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to create org-scoped Buildium client:', err)
+        if (mounted) {
+          setError('Buildium client unavailable')
+          setClient(null)
+          setClientLoading(false)
+        }
+      })
     
     return () => {
       mounted = false
     }
   }, [orgId])
   
-  const defaultClient = useMemo(() => new BuildiumEdgeClient(), [])
-  const activeClient = client || defaultClient
-
-  const [items, setItems] = useState<BuildiumLeaseTransaction[]>([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const activeClient = client
 
   const list = useCallback(async () => {
-    if (!activeClient) return
+    if (!activeClient) {
+      setError('Buildium client not initialized')
+      return
+    }
     setLoading(true)
     setError(null)
     try {

@@ -268,7 +268,7 @@ async function processRecurringBill(
   const occurrenceDates = computeScheduleOccurrences(schedule, from, to, lastGeneratedAt, nextRunDate, orgTimezone);
 
   let generated = 0;
-  let skipped = 0;
+  const skipped = 0;
   let duplicates = 0;
   let errors = 0;
 

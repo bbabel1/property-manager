@@ -1395,6 +1395,7 @@ export interface BuildiumApiConfig {
   baseUrl: string;
   clientId: string;
   clientSecret: string;
+  orgId?: string;
   timeout?: number;
   retryAttempts?: number;
   retryDelay?: number;

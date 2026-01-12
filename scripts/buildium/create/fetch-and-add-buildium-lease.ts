@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { mapLeaseFromBuildium } from '@/lib/buildium-mappers'
 import * as dotenv from 'dotenv'
+import { ensureBuildiumEnabledForScript } from '../ensure-enabled'
 
 // Load environment variables
 dotenv.config({ path: '.env.local' })
@@ -19,6 +20,7 @@ async function fetchBuildiumLease(leaseId: number) {
       'Accept': 'application/json',
       'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
       'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
+      'x-buildium-egress-allowed': '1',
     },
   })
 
@@ -61,6 +63,7 @@ async function getUnitByBuildiumId(buildiumUnitId: number): Promise<string | nul
 
 async function fetchAndAddBuildiumLease(leaseId: number) {
   try {
+    await ensureBuildiumEnabledForScript(process.env.DEFAULT_ORG_ID ?? null)
     console.log(`🔍 Fetching Buildium lease ${leaseId}...`)
     
     const buildiumLease = await fetchBuildiumLease(leaseId)

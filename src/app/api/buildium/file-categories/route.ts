@@ -6,6 +6,7 @@ import { BuildiumFileCategoryCreateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 import { getSupabaseServerClient } from '@/lib/supabase/server';
 import { buildiumFetch } from '@/lib/buildium-http';
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard';
 import type { BuildiumFileCategory } from '@/types/buildium';
 import type { Database } from '@/types/database';
 
@@ -23,6 +24,9 @@ export async function GET(request: NextRequest) {
 
     // Require platform admin
     const { user } = await requireRole('platform_admin');
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
 
     // Get query parameters
     const { searchParams } = new URL(request.url);
@@ -37,7 +41,7 @@ export async function GET(request: NextRequest) {
     if (orderby) params.orderby = orderby;
 
     // Make request to Buildium API
-    const response = await buildiumFetch('GET', '/filecategories', params, undefined, undefined);
+    const response = await buildiumFetch('GET', '/filecategories', params, undefined, orgId);
 
     if (!response.ok) {
       const errorData: unknown = response.json ?? {};
@@ -235,6 +239,9 @@ export async function POST(request: NextRequest) {
 
     // Require platform admin
     const { user: _user } = await requireRole('platform_admin');
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
 
     // Parse and validate request body
     const body: unknown = await request.json().catch(() => ({}));
@@ -243,7 +250,7 @@ export async function POST(request: NextRequest) {
     const validatedData = sanitizeAndValidate(body, BuildiumFileCategoryCreateSchema);
 
     // Make request to Buildium API
-    const response = await buildiumFetch('POST', '/filecategories', undefined, validatedData, undefined);
+    const response = await buildiumFetch('POST', '/filecategories', undefined, validatedData, orgId);
 
     if (!response.ok) {
       const errorData: unknown = response.json ?? {};

@@ -5,6 +5,7 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumTenantNoteCreateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 import { buildiumFetch } from '@/lib/buildium-http';
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -19,6 +20,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     // Require platform admin
     await requireRole('platform_admin');
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
 
     const { id } = await params;
 
@@ -36,7 +40,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     // Make request to Buildium API
     // Per Buildium API documentation: GET /v1/leases/tenants/{tenantId}/notes
-    const response = await buildiumFetch('GET', `/leases/tenants/${id}/notes`, queryParams, undefined, undefined);
+    const response = await buildiumFetch('GET', `/leases/tenants/${id}/notes`, queryParams, undefined, orgId);
 
     if (!response.ok) {
       const errorData = response.json ?? {};
@@ -85,6 +89,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     // Require platform admin
     await requireRole('platform_admin');
+    const guard = await getBuildiumOrgIdOr403(request);
+    if ('response' in guard) return guard.response;
+    const { orgId } = guard;
 
     const { id } = await params;
 
@@ -100,7 +107,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // Make request to Buildium API
     // Per Buildium API documentation: POST /v1/leases/tenants/{tenantId}/notes
     // Note: id should be the Buildium tenant ID (not local tenant ID)
-    const response = await buildiumFetch('POST', `/leases/tenants/${id}/notes`, undefined, validatedData, undefined);
+    const response = await buildiumFetch('POST', `/leases/tenants/${id}/notes`, undefined, validatedData, orgId);
 
     if (!response.ok) {
       const errorData = response.json ?? {};

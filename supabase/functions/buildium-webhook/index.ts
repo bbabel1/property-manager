@@ -1,4 +1,5 @@
 // deno-lint-ignore-file
+import '../_shared/buildiumEgressGuard.ts';
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/v135/@supabase/supabase-js@2.45.4?dts';
 import { verifyBuildiumSignature } from '../_shared/buildiumSignature.ts';
@@ -20,6 +21,8 @@ import {
   type PaidToCandidate,
 } from '../_shared/transaction-canonical.ts';
 import type { BuildiumWebhookEventLike } from '../_shared/eventValidation.ts';
+import { buildiumFetchEdge } from '../_shared/buildiumFetch.ts';
+import { assertBuildiumEnabledEdge } from '../_shared/buildiumGate.ts';
 type BuildiumCredentials = { baseUrl: string; clientId: string; clientSecret: string };
 
 async function resolvePaidByLabelContext(
@@ -59,31 +62,38 @@ async function resolvePaidByLabelContext(
 
 // Buildium API Client (simplified for webhook processing)
 class BuildiumClient {
+  private supabase: any;
+  private orgId: string;
   private baseUrl: string;
   private clientId: string;
   private clientSecret: string;
 
-  constructor(creds?: BuildiumCredentials | null) {
+  constructor(params: { creds?: BuildiumCredentials | null; supabase: any; orgId: string }) {
+    this.supabase = params.supabase;
+    this.orgId = params.orgId;
     const envBase = Deno.env.get('BUILDIUM_BASE_URL') || 'https://apisandbox.buildium.com/v1';
     const envClientId = Deno.env.get('BUILDIUM_CLIENT_ID') || '';
     const envClientSecret = Deno.env.get('BUILDIUM_CLIENT_SECRET') || '';
+    const creds = params.creds;
     this.baseUrl = (creds?.baseUrl || envBase).replace(/\/$/, '');
     this.clientId = creds?.clientId || envClientId;
     this.clientSecret = creds?.clientSecret || envClientSecret;
   }
 
   private async makeRequest<T>(method: string, endpoint: string): Promise<T> {
-    const url = `${this.baseUrl}${endpoint}`;
-    const headers = {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-      // Buildium Open API authentication (client id + secret headers).
-      // Header names are case-sensitive per Buildium API documentation
-      'X-Buildium-Client-Id': this.clientId,
-      'X-Buildium-Client-Secret': this.clientSecret,
-    };
-
-    const response = await fetch(url, { method, headers });
+    await assertBuildiumEnabledEdge(this.supabase, this.orgId);
+    const response = await buildiumFetchEdge(
+      this.supabase,
+      this.orgId,
+      method,
+      endpoint,
+      undefined,
+      {
+        baseUrl: this.baseUrl,
+        clientId: this.clientId,
+        clientSecret: this.clientSecret,
+      },
+    );
 
     if (!response.ok) {
       const body = await response.text().catch(() => '');
@@ -837,17 +847,78 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    let orgId =
+      typeof (payload as any)?.orgId === 'string'
+        ? (payload as any).orgId
+        : typeof (payload as any)?.org_id === 'string'
+          ? (payload as any).org_id
+          : null;
+
+    if (!orgId) {
+      const accountIdRaw =
+        (payload as any)?.AccountId ??
+        (payload as any)?.accountId ??
+        (payload.Events?.[0] as any)?.AccountId ??
+        null;
+      const accountIdNum = Number(accountIdRaw);
+      if (Number.isFinite(accountIdNum) && accountIdNum > 0) {
+        orgId = await resolveOrgIdFromBuildiumAccountEdge(supabase, accountIdNum);
+      }
+    }
+
+    if (!orgId) {
+      return new Response(
+        JSON.stringify({ error: 'orgId is required for Buildium webhook processing' }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 400,
+        },
+      );
+    }
+
     // Initialize Buildium client
     const rawCreds = (payload as any)?.credentials as Partial<BuildiumCredentials> | undefined;
-    const buildiumClient = new BuildiumClient(
-      rawCreds?.clientId && rawCreds?.clientSecret
-        ? {
-            baseUrl: (rawCreds.baseUrl || 'https://apisandbox.buildium.com/v1').replace(/\/$/, ''),
-            clientId: rawCreds.clientId,
-            clientSecret: rawCreds.clientSecret,
+    const buildiumClient = new BuildiumClient({
+      creds:
+        rawCreds?.clientId && rawCreds?.clientSecret
+          ? {
+              baseUrl: (rawCreds.baseUrl || 'https://apisandbox.buildium.com/v1').replace(/\/$/, ''),
+              clientId: rawCreds.clientId,
+              clientSecret: rawCreds.clientSecret,
+            }
+          : null,
+      supabase,
+      orgId,
+    });
+
+    const markEventsIgnoredDisabled = async (eventsToIgnore: BuildiumWebhookEvent[]) => {
+      for (const event of eventsToIgnore) {
+        try {
+          const storeResult = await insertBuildiumWebhookEventRecord(supabase, event, {
+            webhookType: 'buildium-webhook',
+            signature: verification.signature ?? null,
+          });
+          if (storeResult.status === 'inserted' || storeResult.status === 'duplicate') {
+            await supabase
+              .from('buildium_webhook_events')
+              .update({
+                processed: true,
+                processed_at: new Date().toISOString(),
+                status: 'ignored_disabled',
+                retry_count: 0,
+                error_message: 'Buildium integration is disabled',
+              })
+              .eq('buildium_webhook_id', storeResult.normalized.buildiumWebhookId)
+              .eq('event_name', storeResult.normalized.eventName)
+              .eq('event_created_at', storeResult.normalized.eventCreatedAt);
           }
-        : null,
-    );
+        } catch (err) {
+          console.warn('buildium-webhook ignored-disabled storage failed', {
+            error: (err as Error)?.message,
+          });
+        }
+      }
+    };
 
     // Log webhook event
     console.log('Received webhook with', payload.Events.length, 'events');
@@ -855,7 +926,22 @@ serve(async (req) => {
     // Process webhook events with idempotent insert + conflict logging
     const results = [];
     let processingErrors = 0;
-    for (const event of payload.Events) {
+    for (let idx = 0; idx < payload.Events.length; idx++) {
+      const event = payload.Events[idx];
+
+      try {
+        await assertBuildiumEnabledEdge(supabase, orgId);
+      } catch (error) {
+        await markEventsIgnoredDisabled(payload.Events.slice(idx));
+        return new Response(
+          JSON.stringify({ ignored: true, reason: 'integration_disabled' }),
+          {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 200,
+          },
+        );
+      }
+
       const eventType = deriveEventType(event as Record<string, unknown>);
 
       const storeResult = await insertBuildiumWebhookEventRecord(supabase, event, {

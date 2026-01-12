@@ -4,17 +4,21 @@ import { logger } from '@/lib/logger'
 import { BuildiumWithdrawalUpdateSchema } from '@/schemas/buildium'
 import { sanitizeAndValidate } from '@/lib/sanitize'
 import { buildiumFetch } from '@/lib/buildium-http'
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard'
 
-export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: withdrawalId } = await params
   try {
     // Authentication
     const { user } = await requireRole('platform_admin')
+    const guard = await getBuildiumOrgIdOr403(request)
+    if ('response' in guard) return guard.response
+    const { orgId } = guard
     
     logger.info({ userId: user.id, withdrawalId, action: 'get_buildium_withdrawal' }, 'Fetching Buildium withdrawal details');
 
     // Buildium API call
-    const response = await buildiumFetch('GET', `/bankaccounts/withdrawals/${withdrawalId}`, undefined, undefined, undefined);
+    const response = await buildiumFetch('GET', `/bankaccounts/withdrawals/${withdrawalId}`, undefined, undefined, orgId);
 
     if (!response.ok) {
       if (response.status === 404) {
@@ -47,6 +51,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   try {
     // Authentication
     const { user } = await requireRole('platform_admin')
+    const guard = await getBuildiumOrgIdOr403(request)
+    if ('response' in guard) return guard.response
+    const { orgId } = guard
     
     logger.info({ userId: user.id, withdrawalId, action: 'update_buildium_withdrawal' }, 'Updating Buildium withdrawal');
 
@@ -55,7 +62,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const data = sanitizeAndValidate(body, BuildiumWithdrawalUpdateSchema);
 
     // Buildium API call
-    const response = await buildiumFetch('PUT', `/bankaccounts/withdrawals/${withdrawalId}`, undefined, data, undefined);
+    const response = await buildiumFetch('PUT', `/bankaccounts/withdrawals/${withdrawalId}`, undefined, data, orgId);
 
     if (!response.ok) {
       if (response.status === 404) {

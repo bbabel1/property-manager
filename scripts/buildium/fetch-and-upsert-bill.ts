@@ -6,6 +6,7 @@ config({ path: '.env.local' })
 
 import { createClient } from '@supabase/supabase-js'
 import { upsertBillWithLines } from '@/lib/buildium-mappers'
+import { ensureBuildiumEnabledForScript } from './ensure-enabled'
 
 async function main() {
   const billIdArg = process.argv[2]
@@ -31,6 +32,7 @@ async function main() {
   }
 
   const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey)
+  await ensureBuildiumEnabledForScript(process.env.DEFAULT_ORG_ID ?? null)
 
   // 1) Fetch bill from Buildium
   const url = `${buildiumBase}/bills/${billId}`
@@ -42,6 +44,7 @@ async function main() {
       'Content-Type': 'application/json',
       'x-buildium-client-id': buildiumClientId,
       'x-buildium-client-secret': buildiumClientSecret,
+      'x-buildium-egress-allowed': '1',
     }
   })
   if (!res.ok) {

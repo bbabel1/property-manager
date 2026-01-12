@@ -4,17 +4,21 @@ import { logger } from '@/lib/logger'
 import { BuildiumDepositUpdateSchema } from '@/schemas/buildium'
 import { sanitizeAndValidate } from '@/lib/sanitize'
 import { buildiumFetch } from '@/lib/buildium-http'
+import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard'
 
-export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: depositId } = await params
   try {
     // Authentication
     const { user } = await requireRole('platform_admin')
+    const guard = await getBuildiumOrgIdOr403(request)
+    if ('response' in guard) return guard.response
+    const { orgId } = guard
     
     logger.info({ userId: user.id, depositId, action: 'get_buildium_deposit' }, 'Fetching Buildium deposit details');
 
     // Buildium API call
-    const response = await buildiumFetch('GET', `/bankaccounts/deposits/${depositId}`, undefined, undefined, undefined);
+    const response = await buildiumFetch('GET', `/bankaccounts/deposits/${depositId}`, undefined, undefined, orgId);
 
     if (!response.ok) {
       if (response.status === 404) {
@@ -47,6 +51,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   try {
     // Authentication
     const { user } = await requireRole('platform_admin')
+    const guard = await getBuildiumOrgIdOr403(request)
+    if ('response' in guard) return guard.response
+    const { orgId } = guard
     
     logger.info({ userId: user.id, depositId, action: 'update_buildium_deposit' }, 'Updating Buildium deposit');
 
@@ -55,7 +62,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const data = sanitizeAndValidate(body, BuildiumDepositUpdateSchema);
 
     // Buildium API call
-    const response = await buildiumFetch('PUT', `/bankaccounts/deposits/${depositId}`, undefined, data, undefined);
+    const response = await buildiumFetch('PUT', `/bankaccounts/deposits/${depositId}`, undefined, data, orgId);
 
     if (!response.ok) {
       if (response.status === 404) {
