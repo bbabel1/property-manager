@@ -206,7 +206,25 @@ export async function middleware(req: NextRequest) {
           }
         }
       } catch (membershipError) {
-        console.warn('[Middleware] Failed to load memberships for RBAC fallback', membershipError);
+          console.warn('[Middleware] Failed to load memberships for RBAC fallback', membershipError);
+      }
+    }
+
+    // Legacy fallback: if orgIds are still empty, pull from org_memberships
+    if ((!orgIds.length) && user.id) {
+      try {
+        const { data, error } = await supabase
+          .from('org_memberships')
+          .select('org_id')
+          .eq('user_id', user.id);
+        if (!error && Array.isArray(data)) {
+          orgIds = data
+            .map((row) => (row?.org_id ? String(row.org_id) : null))
+            .filter(Boolean)
+            .map((org) => String(org));
+        }
+      } catch (orgMembershipError) {
+        console.warn('[Middleware] Failed to load org_memberships for RBAC fallback', orgMembershipError);
       }
     }
 
@@ -255,14 +273,17 @@ export async function middleware(req: NextRequest) {
 
     // Forward an org hint to route handlers if not provided (best-effort)
     const requestHeaders = new Headers(req.headers);
+    let orgHint: string | undefined;
     if (!requestHeaders.get('x-org-id')) {
       const appMeta = (user?.app_metadata ?? {}) as LooseRecord;
       const claims = (appMeta.claims ?? {}) as LooseRecord;
       const preferredOrg = claims.preferred_org_id as string | undefined;
-      const orgHint = preferredOrg || orgIds?.[0] || targetOrgId;
+      orgHint = preferredOrg || orgIds?.[0] || targetOrgId;
       if (orgHint) {
         requestHeaders.set('x-org-id', String(orgHint));
       }
+    } else {
+      orgHint = requestHeaders.get('x-org-id') ?? undefined;
     }
     if (user) {
       try {
@@ -277,7 +298,16 @@ export async function middleware(req: NextRequest) {
         console.warn('Failed to serialize auth user header', error);
       }
     }
-    return NextResponse.next({ request: { headers: requestHeaders } });
+    const apiResponse = NextResponse.next({ request: { headers: requestHeaders } });
+    if (orgHint) {
+      apiResponse.cookies.set({
+        name: 'org_id_hint',
+        value: String(orgHint),
+        path: '/',
+        sameSite: 'lax',
+      });
+    }
+    return apiResponse;
   }
 
   // For non-API routes, get user from cookies for route protection
@@ -315,7 +345,20 @@ export async function middleware(req: NextRequest) {
     url.pathname = '/dashboard';
     return NextResponse.redirect(url);
   }
-
+  // Set org hint cookie for non-API routes when available (from claims or membership fallback)
+  const appMeta = (pageUser?.app_metadata ?? {}) as LooseRecord;
+  const claims = (appMeta.claims ?? {}) as LooseRecord;
+  const preferredOrg = (claims?.preferred_org_id ?? normalizeArray(claims?.org_ids)[0]) as
+    | string
+    | undefined;
+  if (preferredOrg) {
+    res.cookies.set({
+      name: 'org_id_hint',
+      value: String(preferredOrg),
+      path: '/',
+      sameSite: 'lax',
+    });
+  }
   return res;
 }
 

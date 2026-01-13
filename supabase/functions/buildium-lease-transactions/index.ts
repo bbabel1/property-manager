@@ -16,7 +16,11 @@ import { routeLeaseTransactionWebhookEvent } from '../_shared/eventRouting.ts';
 import { emitRoutingTelemetry } from '../_shared/telemetry.ts';
 import { sendPagerDutyEvent } from '../_shared/pagerDuty.ts';
 import { resolveLeaseWithOrg } from '../_shared/leaseResolver.ts';
-import { assertBuildiumEnabledEdge } from '../_shared/buildiumGate.ts';
+import {
+  BuildiumDisabledEdgeError,
+  assertBuildiumEnabledEdge,
+  buildiumDisabledResponse,
+} from '../_shared/buildiumGate.ts';
 import { buildiumFetchEdge } from '../_shared/buildiumFetch.ts';
 
 type BuildiumCredentials = { baseUrl: string; clientId: string; clientSecret: string };
@@ -88,6 +92,11 @@ export function mapLeaseTransactionFromBuildium(buildiumTransaction: any): any {
   const paymentDetail = buildiumTransaction?.PaymentDetail ?? null;
   const payee = paymentDetail?.Payee ?? null;
   const unitAgreement = buildiumTransaction?.UnitAgreement ?? null;
+  const unitAgreementType =
+    typeof unitAgreement?.Type === 'string' ? unitAgreement.Type.toLowerCase() : null;
+  const leaseIdFromUnitAgreement =
+    unitAgreementType === 'lease' ? unitAgreement?.Id ?? null : null;
+  const buildiumLeaseId = buildiumTransaction?.LeaseId ?? leaseIdFromUnitAgreement ?? null;
   const unitId =
     buildiumTransaction?.UnitId ?? buildiumTransaction?.Unit?.Id ?? buildiumTransaction?.Unit?.ID;
 
@@ -98,7 +107,7 @@ export function mapLeaseTransactionFromBuildium(buildiumTransaction: any): any {
     total_amount: Number(amount || 0),
     check_number: buildiumTransaction?.CheckNumber ?? null,
     memo: buildiumTransaction?.Memo || buildiumTransaction?.Journal?.Memo || null,
-    buildium_lease_id: buildiumTransaction?.LeaseId ?? null,
+    buildium_lease_id: buildiumLeaseId,
     payee_tenant_id: buildiumTransaction?.PayeeTenantId ?? null,
     payment_method: null,
     payment_method_raw: paymentDetail?.PaymentMethod ?? buildiumTransaction?.PaymentMethod ?? null,
@@ -311,9 +320,13 @@ async function upsertLeaseTransactionWithLines(
   const paymentDetail = leaseTx?.PaymentDetail ?? null;
   const payee = paymentDetail?.Payee ?? null;
   const unitAgreement = leaseTx?.UnitAgreement ?? null;
+  const unitAgreementType =
+    typeof unitAgreement?.Type === 'string' ? unitAgreement.Type.toLowerCase() : null;
   const unitIdRaw = leaseTx?.UnitId ?? leaseTx?.Unit?.Id ?? null;
   const bankGlBuildiumId = leaseTx?.DepositDetails?.BankGLAccountId ?? null;
   const bankGlAccountId = await resolveGLAccountId(supabase, buildiumClient, bankGlBuildiumId);
+  const buildiumLeaseId =
+    leaseTx?.LeaseId ?? (unitAgreementType === 'lease' ? unitAgreement?.Id ?? null : null);
 
   const transactionHeader = {
     buildium_transaction_id: leaseTx.Id,
@@ -322,7 +335,7 @@ async function upsertLeaseTransactionWithLines(
     total_amount:
       typeof leaseTx.TotalAmount === 'number' ? leaseTx.TotalAmount : Number(leaseTx.Amount ?? 0),
     check_number: leaseTx.CheckNumber ?? null,
-    buildium_lease_id: leaseTx.LeaseId ?? null,
+    buildium_lease_id: buildiumLeaseId ?? null,
     memo: leaseTx?.Journal?.Memo ?? leaseTx?.Memo ?? null,
     payment_method: null,
     payment_method_raw: paymentDetail?.PaymentMethod ?? leaseTx.PaymentMethod ?? null,
@@ -366,7 +379,7 @@ async function upsertLeaseTransactionWithLines(
       ? leaseTx.Lines
       : [];
 
-  const leaseRecord = await resolveLeaseWithOrg(supabase, leaseTx.LeaseId ?? null);
+  const leaseRecord = await resolveLeaseWithOrg(supabase, buildiumLeaseId ?? null);
   const leaseIdLocal = leaseRecord?.id ?? null;
   const leaseOrgId = leaseRecord?.org_id ?? null;
   const payeeTenantRecord = await resolveLocalTenantId(supabase, payeeTenantBuildiumId ?? null);
@@ -503,7 +516,7 @@ async function upsertLeaseTransactionWithLines(
     (leaseTx?.TransactionType || '').toString().toLowerCase().includes('owner');
   const isVendorPayment =
     isPaymentTransaction &&
-    !(leaseTx?.LeaseId || leaseIdLocal) &&
+    !(buildiumLeaseId || leaseIdLocal) &&
     !(leaseTx?.Unit?.Id || leaseTx?.UnitId);
 
   const isInflow = (isPaymentTransaction && !isVendorPayment) || isApplyDepositTransaction;
@@ -549,8 +562,10 @@ async function upsertLeaseTransactionWithLines(
     // For inflow payments, keep original income/charge lines; only map to A/R when no non-bank lines exist.
     // For outflows, non-bank offsets -> A/P (Debit).
     let glIdForLine = glId;
+    const isCashPosting = line?.IsCashPosting === true;
     const isIncomeType = (glAccount as any)?.type?.toLowerCase() === 'income';
-    if (!isBankAccount && isInflow && accountsReceivableGlId && !isIncomeType) {
+    const isCashPostingNonBankInflow = isInflow && isCashPosting && !isBankAccount;
+    if ((isCashPostingNonBankInflow || (!isBankAccount && isInflow && !isIncomeType)) && accountsReceivableGlId) {
       glIdForLine = accountsReceivableGlId;
     }
     if (!isBankAccount && isOutflow && accountsPayableGlId) {
@@ -567,6 +582,11 @@ async function upsertLeaseTransactionWithLines(
     const accountEntityType =
       (accountingEntityTypeRaw || '').toString().toLowerCase() === 'company' ? 'Company' : 'Rental';
 
+    // If we re-classified a cash-posting payment line to A/R, it should no longer be marked as cash.
+    const isCashPostingFlag = glIdForLine === accountsReceivableGlId && isCashPostingNonBankInflow
+      ? false
+      : line?.IsCashPosting ?? null;
+
     pendingLineRows.push({
       transaction_id: transactionId,
       gl_account_id: glIdForLine,
@@ -580,12 +600,12 @@ async function upsertLeaseTransactionWithLines(
       updated_at: now,
       buildium_property_id: buildiumPropertyId ?? defaultBuildiumPropertyId ?? null,
       buildium_unit_id: buildiumUnitId ?? defaultBuildiumUnitId ?? null,
-      buildium_lease_id: leaseTx.LeaseId ?? null,
+      buildium_lease_id: buildiumLeaseId ?? null,
       lease_id: leaseIdLocal,
       property_id: linePropertyIdLocal,
       unit_id: unitIdLocalResolved,
       reference_number: line?.ReferenceNumber ?? null,
-      is_cash_posting: line?.IsCashPosting ?? null,
+      is_cash_posting: isCashPostingFlag,
       accounting_entity_type_raw: accountingEntityTypeRaw,
     });
 
@@ -615,7 +635,7 @@ async function upsertLeaseTransactionWithLines(
         updated_at: now,
         buildium_property_id: defaultBuildiumPropertyId,
         buildium_unit_id: defaultBuildiumUnitId,
-        buildium_lease_id: leaseTx.LeaseId ?? null,
+        buildium_lease_id: buildiumLeaseId ?? null,
         lease_id: leaseIdLocal,
         property_id: propertyIdLocal,
         unit_id: defaultUnitIdLocal,
@@ -670,10 +690,11 @@ async function upsertLeaseTransactionWithLines(
       updated_at: now,
       buildium_property_id: defaultBuildiumPropertyId,
       buildium_unit_id: defaultBuildiumUnitId,
-      buildium_lease_id: leaseTx.LeaseId ?? null,
+      buildium_lease_id: buildiumLeaseId ?? null,
       lease_id: leaseIdLocal,
       property_id: propertyIdLocal,
       unit_id: defaultUnitIdLocal,
+      is_cash_posting: true,
     });
     if (bankPosting === 'Debit') debit += bankAmountNeeded;
     else credit += bankAmountNeeded;
@@ -731,7 +752,7 @@ async function upsertLeaseTransactionWithLines(
         updated_at: now,
         buildium_property_id: defaultBuildiumPropertyId,
         buildium_unit_id: defaultBuildiumUnitId,
-        buildium_lease_id: leaseTx.LeaseId ?? null,
+        buildium_lease_id: buildiumLeaseId ?? null,
         lease_id: leaseIdLocal,
         property_id: propertyIdLocal,
         unit_id: defaultUnitIdLocal,
@@ -752,10 +773,11 @@ async function upsertLeaseTransactionWithLines(
         updated_at: now,
         buildium_property_id: defaultBuildiumPropertyId,
         buildium_unit_id: defaultBuildiumUnitId,
-        buildium_lease_id: leaseTx.LeaseId ?? null,
+        buildium_lease_id: buildiumLeaseId ?? null,
         lease_id: leaseIdLocal,
         property_id: propertyIdLocal,
         unit_id: defaultUnitIdLocal,
+        is_cash_posting: true,
       });
     }
   }
@@ -823,13 +845,11 @@ function normalizeLeaseTransactionsPayload(body: unknown): {
 
 // Main handler
 serve(async (req) => {
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  };
   try {
-    // CORS headers
-    const corsHeaders = {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-    };
-
     // Handle preflight requests
     if (req.method === 'OPTIONS') {
       return new Response('ok', { headers: corsHeaders });
@@ -849,18 +869,19 @@ serve(async (req) => {
       replayCache: leaseTransactionsSignatureCache,
     });
     if (!verification.ok) {
+      const failedVerification = verification as { ok: false; status: number; reason: string; signature?: string | null; timestamp?: number | null };
       console.warn('buildium-lease-transactions signature rejected', {
-        reason: verification.reason,
-        status: verification.status,
-        timestamp: verification.timestamp ?? null,
-        signaturePreview: verification.signature ? verification.signature.slice(0, 12) : null,
+        reason: failedVerification.reason,
+        status: failedVerification.status,
+        timestamp: failedVerification.timestamp ?? null,
+        signaturePreview: failedVerification.signature ? failedVerification.signature.slice(0, 12) : null,
         metric: 'buildium_lease_transactions.signature_failure',
       });
       return new Response(
-        JSON.stringify({ error: 'Invalid signature', reason: verification.reason }),
+        JSON.stringify({ error: 'Invalid signature', reason: failedVerification.reason }),
         {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: verification.status,
+          status: failedVerification.status,
         },
       );
     }
@@ -1238,6 +1259,13 @@ serve(async (req) => {
       },
     );
   } catch (error: unknown) {
+    if (error instanceof BuildiumDisabledEdgeError) {
+      // Standardized disabled shape for edge runtime
+      return buildiumDisabledResponse(
+        { ...corsHeaders, 'Content-Type': 'application/json' },
+        error.message,
+      );
+    }
     const errorMessage = error instanceof Error ? error.message : String(error ?? 'Unknown error');
     console.error('Error in buildium-lease-transactions webhook function:', error);
 
@@ -1248,8 +1276,7 @@ serve(async (req) => {
       }),
       {
         headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+          ...corsHeaders,
           'Content-Type': 'application/json',
         },
         status: 500,

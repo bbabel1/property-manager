@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import AddLink from '@/components/ui/AddLink';
-import TenantFileUploadDialog, { TenantFileRow } from '@/components/tenants/TenantFileUploadDialog';
+import TenantFileUploadDialog from '@/components/tenants/TenantFileUploadDialog';
+import type { TenantFileRow, TenantFileUploadDialogProps } from './tenant-file-types';
 
 export default function TenantRecentFilesSummary({
   tenantId,
@@ -13,7 +14,7 @@ export default function TenantRecentFilesSummary({
 }) {
   const [open, setOpen] = useState(false);
 
-  const handleSaved = (_row: TenantFileRow) => {
+  const handleSaved = (_row?: TenantFileRow) => {
     setOpen(false);
   };
 
@@ -31,11 +32,13 @@ export default function TenantRecentFilesSummary({
       </div>
 
       <TenantFileUploadDialog
-        open={open}
-        onOpenChange={setOpen}
-        tenantId={tenantId}
-        uploaderName={uploaderName || undefined}
-        onSaved={handleSaved}
+        {...({
+          open,
+          onOpenChange: setOpen,
+          tenantId,
+          uploaderName: uploaderName || undefined,
+          onSaved: handleSaved,
+        } satisfies TenantFileUploadDialogProps)}
       />
     </div>
   );

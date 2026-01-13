@@ -7,7 +7,7 @@ import { getBuildiumOrgIdOr403 } from '@/lib/buildium-route-guard'
 export async function POST(request: NextRequest) {
   try {
     // Authentication
-    await requireRole('platform_admin')
+    const { user } = await requireRole('platform_admin')
     const guard = await getBuildiumOrgIdOr403(request)
     if ('response' in guard) return guard.response
     const { orgId } = guard

@@ -1377,7 +1377,9 @@ export type Database = {
           client_id_encrypted: string
           client_secret_encrypted: string
           created_at: string
+          disabled_at: string | null
           deleted_at: string | null
+          config_version: number
           id: string
           is_enabled: boolean
           last_tested_at: string | null
@@ -1392,7 +1394,9 @@ export type Database = {
           client_id_encrypted: string
           client_secret_encrypted: string
           created_at?: string
+          disabled_at?: string | null
           deleted_at?: string | null
+          config_version?: number
           id?: string
           is_enabled?: boolean
           last_tested_at?: string | null
@@ -1407,7 +1411,9 @@ export type Database = {
           client_id_encrypted?: string
           client_secret_encrypted?: string
           created_at?: string
+          disabled_at?: string | null
           deleted_at?: string | null
+          config_version?: number
           id?: string
           is_enabled?: boolean
           last_tested_at?: string | null

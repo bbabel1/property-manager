@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import type { ComponentProps } from 'react';
 
 import { supabase, supabaseAdmin } from '@/lib/db';
 import { Badge } from '@/components/ui/badge';
@@ -454,6 +455,12 @@ export default async function TenantDetailsPage({ params }: { params: Promise<{ 
   const buildiumTenantId = toNumber(tenant?.buildium_tenant_id);
   const orgId = tenant?.org_id ?? null;
   const tenantId = tenant?.id ?? id;
+  const tenantFilesPanelProps: ComponentProps<typeof TenantFilesPanel> = {
+    tenantId,
+    buildiumTenantId,
+    orgId,
+    uploaderName: name,
+  };
 
   return (
     <NavTabs defaultValue="summary" className="space-y-6 p-6">
@@ -651,12 +658,7 @@ export default async function TenantDetailsPage({ params }: { params: Promise<{ 
         </div>
       </NavTabsContent>
       <NavTabsContent value="files" className="space-y-6">
-        <TenantFilesPanel
-          tenantId={tenantId}
-          buildiumTenantId={buildiumTenantId}
-          orgId={orgId}
-          uploaderName={name}
-        />
+        <TenantFilesPanel {...tenantFilesPanelProps} />
       </NavTabsContent>
       <NavTabsContent value="notes" className="space-y-6">
         <TenantNotesTable tenantId={id} />

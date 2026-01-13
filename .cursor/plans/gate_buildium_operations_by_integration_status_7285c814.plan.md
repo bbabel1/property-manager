@@ -340,6 +340,8 @@ Import this at the top of each Buildium edge function.
 
 ### Phase 3: Webhooks - Accept, Store as Ignored, Don't Process
 
+**Buildium retry semantics (docs verified)**: The Buildium developer docs (`Receiving Callbacks`) say any non-2xx or >10s timeout is treated as a failed delivery, retried at 1 minute, 10 minutes, and 1 hour, and the subscription is suspended after 20 consecutive failures. Keep the disabled path returning 200 with `ignored_disabled` to avoid noisy retries.
+
 #### 3.1 Next.js Webhook Route
 
 **File**: `src/app/api/webhooks/buildium/route.ts`**Changes**:

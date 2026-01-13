@@ -18,6 +18,12 @@ This directory contains mutating scripts: data fixes, seeds, and one-off sync he
 # Example: run a data fix
 npx tsx scripts/maintenance/fix-monthly-log-schema.ts
 
+# Example: normalize GL account flags for an org (dry run)
+npx tsx scripts/maintenance/fix-gl-account-flags.ts --org <org-id>
+
+# Example: apply GL flag fixes for an org
+npx tsx scripts/maintenance/fix-gl-account-flags.ts --org <org-id> --apply
+
 # Example: reseed org data
 npx tsx scripts/maintenance/seed_org.ts
 ```

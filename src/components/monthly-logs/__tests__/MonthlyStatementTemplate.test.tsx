@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom/vitest';
+// eslint-disable-next-line @typescript-eslint/triple-slash-reference -- Vitest globals for test runtime (see https://typescript-eslint.io/rules/triple-slash-reference/)
 /// <reference types="vitest" />
 
 import { describe, expect, it, vi } from 'vitest';

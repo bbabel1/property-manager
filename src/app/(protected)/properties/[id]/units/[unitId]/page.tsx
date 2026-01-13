@@ -1125,11 +1125,10 @@ export default async function UnitDetailsNested({
                     });
 
                     let running = group.prior;
-                    const detailWithBalance = detailChrono.map(({ line, signed }) => {
+                    const detailDisplay = detailChrono.map(({ line, signed }) => {
                       running += signed;
                       return { line, signed, runningAfter: running };
                     });
-                    const detailDisplay = detailWithBalance.slice().reverse();
 
                     return (
                       <Fragment key={group.id}>
@@ -1187,14 +1186,11 @@ export default async function UnitDetailsNested({
                                 <TableCell>{txnLabel || '—'}</TableCell>
                                 <TableCell>{memo}</TableCell>
                                 <TableCell
-                                  className={cn(
-                                    'text-right font-medium',
-                                    signed < 0 ? 'text-destructive' : '',
-                                  )}
+                                  className={cn('text-right', signed < 0 ? 'text-destructive' : '')}
                                 >
                                   {formatSignedCurrency(signed)}
                                 </TableCell>
-                                <TableCell className="text-right font-medium">
+                                <TableCell className="text-right">
                                   {formatSignedCurrency(runningAfter)}
                                 </TableCell>
                               </TableRow>

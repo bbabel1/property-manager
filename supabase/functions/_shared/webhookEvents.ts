@@ -1,5 +1,10 @@
+// eslint-disable-next-line @typescript-eslint/triple-slash-reference -- Remote module shims for Deno type checking (see https://typescript-eslint.io/rules/triple-slash-reference/)
+/// <reference path="../../../types/deno-remotes.d.ts" />
+// eslint-disable-next-line @typescript-eslint/triple-slash-reference -- Deno globals for Edge runtime (see https://typescript-eslint.io/rules/triple-slash-reference/)
+/// <reference path="../../../types/deno.d.ts" />
 // deno-lint-ignore-file
 
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { canonicalizeEventName } from "./eventValidation"
 
 export interface NormalizedBuildiumWebhook {
@@ -139,7 +144,7 @@ type InsertResult =
   | { status: 'invalid'; id: string | null; errors: string[] }
 
 export async function insertBuildiumWebhookEventRecord(
-  supabase: any,
+  supabase: SupabaseClient,
   event: any,
   opts?: { webhookType?: string | null; signature?: string | null }
 ): Promise<InsertResult> {
@@ -219,7 +224,7 @@ export async function insertBuildiumWebhookEventRecord(
 }
 
 export async function deadLetterBuildiumEvent(
-  supabase: any,
+  supabase: SupabaseClient,
   event: any,
   errors: string[],
   opts?: { webhookType?: string | null; signature?: string | null }

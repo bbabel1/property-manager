@@ -1,9 +1,14 @@
+// eslint-disable-next-line @typescript-eslint/triple-slash-reference -- Remote module shims for Deno type checking (see https://typescript-eslint.io/rules/triple-slash-reference/)
+/// <reference path="../../../types/deno-remotes.d.ts" />
+// eslint-disable-next-line @typescript-eslint/triple-slash-reference -- Deno globals for Edge runtime (see https://typescript-eslint.io/rules/triple-slash-reference/)
+/// <reference path="../../../types/deno.d.ts" />
 // deno-lint-ignore-file
+import type { SupabaseClient } from '@supabase/supabase-js'
 export type LeaseOrgLookupResult = { id: number; org_id: string | null }
 
 // Resolve local lease id and org, falling back to property org when the lease row has a null org_id.
 export async function resolveLeaseWithOrg(
-  supabase: any,
+  supabase: SupabaseClient,
   buildiumLeaseId: number | null | undefined
 ): Promise<LeaseOrgLookupResult | null> {
   if (!buildiumLeaseId) return null

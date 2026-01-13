@@ -144,9 +144,9 @@ function labelOfUnit(row: { unit_number: string | null; unit_name: string | null
 export default async function BankAccountCheckEditPage({
   params,
 }: {
-  params: { id: string; transactionId: string };
+  params: Promise<{ id: string; transactionId: string }>;
 }) {
-  const { id: bankAccountId, transactionId } = params;
+  const { id: bankAccountId, transactionId } = await params;
   const db = supabaseAdmin || supabase;
   if (!db) {
     throw new Error('Database client is unavailable');

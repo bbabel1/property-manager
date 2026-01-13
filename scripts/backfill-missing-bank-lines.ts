@@ -268,19 +268,18 @@ async function backfill() {
         property_id: propertyId,
         lease_id: tx.lease_id,
         unit_id: unitId,
+        is_cash_posting: true,
         created_at: nowIso,
         updated_at: nowIso,
       })
 
       if (isApply) {
-        // Replace lines atomically: delete then insert
-        const { error: delErr } = await supabase
-          .from('transaction_lines')
-          .delete()
-          .eq('transaction_id', tx.id)
-        if (delErr) throw delErr
-        const { error: insErr } = await supabase.from('transaction_lines').insert(rebuilt)
-        if (insErr) throw insErr
+        const { error: replaceErr } = await supabase.rpc('replace_transaction_lines', {
+          p_transaction_id: tx.id,
+          p_lines: rebuilt as any,
+          p_validate_balance: true,
+        })
+        if (replaceErr) throw replaceErr
       }
 
       inserted++

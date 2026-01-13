@@ -29,7 +29,9 @@ async function findTenantWithBuildiumId() {
 
   const { data: tenants, error } = await supabase
     .from('tenants')
-    .select('id, buildium_tenant_id, contact:contacts!tenants_contact_id_fkey(display_name, first_name, last_name)')
+    .select(
+      'id, buildium_tenant_id, contact:contacts!tenants_contact_id_fkey(display_name, first_name, last_name)',
+    )
     .not('buildium_tenant_id', 'is', null)
     .limit(5);
 
@@ -46,7 +48,10 @@ async function findTenantWithBuildiumId() {
 
   const tenant = tenants[0];
   const contact = (tenant as any).contact;
-  const name = contact?.display_name || [contact?.first_name, contact?.last_name].filter(Boolean).join(' ') || 'Unknown';
+  const name =
+    contact?.display_name ||
+    [contact?.first_name, contact?.last_name].filter(Boolean).join(' ') ||
+    'Unknown';
 
   console.log(`✅ Found tenant with Buildium ID:`);
   console.log(`   Tenant ID: ${tenant.id}`);
@@ -63,12 +68,19 @@ async function checkExistingFiles(tenantId: string) {
     .from('files')
     .select('id, file_name, title, buildium_file_id, buildium_href, created_at')
     .eq('entity_type', 'Tenants')
-    .eq('entity_id', (await supabase.from('tenants').select('buildium_tenant_id').eq('id', tenantId).single()).data?.buildium_tenant_id || -1)
+    .eq(
+      'entity_id',
+      (await supabase.from('tenants').select('buildium_tenant_id').eq('id', tenantId).single()).data
+        ?.buildium_tenant_id || -1,
+    )
     .order('created_at', { ascending: false })
     .limit(5);
 
   if (error) {
-    console.log('⚠️  Error querying files (this is OK if files table schema is different):', error.message);
+    console.log(
+      '⚠️  Error querying files (this is OK if files table schema is different):',
+      error.message,
+    );
     return;
   }
 
@@ -134,7 +146,7 @@ async function testUploadFlow() {
   // Verify Buildium credentials
   const buildiumClientId = process.env.BUILDIUM_CLIENT_ID;
   const buildiumClientSecret = process.env.BUILDIUM_CLIENT_SECRET;
-  
+
   if (!buildiumClientId || !buildiumClientSecret) {
     console.log('⚠️  WARNING: Buildium credentials not found in environment');
     console.log('   Buildium sync will be skipped');

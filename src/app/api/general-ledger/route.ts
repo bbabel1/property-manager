@@ -297,7 +297,11 @@ export async function GET(request: NextRequest) {
         ? null
         : selectedAccountIds;
 
-    const basisParam = sp.basis === 'cash' ? 'cash' : defaultBasis;
+    const basisRaw = typeof sp.basis === 'string' ? sp.basis.toLowerCase() : '';
+    const basisParam: 'cash' | 'accrual' =
+      basisRaw === 'cash' || basisRaw === 'accrual'
+        ? (basisRaw as 'cash' | 'accrual')
+        : defaultBasis;
 
     const shouldQueryLedger =
       selectedPropertyPublicIds.length > 0 && !noUnitsSelected && !accountsExplicitNone;

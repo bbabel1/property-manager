@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase, supabaseAdmin } from '@/lib/db';
+import { supabaseAdmin } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/guards';
 import { logger } from '@/lib/logger';
 import { getOrgScopedBuildiumEdgeClient } from '@/lib/buildium-edge-client';
@@ -1232,7 +1232,9 @@ export async function POST(request: NextRequest) {
                 Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0),
               ).getUTCDate();
               const anchoredDay = Math.min(dueDay, maxDay);
-              const tentative = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), anchoredDay));
+              const tentative = new Date(
+                Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), anchoredDay),
+              );
               const start =
                 tentative < d
                   ? new Date(
@@ -1241,7 +1243,9 @@ export async function POST(request: NextRequest) {
                         d.getUTCMonth() + 1,
                         Math.min(
                           anchoredDay,
-                          new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 2, 0)).getUTCDate(),
+                          new Date(
+                            Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 2, 0),
+                          ).getUTCDate(),
                         ),
                       ),
                     )
@@ -1366,7 +1370,8 @@ export async function POST(request: NextRequest) {
           throw prorateExistsError;
         }
         if (!proExists?.id) {
-          const chargeDate: string = lease?.lease_from_date || new Date().toISOString().slice(0, 10);
+          const chargeDate: string =
+            lease?.lease_from_date || new Date().toISOString().slice(0, 10);
           await createCharge({
             lease_id: safeLeaseId,
             date: chargeDate,

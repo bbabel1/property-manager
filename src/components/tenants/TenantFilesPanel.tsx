@@ -18,8 +18,13 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Mail, Trash2, Download, Eye } from 'lucide-react';
 import ActionButton from '@/components/ui/ActionButton';
-import TenantFileUploadDialog, { TenantFileRow } from '@/components/tenants/TenantFileUploadDialog';
+import TenantFileUploadDialog from '@/components/tenants/TenantFileUploadDialog';
 import { fetchWithSupabaseAuth } from '@/lib/supabase/fetch';
+import type {
+  TenantFileRow,
+  TenantFileUploadDialogProps,
+  TenantFilesPanelProps,
+} from './tenant-file-types';
 
 type ListedFile = TenantFileRow & { href: string | null };
 type FileApiRow = {
@@ -36,14 +41,6 @@ type FileApiRow = {
   storage_key?: string | null;
 };
 
-interface TenantFilesPanelProps {
-  tenantId?: string | null;
-  buildiumTenantId?: number | null;
-  orgId?: string | null;
-  uploaderName?: string | null;
-  initialFiles?: TenantFileRow[];
-}
-
 const DEFAULT_CATEGORY = 'Uncategorized';
 
 const formatDateTime = (date: Date): string =>
@@ -56,19 +53,24 @@ const formatDateTime = (date: Date): string =>
   }).format(date);
 
 export default function TenantFilesPanel({
-  tenantId: tenantIdProp,
-  buildiumTenantId = null,
-  orgId = null,
+  tenantId,
+  buildiumTenantId,
+  orgId,
   uploaderName = 'Team member',
   initialFiles = [],
 }: TenantFilesPanelProps) {
-  const tenantId = tenantIdProp ?? null;
+  const resolvedTenantId = tenantId ?? null;
+  const resolvedBuildiumTenantId = buildiumTenantId ?? null;
+  const resolvedOrgId = orgId ?? null;
   const [files, setFiles] = useState<ListedFile[]>(
-    (initialFiles ?? []).map((file) => ({
-      ...file,
-      uploadedAt: file.uploadedAt instanceof Date ? file.uploadedAt : new Date(file.uploadedAt),
-      href: file.href ?? null,
-    })),
+    (initialFiles ?? []).map((file) => {
+      const withHref = file as TenantFileRow & { href?: string | null };
+      return {
+        ...file,
+        uploadedAt: file.uploadedAt instanceof Date ? file.uploadedAt : new Date(file.uploadedAt),
+        href: withHref.href ?? null,
+      };
+    }),
   );
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -94,14 +96,14 @@ export default function TenantFilesPanel({
   }, []);
 
   const loadFiles = useCallback(async () => {
-    if (!orgId || !buildiumTenantId) {
+    if (!resolvedOrgId || !resolvedBuildiumTenantId) {
       setFiles([]);
       return;
     }
     try {
       setLoading(true);
       setError(null);
-      const url = `/api/files?entityType=Tenants&entityId=${buildiumTenantId}&orgId=${orgId}`;
+      const url = `/api/files?entityType=Tenants&entityId=${resolvedBuildiumTenantId}&orgId=${resolvedOrgId}`;
       let res: Response;
       try {
         res = await fetchWithSupabaseAuth(url, { cache: 'no-store' });
@@ -130,7 +132,7 @@ export default function TenantFilesPanel({
     } finally {
       setLoading(false);
     }
-  }, [buildiumTenantId, orgId, resolveHref]);
+  }, [resolvedBuildiumTenantId, resolvedOrgId, resolveHref]);
 
   useEffect(() => {
     void loadFiles();
@@ -146,10 +148,10 @@ export default function TenantFilesPanel({
   };
 
   const emptyCopy = useMemo(() => {
-    if (!orgId) return 'Files require an organization context.';
-    if (!buildiumTenantId) return 'Files require a Buildium tenant id.';
+    if (!resolvedOrgId) return 'Files require an organization context.';
+    if (!resolvedBuildiumTenantId) return 'Files require a Buildium tenant id.';
     return "You don't have any files for this tenant right now.";
-  }, [buildiumTenantId, orgId]);
+  }, [resolvedBuildiumTenantId, resolvedOrgId]);
 
   return (
     <div className="space-y-4">
@@ -167,7 +169,7 @@ export default function TenantFilesPanel({
             </button>
           </div>
           <div className="flex items-center gap-3">
-            <Button type="button" onClick={() => setIsOpen(true)} disabled={!tenantId}>
+            <Button type="button" onClick={() => setIsOpen(true)} disabled={!resolvedTenantId}>
               Upload file
             </Button>
             <Button variant="outline" type="button">
@@ -188,7 +190,7 @@ export default function TenantFilesPanel({
               type="button"
               onClick={() => setIsOpen(true)}
               className="text-primary align-baseline text-sm font-normal hover:underline"
-              disabled={!tenantId}
+              disabled={!resolvedTenantId}
             >
               Upload your first file.
             </button>
@@ -274,12 +276,16 @@ export default function TenantFilesPanel({
       </div>
 
       <TenantFileUploadDialog
-        open={isOpen}
-        onOpenChange={setIsOpen}
-        tenantId={tenantId}
-        uploaderName={uploaderName || undefined}
-        onSaved={handleSaved}
+        {...({
+          open: isOpen,
+          onOpenChange: setIsOpen,
+          tenantId: resolvedTenantId,
+          uploaderName: uploaderName || undefined,
+          onSaved: handleSaved,
+        } satisfies TenantFileUploadDialogProps)}
       />
     </div>
   );
 }
+
+export type { TenantFilesPanelProps } from './tenant-file-types';

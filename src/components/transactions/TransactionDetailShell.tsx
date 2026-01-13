@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DialogTitle } from '@/components/ui/dialog';
 import { cn } from '@/components/ui/utils';
+import { amountToneClassName } from '@/lib/amount-formatting';
 
 type DetailItem = {
   label: string;
@@ -51,11 +52,7 @@ export default function TransactionDetailShell({
 }: TransactionDetailShellProps) {
   const amountClass = cn(
     'text-3xl font-semibold leading-tight',
-    amountTone === 'positive'
-      ? 'text-emerald-700'
-      : amountTone === 'negative'
-        ? 'text-rose-700'
-        : 'text-slate-900',
+    amountToneClassName(amountTone),
   );
 
   const effectiveHint = actions?.editDisabledReason ?? actions?.hint ?? null;

@@ -13,30 +13,15 @@ import {
 import { Input } from '@/components/ui/input';
 import { CheckCircle2 } from 'lucide-react';
 import { fetchWithSupabaseAuth } from '@/lib/supabase/fetch';
+import type { TenantFileRow, TenantFileUploadDialogProps } from './tenant-file-types';
 
-export type TenantFileRow = {
-  id: string;
-  title: string;
-  category: string;
-  description: string | null;
-  uploadedAt: Date;
-  uploadedBy: string;
-  href?: string | null;
-};
-
-export default function TenantFileUploadDialog({
+const TenantFileUploadDialog = ({
   open,
   onOpenChange,
   tenantId,
   uploaderName = 'Team member',
   onSaved,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  tenantId: string | null;
-  uploaderName?: string | null;
-  onSaved?: (row: TenantFileRow) => void;
-}) {
+}: TenantFileUploadDialogProps): JSX.Element => {
   const [step, setStep] = useState<'select' | 'details'>('select');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [title, setTitle] = useState('');
@@ -179,7 +164,9 @@ export default function TenantFileUploadDialog({
         href: resolveHref(fileRecord),
       };
 
-      onSaved?.(row);
+      if (onSaved) {
+        await onSaved(row);
+      }
       close();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to upload tenant file';
@@ -289,4 +276,7 @@ export default function TenantFileUploadDialog({
       </DialogContent>
     </Dialog>
   );
-}
+};
+
+export default TenantFileUploadDialog;
+export type { TenantFileRow, TenantFileUploadDialogProps } from './tenant-file-types';

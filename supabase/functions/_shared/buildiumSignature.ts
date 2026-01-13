@@ -1,3 +1,5 @@
+// eslint-disable-next-line @typescript-eslint/triple-slash-reference -- Deno globals for Edge runtime (see https://typescript-eslint.io/rules/triple-slash-reference/)
+/// <reference path="../../../types/deno.d.ts" />
 // deno-lint-ignore-file
 const encoder = new TextEncoder()
 const DEFAULT_TIMESTAMP_WINDOW_MS = 5 * 60 * 1000

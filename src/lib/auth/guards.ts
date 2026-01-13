@@ -105,6 +105,7 @@ export async function requireOrg(orgId: string) {
   const appMeta = (user.app_metadata ?? {}) as LooseRecord;
   const userMeta = (user.user_metadata ?? {}) as LooseRecord;
   const claims = (appMeta.claims ?? {}) as LooseRecord;
+  const roles = extractRoles(user as SupabaseUser);
 
   const orgs = new Set<string>();
   normalizeArray(claims.org_ids).forEach((o) => orgs.add(o));
@@ -122,6 +123,25 @@ export async function requireOrg(orgId: string) {
 	    } catch {
       // fall through; we still enforce membership below
     }
+  }
+
+  // Fallback to legacy org_memberships table when claims and membership_roles are empty
+  if (!orgs.has(orgId)) {
+    try {
+      const { data, error } = await supabase.from('org_memberships').select('org_id').eq('user_id', user.id);
+      if (!error) {
+        (data ?? []).forEach((row) => {
+          if (row?.org_id) orgs.add(String(row.org_id));
+        });
+      }
+    } catch {
+      // ignore; membership check remains enforced below
+    }
+  }
+
+  // Platform admins bypass org membership
+  if (hasRole(roles, ['platform_admin'])) {
+    return { supabase, user, orgId };
   }
 
   if (!orgs.has(orgId)) throw new Error('ORG_FORBIDDEN');

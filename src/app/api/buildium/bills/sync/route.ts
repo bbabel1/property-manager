@@ -102,8 +102,7 @@ export async function GET(request: NextRequest) {
       const guardResult = await requireBuildiumEnabledOr403(request)
       if (guardResult instanceof NextResponse) return guardResult
       orgId = guardResult
-    }
-    if (isCron) {
+    } else {
       const guardResult = await requireBuildiumEnabledOr403(request)
       if (guardResult instanceof NextResponse) return guardResult
       orgId = guardResult

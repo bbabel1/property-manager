@@ -1,6 +1,7 @@
 'use client';
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 import {
   ArrowRight,
   Plus,
@@ -17,6 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { cn } from '@/components/ui/utils';
 import {
   Cluster,
   PageBody,
@@ -27,6 +29,8 @@ import {
 } from '@/components/layout/page-shell';
 import { ExpiringLeaseBucketKey, ExpiringLeaseCounts, useDashboardMetrics } from '@/hooks/useDashboardMetrics';
 import { supabase } from '@/lib/db';
+import { amountToneClassName, formatAmountDisplay } from '@/lib/amount-formatting';
+import { formatCurrency } from '@/lib/format-currency';
 
 type ExpiringStageKey = 'notStarted' | 'offers' | 'renewals' | 'moveOuts';
 
@@ -75,13 +79,35 @@ export default function DashboardPage() {
     });
   }, [data?.expiringLeases]);
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
+  const router = useRouter();
+
+  const resolveTransactionHref = (t: (typeof transactions)[number]) => {
+    const type = (t.type || '').toLowerCase();
+    const bankAccountId = t.bank_gl_account_id ? String(t.bank_gl_account_id) : null;
+    const leaseId = t.lease_id ? String(t.lease_id) : null;
+    const hasCheckNumber = Boolean(t.reference_number || t.check_number);
+    const isTransferLike =
+      type === 'transfer' || type === 'other' || type === 'electronicfundstransfer';
+    const paymentMethod = (t.payment_method || '').toLowerCase();
+
+    if (bankAccountId) {
+      if (type === 'deposit') {
+        return `/bank-accounts/${bankAccountId}/deposits/${t.id}`;
+      }
+      if (type === 'check' || (type === 'payment' && (hasCheckNumber || paymentMethod === 'check'))) {
+        return `/bank-accounts/${bankAccountId}/checks/${t.id}`;
+      }
+      if (isTransferLike) {
+        return `/bank-accounts/${bankAccountId}/transfers/${t.id}`;
+      }
+      return `/bank-accounts/${bankAccountId}/other-transactions/${t.id}`;
+    }
+
+    if (leaseId && type === 'charge') {
+      return `/leases/${leaseId}/edit-charge?transactionId=${t.id}`;
+    }
+
+    return null;
   };
 
   // Optional realtime refresh: subscribe to base tables for this org
@@ -120,9 +146,11 @@ export default function DashboardPage() {
         title="Dashboard"
         description="Welcome back! Here's what's happening with your properties."
         actions={
-          <Button className="flex items-center">
-            <Plus className="mr-2 h-4 w-4" />
-            Add Property
+          <Button asChild className="flex items-center">
+            <Link href="/properties" className="flex items-center">
+              <Plus className="mr-2 h-4 w-4" />
+              Add Property
+            </Link>
           </Button>
         }
       />
@@ -145,13 +173,18 @@ export default function DashboardPage() {
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div className="space-y-1">
-                    <p className="text-muted-foreground text-sm font-medium">Total Properties</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-muted-foreground text-sm font-medium">Total Properties</p>
+                      <span className="status-pill status-pill-success px-2 py-0.5 text-[11px]">
+                        Active
+                      </span>
+                    </div>
                     <p className="text-foreground text-2xl font-bold">
                       {isLoading ? '—' : (k?.total_properties ?? 0)}
                     </p>
                     <div className="flex items-center gap-2">
                       <Badge variant="secondary" className="text-xs">
-                        {isLoading ? '—' : `${k?.total_units ?? 0} units`}
+                        {isLoading ? '—' : `${k?.total_units ?? 0} active units`}
                       </Badge>
                     </div>
                   </div>
@@ -244,7 +277,6 @@ export default function DashboardPage() {
                     <FileText className="text-primary mr-2 h-5 w-5" />
                     <CardTitle>Expiring Leases</CardTitle>
                   </div>
-                  <span className="text-muted-foreground text-xs">Next 90 days</span>
                 </div>
               </CardHeader>
               <CardContent>
@@ -383,12 +415,33 @@ export default function DashboardPage() {
                 </TableHeader>
                 <TableBody>
                   {txSlice.map((t) => {
-                    const isDebit = t.amount < 0;
-                    const abs = Math.abs(t.amount);
+                    const amount = Number(t.amount ?? 0);
+                    const amountDisplay = formatAmountDisplay(amount, { useParensForNegative: true });
                     const ts = t.created_at || t.date;
-                    const dateLabel = ts ? new Date(ts).toLocaleString() : '—';
+                    const dateLabel = ts ? new Date(ts).toLocaleDateString() : '—';
+                    const href = resolveTransactionHref(t);
+
+                    const handleClick = () => {
+                      if (href) router.push(href);
+                    };
+
+                    const handleKeyDown = (e: KeyboardEvent<HTMLTableRowElement>) => {
+                      if (!href) return;
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        router.push(href);
+                      }
+                    };
+
                     return (
-                      <TableRow key={t.id}>
+                      <TableRow
+                        key={t.id}
+                        className={href ? 'cursor-pointer' : undefined}
+                        role={href ? 'link' : undefined}
+                        tabIndex={href ? 0 : undefined}
+                        onClick={href ? handleClick : undefined}
+                        onKeyDown={href ? handleKeyDown : undefined}
+                      >
                         <TableCell className="text-sm">{dateLabel}</TableCell>
                         <TableCell className="text-sm">
                           {t.memo || 'Transaction'}
@@ -396,14 +449,13 @@ export default function DashboardPage() {
                         <TableCell className="text-sm capitalize">
                           {t.type ? t.type.toLowerCase() : '—'}
                         </TableCell>
-                        <TableCell className="text-right">
-                          <Badge
-                            variant={isDebit ? 'destructive' : 'default'}
-                            className={`text-xs ${isDebit ? '' : 'bg-success text-white'}`}
-                          >
-                            {isDebit ? '-' : '+'}
-                            {formatCurrency(abs)}
-                          </Badge>
+                        <TableCell
+                          className={cn(
+                            'text-right text-sm',
+                            amountToneClassName(amountDisplay.tone),
+                          )}
+                        >
+                          {amountDisplay.display}
                         </TableCell>
                       </TableRow>
                     );
@@ -484,8 +536,8 @@ export default function DashboardPage() {
                         </p>
                       </div>
                     </div>
-                    <Button variant="link" size="sm">
-                      open
+                    <Button variant="link" size="sm" asChild>
+                      <Link href="/maintenance">Open</Link>
                     </Button>
                   </div>
                 );

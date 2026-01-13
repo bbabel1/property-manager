@@ -37,7 +37,7 @@ interface UnbalancedTransaction {
 }
 
 async function auditUnbalancedTransactions() {
-  console.log('🔍 Auditing transactions for double-entry violations...\n');
+  console.log('🔍 Auditing transaction invariants...\n');
 
   if (!supabaseAdmin) {
     console.error(
@@ -46,7 +46,43 @@ async function auditUnbalancedTransactions() {
     process.exit(1);
   }
 
-  // Fetch transactions with their lines
+  // First: look for any negative amounts on transaction_lines (should not happen post-constraint).
+  console.log('1) Checking for negative transaction line amounts...\n');
+
+  const {
+    data: negativeLines,
+    error: negativeError,
+    count: negativeCount,
+  } = await supabaseAdmin
+    .from('transaction_lines')
+    .select('id, transaction_id, amount, posting_type', { count: 'exact' })
+    .lt('amount', 0)
+    .limit(50);
+
+  if (negativeError) {
+    console.error('❌ Error querying negative amounts:', negativeError);
+  } else if (!negativeCount) {
+    console.log('✅ No transaction_lines with amount < 0 found.\n');
+  } else {
+    console.log(`⚠️  Found ${negativeCount} transaction_lines with amount < 0.\n`);
+    if (negativeLines && negativeLines.length > 0) {
+      console.table(
+        negativeLines.map((l) => ({
+          id: l.id,
+          transaction_id: l.transaction_id,
+          amount: l.amount,
+          posting_type: l.posting_type,
+        })),
+      );
+      if ((negativeCount || 0) > negativeLines.length) {
+        console.log(`\n... and ${(negativeCount || 0) - negativeLines.length} more rows.`);
+      }
+    }
+  }
+
+  console.log('\n2) Auditing double-entry balance for transactions...\n');
+
+  // Fetch transactions with their lines (subset for safety)
   const { data: transactions, error: txError } = await supabaseAdmin
     .from('transactions')
     .select('id, transaction_type')

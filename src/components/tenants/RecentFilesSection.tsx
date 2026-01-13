@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -21,7 +21,8 @@ import {
 import { Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import ActionButton from '@/components/ui/ActionButton';
-import TenantFileUploadDialog, { TenantFileRow } from '@/components/tenants/TenantFileUploadDialog';
+import TenantFileUploadDialog from '@/components/tenants/TenantFileUploadDialog';
+import type { TenantFileRow, TenantFileUploadDialogProps } from './tenant-file-types';
 import { fetchWithSupabaseAuth } from '@/lib/supabase/fetch';
 
 type ListedFile = TenantFileRow & { href: string | null };
@@ -152,7 +153,7 @@ export default function RecentFilesSection({
     <>
       <div className="space-y-4">
         <div className="flex items-center gap-2">
-          <h2 className="text-lg font-semibold text-foreground">Recent files</h2>
+          <h2 className="text-foreground text-lg font-semibold">Recent files</h2>
           <Button
             variant="link"
             className="h-auto px-2 py-0"
@@ -162,13 +163,13 @@ export default function RecentFilesSection({
             Add
           </Button>
         </div>
-        <div className="rounded-lg border border-border bg-background shadow-sm">
+        <div className="border-border bg-background rounded-lg border shadow-sm">
           {loading ? (
-            <div className="px-4 py-6 text-center text-sm text-muted-foreground">
+            <div className="text-muted-foreground px-4 py-6 text-center text-sm">
               Loading files…
             </div>
           ) : files.length === 0 ? (
-            <div className="px-4 py-6 text-sm text-muted-foreground">
+            <div className="text-muted-foreground px-4 py-6 text-sm">
               {emptyCopy}{' '}
               <Button
                 variant="link"
@@ -234,11 +235,13 @@ export default function RecentFilesSection({
       </div>
 
       <TenantFileUploadDialog
-        open={isOpen}
-        onOpenChange={setIsOpen}
-        tenantId={tenantId}
-        uploaderName={uploaderName || undefined}
-        onSaved={loadFiles}
+        {...({
+          open: isOpen,
+          onOpenChange: setIsOpen,
+          tenantId,
+          uploaderName: uploaderName || undefined,
+          onSaved: loadFiles,
+        } satisfies TenantFileUploadDialogProps)}
       />
 
       <AlertDialog

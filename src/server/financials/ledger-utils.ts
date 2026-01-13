@@ -1,5 +1,9 @@
 import type { Database } from '@/types/database';
-import { signedAmountFromLine } from '@/lib/finance/model';
+import {
+  signedAmountFromLine,
+  shouldIncludeOnCashBasis,
+  type CashBasisTxKind,
+} from '@/lib/finance/model';
 
 type TransactionLineRow = {
   id?: string | number | null;
@@ -118,17 +122,6 @@ export function mapTransactionLine(row: TransactionLineRow): LedgerLine | null {
   };
 }
 
-export const signedAmount = (line: LedgerLine): number =>
-  signedAmountFromLine({
-    amount: line.amount,
-    posting_type: line.postingType,
-    gl_accounts: {
-      type: line.glAccountType,
-      name: line.glAccountName,
-      is_bank_account: line.glIsBankAccount,
-    },
-  });
-
 const shouldExcludePaymentToIncome = (line: LedgerLine, basis: 'cash' | 'accrual'): boolean => {
   if (basis === 'cash') return false;
 
@@ -147,9 +140,11 @@ const filterOutInvalidPaymentLines = (
   basis: 'cash' | 'accrual',
 ): LedgerLine[] => lines.filter((line) => !shouldExcludePaymentToIncome(line, basis));
 
-const isArOrAp = (line: LedgerLine): boolean => {
+const isDepositLiabilityLine = (line: LedgerLine): boolean => {
+  const type = (line.glAccountType || '').toLowerCase();
+  if (type !== 'liability') return false;
   const name = (line.glAccountName || '').toLowerCase();
-  return name.includes('accounts receivable') || name.includes('accounts payable');
+  return name.includes('deposit');
 };
 
 const isBankLine = (line: LedgerLine): boolean => {
@@ -172,6 +167,72 @@ const isBankLine = (line: LedgerLine): boolean => {
   return false;
 };
 
+export const signedAmount = (line: LedgerLine): number => {
+  const base = signedAmountFromLine({
+    amount: line.amount,
+    posting_type: line.postingType,
+    gl_accounts: {
+      type: line.glAccountType,
+      name: line.glAccountName,
+      is_bank_account: line.glIsBankAccount,
+    },
+  });
+
+  const txType = (line.transactionType || '').toLowerCase();
+  const isPayment = txType.includes('payment') || txType.includes('receipt');
+  const isPaymentLike =
+    isPayment || txType.includes('refund') || txType.includes('credit');
+
+  if (base < 0 && isPaymentLike && (isBankLine(line) || isDepositLiabilityLine(line))) {
+    return -base;
+  }
+
+  const glType = (line.glAccountType || '').toLowerCase();
+  if (base < 0 && isPayment && glType === 'income') {
+    return -base;
+  }
+
+  return base;
+};
+
+const txKindFromTransactionType = (transactionType: string | null): CashBasisTxKind => {
+  const raw = (transactionType || '').toLowerCase();
+  if (!raw) return undefined;
+
+  const isPaymentLike =
+    raw.includes('payment') ||
+    raw.includes('credit') ||
+    raw.includes('refund') ||
+    raw.includes('adjustment') ||
+    raw.includes('receipt');
+  const isChargeLike =
+    raw.includes('charge') ||
+    raw.includes('invoice') ||
+    raw.includes('debit') ||
+    raw.includes('bill') ||
+    raw.includes('fee');
+
+  if (isPaymentLike && !isChargeLike) return 'payment';
+  if (isChargeLike && !isPaymentLike) return 'charge';
+  if (isPaymentLike) return 'payment';
+  if (isChargeLike) return 'charge';
+  return undefined;
+};
+
+/**
+ * Ledger-specific cash basis filter.
+ *
+ * Delegates the core "should this line appear on cash basis?" decision to
+ * `shouldIncludeOnCashBasis` in `finance/model`, so that ledger and the
+ * property cash-balance engine share the same inclusion rules.
+ *
+ * Additional ledger-only behavior:
+ * - Drops non-cash balancing debits we synthesize for payments
+ *   (income/liability debits that offset AR/deposit credits) so that cash
+ *   basis only shows the economically meaningful cash + income/deposit lines.
+ * - Uses a per-transaction `txBankMap` so income only appears on cash basis
+ *   when there is related bank/Undeposited cash for that transaction.
+ */
 const filterForCashBasis = (lines: LedgerLine[]): LedgerLine[] => {
   if (!lines.length) return lines;
 
@@ -184,23 +245,48 @@ const filterForCashBasis = (lines: LedgerLine[]): LedgerLine[] => {
   }
 
   return lines.filter((line) => {
-    if (line.glExcludeFromCash) return false;
-    if (isArOrAp(line)) return false;
-    if (isBankLine(line)) return true;
-
-    // If the line isn't linked to a transaction (e.g., orphaned or system adjustments),
-    // keep it unless it's AR/AP.
-    if (!line.transactionId) return true;
-
     const glType = (line.glAccountType || '').toLowerCase();
+    const posting = (line.postingType || '').toLowerCase();
+    const txTypeRaw = (line.transactionType || '').toLowerCase();
 
-    // Income needs cash to be recognized on cash basis.
-    if (glType === 'income') {
-      return txBankMap.get(line.transactionId) === true;
+    const isPaymentLikeTx =
+      txTypeRaw.includes('payment') ||
+      txTypeRaw.includes('credit') ||
+      txTypeRaw.includes('refund') ||
+      txTypeRaw.includes('adjustment') ||
+      txTypeRaw.includes('receipt');
+
+    // Drop non-cash balancing debits we introduce for payments:
+    // - income debits that offset AR-clearing credits
+    // - liability debits that offset deposit/other liability credits
+    if (
+      isPaymentLikeTx &&
+      posting === 'debit' &&
+      (glType === 'income' || glType === 'liability')
+    ) {
+      return false;
     }
 
-    // Non-income (expense, liability, equity, etc.) stays visible on cash basis.
-    return true;
+    const txId = line.transactionId ?? undefined;
+    const txKind = txKindFromTransactionType(line.transactionType);
+    const hasBankForTx = txId ? txBankMap.get(txId) === true : false;
+
+    const basicLine = {
+      amount: line.amount,
+      posting_type: line.postingType,
+      gl_accounts: {
+        type: line.glAccountType,
+        name: line.glAccountName,
+        is_bank_account: line.glIsBankAccount,
+        exclude_from_cash_balances: line.glExcludeFromCash,
+      },
+      transaction_id: line.transactionId,
+      property_id: line.propertyId,
+      unit_id: line.unitId,
+      account_entity_type: 'Rental',
+    };
+
+    return shouldIncludeOnCashBasis(basicLine, { txKind, hasBankForTx });
   });
 };
 
@@ -215,6 +301,21 @@ export function buildLedgerGroups(
 
   const sanitizedPrior = filterOutInvalidPaymentLines(basisFilteredPrior, basis);
   const sanitizedPeriod = filterOutInvalidPaymentLines(basisFilteredPeriod, basis);
+
+  const sortLines = (a: LedgerLine, b: LedgerLine): number => {
+    const dateA = a.date || '';
+    const dateB = b.date || '';
+    if (dateA !== dateB) return dateA.localeCompare(dateB);
+    const createdA = a.createdAt || '';
+    const createdB = b.createdAt || '';
+    if (createdA !== createdB) return createdA.localeCompare(createdB);
+    const idA = a.id || '';
+    const idB = b.id || '';
+    return idA.localeCompare(idB);
+  };
+
+  sanitizedPrior.sort(sortLines);
+  sanitizedPeriod.sort(sortLines);
 
   const groupMap = new Map<string, LedgerGroup>();
 
@@ -253,7 +354,22 @@ export function buildLedgerGroups(
     const typeB = b.type || 'Other';
     const typeCmp = typeA.localeCompare(typeB);
     if (typeCmp !== 0) return typeCmp;
-    return a.name.localeCompare(b.name);
+    const nameCmp = a.name.localeCompare(b.name);
+    if (nameCmp !== 0) return nameCmp;
+    return a.id.localeCompare(b.id);
+  }).map((group) => {
+    group.lines.sort((a, b) => {
+      const dateA = a.line.date || '';
+      const dateB = b.line.date || '';
+      if (dateA !== dateB) return dateA.localeCompare(dateB);
+      const createdA = a.line.createdAt || '';
+      const createdB = b.line.createdAt || '';
+      if (createdA !== createdB) return createdA.localeCompare(createdB);
+      const idA = a.line.id || '';
+      const idB = b.line.id || '';
+      return idA.localeCompare(idB);
+    });
+    return group;
   });
 }
 

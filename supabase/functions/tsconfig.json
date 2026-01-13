@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "types": [],
+    "noEmit": true,
+    "strict": false,
+    "noImplicitAny": false,
+    "typeRoots": ["../../types"],
+    "allowImportingTsExtensions": true
+  },
+  "include": [
+    "./**/*.ts",
+    "../../types/deno.d.ts",
+    "../../types/deno-remotes.d.ts"
+  ],
+  "exclude": []
+}

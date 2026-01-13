@@ -2,7 +2,11 @@
 import '../_shared/buildiumEgressGuard.ts';
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { assertBuildiumEnabledEdge } from '../_shared/buildiumGate.ts';
+import {
+  BuildiumDisabledEdgeError,
+  assertBuildiumEnabledEdge,
+  buildiumDisabledResponse,
+} from '../_shared/buildiumGate.ts';
 import { buildiumFetchEdge } from '../_shared/buildiumFetch.ts';
 import {
   buildCanonicalTransactionPatch,
@@ -2252,8 +2256,10 @@ async function upsertLeaseTransactionWithLines(
     // For inflow payments, keep original income/charge lines; only map to A/R when no non-bank lines exist.
     // For outflows, non-bank offsets -> A/P (Debit).
     let glIdForLine = glId;
+    const isCashPosting = (line as any)?.IsCashPosting === true;
     const isIncomeType = (glAccount as any)?.type?.toLowerCase() === 'income';
-    if (!isBankAccount && isInflow && accountsReceivableGlId && !isIncomeType) {
+    const isCashPostingNonBankInflow = isInflow && isCashPosting && !isBankAccount;
+    if ((isCashPostingNonBankInflow || (!isBankAccount && isInflow && !isIncomeType)) && accountsReceivableGlId) {
       glIdForLine = accountsReceivableGlId;
     }
     if (!isBankAccount && isOutflow && accountsPayableGlId) {
@@ -2270,6 +2276,10 @@ async function upsertLeaseTransactionWithLines(
     const accountingEntityTypeRaw = (line as any)?.AccountingEntity?.AccountingEntityType ?? null;
     const accountEntityType =
       (accountingEntityTypeRaw || '').toString().toLowerCase() === 'company' ? 'Company' : 'Rental';
+
+    const isCashPostingFlag = glIdForLine === accountsReceivableGlId && isCashPostingNonBankInflow
+      ? false
+      : (line as any)?.IsCashPosting ?? null;
 
     pendingLineRows.push({
       transaction_id: transactionId,
@@ -2289,7 +2299,7 @@ async function upsertLeaseTransactionWithLines(
       property_id: linePropertyIdLocal,
       unit_id: unitIdLocalResolved,
       reference_number: (line as any)?.ReferenceNumber ?? null,
-      is_cash_posting: (line as any)?.IsCashPosting ?? null,
+      is_cash_posting: isCashPostingFlag,
       accounting_entity_type_raw: accountingEntityTypeRaw,
     });
 
@@ -2434,6 +2444,7 @@ async function upsertLeaseTransactionWithLines(
       lease_id: leaseIdLocal,
       property_id: propertyIdLocal,
       unit_id: defaultUnitIdLocal,
+      is_cash_posting: true,
     });
     if (bankPosting === 'Debit') debit += bankAmountNeeded;
     else credit += bankAmountNeeded;
@@ -2860,12 +2871,11 @@ async function toBuildiumWorkOrder(payload: any, supabase: any): Promise<any> {
 
 // Main handler
 serve(async (req) => {
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  };
   try {
-    // CORS headers
-    const corsHeaders = {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-    };
 
     // Handle preflight requests
     if (req.method === 'OPTIONS') {
@@ -4427,6 +4437,9 @@ serve(async (req) => {
               throw new Error(`Unsupported operation for bankAccount: ${operation}`);
             }
           } catch (bankErr) {
+            if (bankErr instanceof BuildiumDisabledEdgeError) {
+              throw bankErr;
+            }
             const message = bankErr instanceof Error ? bankErr.message : String(bankErr);
             return new Response(JSON.stringify({ success: false, error: message }), {
               headers: { 'Content-Type': 'application/json' },
@@ -4704,6 +4717,9 @@ serve(async (req) => {
       status: 200,
     });
   } catch (error) {
+    if (error instanceof BuildiumDisabledEdgeError) {
+      return buildiumDisabledResponse(corsHeaders, error.message);
+    }
     const message = error instanceof Error ? error.message : 'Internal server error';
     console.error('Error in buildium-sync function:', error);
 

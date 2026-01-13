@@ -1,3 +1,7 @@
+// eslint-disable-next-line @typescript-eslint/triple-slash-reference -- Remote module shims for Deno type checking (see https://typescript-eslint.io/rules/triple-slash-reference/)
+/// <reference path="../../../types/deno-remotes.d.ts" />
+// eslint-disable-next-line @typescript-eslint/triple-slash-reference -- Deno globals for Edge runtime (see https://typescript-eslint.io/rules/triple-slash-reference/)
+/// <reference path="../../../types/deno.d.ts" />
 /**
  * Buildium Integration Gate (Edge Functions)
  *
@@ -14,6 +18,35 @@
  * - Do NOT let "credentials present" behave like "enabled"
  */
 
+export const BUILDIUM_DISABLED_CODE = 'BUILDIUM_DISABLED' as const;
+
+export class BuildiumDisabledEdgeError extends Error {
+  code = BUILDIUM_DISABLED_CODE;
+  status = 403;
+  constructor(public orgId?: string) {
+    super(
+      orgId
+        ? `Buildium integration is disabled for org ${orgId}`
+        : 'Buildium integration is disabled',
+    );
+    this.name = 'BuildiumDisabledEdgeError';
+  }
+}
+
+export function buildiumDisabledResponse(
+  headers?: HeadersInit,
+  message?: string,
+  code: string = BUILDIUM_DISABLED_CODE,
+): Response {
+  return new Response(JSON.stringify({ error: { code, message: message || 'Buildium integration is disabled' } }), {
+    status: 403,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(headers || {}),
+    },
+  });
+}
+
 /**
  * Assert that Buildium integration is enabled for the given org.
  * Throws Error if disabled or unavailable.
@@ -25,11 +58,11 @@
  * @throws Error if integration is disabled or unavailable
  */
 export async function assertBuildiumEnabledEdge(
-  supabase: any,
+  supabase: SupabaseClient,
   orgId: string | undefined,
 ): Promise<void> {
   if (!orgId) {
-    throw new Error('orgId required for Buildium integration check');
+    throw new BuildiumDisabledEdgeError('unknown');
   }
 
   const { data, error } = await supabase
@@ -40,6 +73,7 @@ export async function assertBuildiumEnabledEdge(
     .maybeSingle();
 
   if (error || !data || data.is_enabled !== true) {
-    throw new Error(`Buildium integration is disabled for org ${orgId}`);
+    throw new BuildiumDisabledEdgeError(orgId);
   }
 }
+import type { SupabaseClient } from '@supabase/supabase-js';

@@ -17,7 +17,11 @@ export async function ensureBuildiumEnabledForScript(
 
   const config = await getOrgScopedBuildiumConfig(orgId);
   if (!config || !config.isEnabled) {
-    console.error(`Buildium integration is disabled for org ${orgId}`);
+    console.error(
+      JSON.stringify({
+        error: { code: 'BUILDIUM_DISABLED', message: `Buildium integration is disabled for org ${orgId}` },
+      }),
+    );
     process.exit(1);
   }
 

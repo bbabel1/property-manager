@@ -41,6 +41,11 @@ export type DashboardData = {
     memo: string | null
     property_name: string | null
     type?: string | null
+    bank_gl_account_id?: string | null
+    lease_id?: number | null
+    reference_number?: string | null
+    check_number?: string | null
+    payment_method?: string | null
   }[]
   workOrders: {
     id: string
@@ -74,10 +79,28 @@ export function useDashboardMetrics(orgId?: string) {
   // Resolve orgId from user claims if not provided
   useEffect(() => {
     let mounted = true;
+    const readOrgFromCookie = () => {
+      if (typeof document === 'undefined') return null;
+      const cookie = document.cookie
+        .split(';')
+        .map((c) => c.trim())
+        .find((c) => c.startsWith('org_id_hint='));
+      if (!cookie) return null;
+      return decodeURIComponent(cookie.split('=')[1] ?? '');
+    };
+
     if (orgId) {
       setResolvedOrgId(orgId);
       return;
     }
+
+    const cookieOrg = readOrgFromCookie();
+    if (cookieOrg) {
+      setResolvedOrgId(cookieOrg);
+      setIsLoading(false);
+      return;
+    }
+
     (async () => {
       try {
         setIsLoading(true);

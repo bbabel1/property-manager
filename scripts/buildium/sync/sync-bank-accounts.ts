@@ -8,8 +8,8 @@ import { ensureBuildiumEnabledForScript } from '../ensure-enabled'
 dotenv.config({ path: '.env.local' })
 dotenv.config()
 
-function env(name: string, def?: string) {
-  return process.env[name] || def
+function env(name: string, def: string): string {
+  return process.env[name] ?? def
 }
 
 const BUILDIUM_BASE_URL = env('BUILDIUM_BASE_URL', 'https://apisandbox.buildium.com/v1')

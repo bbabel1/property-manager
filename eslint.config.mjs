@@ -101,6 +101,15 @@ const eslintConfig = [
       "@typescript-eslint/explicit-function-return-type": "off"
     }
   },
+  // Supabase Edge Functions (Deno): use their tsconfig so .ts specifiers are allowed
+  {
+    files: ["supabase/functions/**/*.ts"],
+    languageOptions: {
+      parserOptions: {
+        project: "./supabase/functions/tsconfig.json"
+      }
+    }
+  },
   // Loosen rules for type declaration files if they slip past ignores
   {
     files: ["**/*.d.ts"],

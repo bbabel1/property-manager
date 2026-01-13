@@ -32,7 +32,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const bill = (response.json ?? {}) as BuildiumBillWithLines
     const supabaseAdmin = requireSupabaseAdmin('sync bill from Buildium')
-    const { transactionId } = await upsertBillWithLines(bill, supabaseAdmin, orgId)
+    const { transactionId } = await upsertBillWithLines(bill, supabaseAdmin)
     return NextResponse.json({ success: true, transactionId })
   } catch (error) {
     logger.error({ error }, 'Error syncing bill by ID from Buildium')

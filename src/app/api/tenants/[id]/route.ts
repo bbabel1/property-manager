@@ -3,7 +3,6 @@ import { supabaseAdmin } from '@/lib/db'
 import { requireAuth } from '@/lib/auth/guards'
 import { resolveResourceOrg, requireOrgAdmin } from '@/lib/auth/org-guards'
 import { getOrgScopedBuildiumEdgeClient } from '@/lib/buildium-edge-client'
-import type { BuildiumTenant } from '@/types/buildium'
 import { mapCountryToBuildium } from '@/lib/buildium-mappers'
 
 type AllowedTenantFields =
@@ -42,11 +41,11 @@ export async function PATCH(
     }
     await requireOrgAdmin({
       client: auth.supabase,
-      adminClient: supabaseAdmin,
       userId: auth.user.id,
       orgId: resolvedOrg.orgId,
-      orgRoles: auth.orgRoles,
-      roles: auth.roles
+      ...(auth.orgRoles ? { orgRoles: auth.orgRoles } : {}),
+      ...(auth.roles ? { roles: auth.roles } : {}),
+      ...(supabaseAdmin ? { adminClient: supabaseAdmin } : {})
     })
 
     const payload = (await request.json()) as Record<string, unknown>

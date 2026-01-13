@@ -1,14 +1,18 @@
 import { describe, expect, it } from 'vitest'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { resolveLeaseWithOrg } from '../../../supabase/functions/_shared/leaseResolver'
 
 type StubResponse<T> = { data: T | null; error: { code?: string } | null }
 type LeaseRowStub = { id: number; org_id: string | null; property_id: string | null }
 type PropertyRowStub = { org_id: string | null }
 type StubRow = LeaseRowStub | PropertyRowStub
+type SupabaseTestClient = SupabaseClient & {
+  calls: Array<{ table: string; column: string; value: number | string }>
+}
 
-function createSupabaseStub(queue: StubResponse<StubRow>[]) {
+function createSupabaseStub(queue: StubResponse<StubRow>[]): SupabaseTestClient {
   const calls: Array<{ table: string; column: string; value: number | string }> = []
-  return {
+  const stub = {
     calls,
     from(table: string) {
       return {
@@ -27,6 +31,7 @@ function createSupabaseStub(queue: StubResponse<StubRow>[]) {
       }
     },
   }
+  return stub as unknown as SupabaseTestClient
 }
 
 describe('resolveLeaseWithOrg', () => {

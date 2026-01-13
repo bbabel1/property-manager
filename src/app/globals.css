@@ -359,6 +359,18 @@ html {
   .status-pill {
     @apply inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-semibold;
   }
+
+  .status-pill-success {
+    @apply border-[var(--color-success-500)] bg-[var(--color-success-50)] text-[var(--color-success-700)];
+  }
+
+  .status-pill-warning {
+    @apply border-yellow-800 bg-yellow-100 text-yellow-800;
+  }
+
+  .status-pill-danger {
+    @apply border-red-700 bg-red-100 text-red-700;
+  }
 }
 
 @layer utilities {

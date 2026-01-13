@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import type { TypedSupabaseClient } from '@/lib/db';
 import { supabaseAdmin, supabaseAdminMaybe } from '@/lib/db';
 import { logger } from '@/lib/logger';
+import { signedAmountFromTransaction } from '@/lib/finance/model';
 import { requireOrg, requireRole } from '@/lib/auth/guards';
 
 type RecentTransactionRow = {
@@ -11,6 +12,11 @@ type RecentTransactionRow = {
   total_amount: number | null;
   memo: string | null;
   transaction_type: string | null;
+  bank_gl_account_id?: string | null;
+  lease_id?: number | null;
+  reference_number?: string | null;
+  check_number?: string | null;
+  payment_method?: string | null;
 };
 
 type ActiveWorkOrderRow = {
@@ -30,207 +36,45 @@ type ExpiringLeaseRow = {
   status: string | null;
 };
 
-const toNumber = (value: unknown, fallback = 0): number => {
+type DashboardKpisRow = {
+  org_id: string | null;
+  total_properties: number | null;
+  total_units: number | null;
+  occupied_units: number | null;
+  available_units: number | null;
+  occupancy_rate: number | null;
+  monthly_rent_roll: number | null;
+  active_leases: number | null;
+  growth_rate: number | null;
+  open_work_orders: number | null;
+  urgent_work_orders: number | null;
+};
+
+const normalizeNumber = (value: unknown): number | null => {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
   if (typeof value === 'string' && value.trim().length) {
     const parsed = Number(value);
     if (Number.isFinite(parsed)) return parsed;
   }
-  return fallback;
+  return null;
 };
 
-const mergeKpis = (
-  primary: {
-    org_id: string | null;
-    total_properties: number | null;
-    total_units: number | null;
-    occupied_units: number | null;
-    available_units: number | null;
-    occupancy_rate: number | null;
-    monthly_rent_roll: number | null;
-    active_leases: number | null;
-    growth_rate: number | null;
-    open_work_orders: number | null;
-    urgent_work_orders: number | null;
-  } | null,
-  fallback: {
-    org_id: string;
-    total_properties: number;
-    total_units: number;
-    occupied_units: number;
-    available_units: number;
-    occupancy_rate: number;
-    monthly_rent_roll: number;
-    active_leases: number;
-    growth_rate: number | null;
-    open_work_orders: number;
-    urgent_work_orders: number;
-  } | null,
-  orgId: string,
-) => {
-  const coalesceNumber = (value: unknown, fb?: number) => {
-    const normalized = toNumber(value, Number.NaN);
-    if (!Number.isNaN(normalized)) return normalized;
-    if (typeof fb === 'number' && Number.isFinite(fb)) return fb;
-    return 0;
-  };
-
-  const primaryTotals = {
-    total_properties: coalesceNumber(primary?.total_properties),
-    total_units: coalesceNumber(primary?.total_units),
-    monthly_rent_roll: coalesceNumber(primary?.monthly_rent_roll),
-  };
-  const fallbackTotals = {
-    total_properties: coalesceNumber(fallback?.total_properties),
-    total_units: coalesceNumber(fallback?.total_units),
-    monthly_rent_roll: coalesceNumber(fallback?.monthly_rent_roll),
-  };
-
-  const primaryScore =
-    primaryTotals.total_properties + primaryTotals.total_units + primaryTotals.monthly_rent_roll;
-  const fallbackScore =
-    fallbackTotals.total_properties + fallbackTotals.total_units + fallbackTotals.monthly_rent_roll;
-
-  const preferFallback = fallbackScore > primaryScore && fallbackScore > 0;
-  const source = preferFallback ? fallback : primary;
-
+const normalizeKpisRow = (row: DashboardKpisRow | null): DashboardKpisRow | null => {
+  if (!row) return null;
   return {
-    org_id: source?.org_id ?? primary?.org_id ?? fallback?.org_id ?? orgId,
-    total_properties: coalesceNumber(source?.total_properties, fallback?.total_properties),
-    total_units: coalesceNumber(source?.total_units, fallback?.total_units),
-    occupied_units: coalesceNumber(source?.occupied_units, fallback?.occupied_units),
-    available_units: coalesceNumber(source?.available_units, fallback?.available_units),
-    occupancy_rate: coalesceNumber(source?.occupancy_rate, fallback?.occupancy_rate),
-    monthly_rent_roll: coalesceNumber(source?.monthly_rent_roll, fallback?.monthly_rent_roll),
-    active_leases: coalesceNumber(source?.active_leases, fallback?.active_leases),
-    growth_rate:
-      typeof source?.growth_rate === 'number'
-        ? source.growth_rate
-        : (fallback?.growth_rate ?? null),
-    open_work_orders: coalesceNumber(source?.open_work_orders, fallback?.open_work_orders),
-    urgent_work_orders: coalesceNumber(source?.urgent_work_orders, fallback?.urgent_work_orders),
+    org_id: row.org_id,
+    total_properties: normalizeNumber(row.total_properties),
+    total_units: normalizeNumber(row.total_units),
+    occupied_units: normalizeNumber(row.occupied_units),
+    available_units: normalizeNumber(row.available_units),
+    occupancy_rate: normalizeNumber(row.occupancy_rate),
+    monthly_rent_roll: normalizeNumber(row.monthly_rent_roll),
+    active_leases: normalizeNumber(row.active_leases),
+    growth_rate: normalizeNumber(row.growth_rate),
+    open_work_orders: normalizeNumber(row.open_work_orders),
+    urgent_work_orders: normalizeNumber(row.urgent_work_orders),
   };
 };
-
-async function buildKpisFromTables(supabase: TypedSupabaseClient, orgId: string) {
-  const [properties, rentRollNow, rentRollPrev, activeLeasesCount, workOrders] = await Promise.all([
-    supabase
-      .from('properties')
-      .select('id,total_active_units,total_occupied_units,total_units')
-      .eq('org_id', orgId),
-    supabase
-      .from('v_rent_roll_current_month')
-      .select('rent_roll_amount')
-      .eq('org_id', orgId)
-      .maybeSingle(),
-    supabase
-      .from('v_rent_roll_previous_month')
-      .select('rent_roll_amount')
-      .eq('org_id', orgId)
-      .maybeSingle(),
-    supabase
-      .from('lease')
-      .select('id', { count: 'exact', head: true })
-      .eq('org_id', orgId)
-      .in('status', ['active', 'Active', 'ACTIVE']),
-    supabase.from('work_orders').select('priority,status').eq('org_id', orgId),
-  ]);
-
-  const firstError =
-    properties.error ||
-    rentRollNow.error ||
-    rentRollPrev.error ||
-    activeLeasesCount.error ||
-    workOrders.error;
-  if (firstError) {
-    throw firstError;
-  }
-
-  const propertyRows = properties.data ?? [];
-  const propertyIds = propertyRows
-    .map((row) => (row as { id?: string | null }).id)
-    .filter(Boolean) as string[];
-  const totals = propertyRows.reduce(
-    (acc, row) => {
-      const activeUnits =
-        toNumber((row as { total_active_units?: number | null }).total_active_units) ||
-        toNumber((row as { total_units?: number | null }).total_units);
-      const occupied = toNumber(
-        (row as { total_occupied_units?: number | null }).total_occupied_units,
-      );
-      const available = Math.max(activeUnits - occupied, 0);
-      return {
-        totalUnits: acc.totalUnits + activeUnits,
-        occupied: acc.occupied + occupied,
-        available: acc.available + available,
-      };
-    },
-    { totalUnits: 0, occupied: 0, available: 0 },
-  );
-
-  // If aggregate columns are empty, backfill from units table to avoid zeros.
-  let unitsFromDetail = { total: 0, occupied: 0, available: 0 };
-  if (propertyIds.length) {
-    const { data: units, error: unitsError } = await supabase
-      .from('units')
-      .select('status,is_active,property_id')
-      .in('property_id', propertyIds);
-    if (unitsError) {
-      throw unitsError;
-    }
-    const normalized = (units ?? []).filter(
-      (u) => (u as { is_active?: boolean | null }).is_active ?? true,
-    );
-    const occupied = normalized.filter(
-      (u) => (u as { status?: string | null }).status?.toLowerCase() === 'occupied',
-    ).length;
-    const vacant = normalized.filter(
-      (u) => (u as { status?: string | null }).status?.toLowerCase() === 'vacant',
-    ).length;
-    const active = normalized.filter(
-      (u) => (u as { status?: string | null }).status?.toLowerCase() !== 'inactive',
-    ).length;
-    unitsFromDetail = {
-      total: active,
-      occupied,
-      available: Math.max(active - occupied, vacant, 0),
-    };
-  }
-
-  const totalUnits = totals.totalUnits || unitsFromDetail.total;
-  const occupiedUnits = totals.occupied || unitsFromDetail.occupied;
-  const availableUnits = totals.available || unitsFromDetail.available;
-
-  const monthlyRentRoll = toNumber(rentRollNow.data?.rent_roll_amount);
-  const previousRentRoll = toNumber(rentRollPrev.data?.rent_roll_amount);
-  const growthRate =
-    previousRentRoll > 0
-      ? Number((((monthlyRentRoll - previousRentRoll) / previousRentRoll) * 100).toFixed(2))
-      : null;
-
-  const openWorkOrders = (workOrders.data ?? []).filter((w) => {
-    const status = (w as { status?: string | null }).status?.toLowerCase() || '';
-    return status !== 'completed' && status !== 'cancelled';
-  });
-  const urgentWorkOrders = openWorkOrders.filter((w) => {
-    const priority = (w as { priority?: string | null }).priority?.toLowerCase() || '';
-    return priority === 'urgent' || priority === 'high';
-  });
-
-  return {
-    org_id: orgId,
-    total_properties: propertyRows.length,
-    total_units: totalUnits,
-    occupied_units: occupiedUnits,
-    available_units: availableUnits,
-    occupancy_rate: totalUnits > 0 ? Number(((occupiedUnits / totalUnits) * 100).toFixed(2)) : 0,
-    monthly_rent_roll: monthlyRentRoll,
-    active_leases: activeLeasesCount.count ?? 0,
-    growth_rate: growthRate,
-    open_work_orders: openWorkOrders.length,
-    urgent_work_orders: urgentWorkOrders.length,
-  };
-}
 
 export async function GET(req: Request, { params }: { params: Promise<{ orgId: string }> }) {
   try {
@@ -272,7 +116,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ orgId: s
     );
 
     const [kpis, renewals, recentTx, activeWOs, expiringLeases] = await Promise.all([
-      // Try v_dashboard_kpis first, fallback to buildKpisFromTables if it fails
+      // Load KPIs directly from the view to avoid computed fallbacks
       (async () => {
         try {
           const result = await (dataClient as any)
@@ -294,7 +138,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ orgId: s
         .maybeSingle(),
       dataClient
         .from('v_recent_transactions_ranked')
-        .select('id,date,total_amount,memo,transaction_type,created_at')
+        .select(
+          'id,date,total_amount,memo,transaction_type,created_at,bank_gl_account_id,lease_id,reference_number,check_number,payment_method',
+        )
         .eq('org_id', orgId)
         .gte('date', windowStartDate)
         .order('date', { ascending: false })
@@ -411,18 +257,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ orgId: s
       'Expiring leases query results',
     );
 
-    let fallbackKpis: Awaited<ReturnType<typeof buildKpisFromTables>> | null = null;
-    const fallbackClient =
-      (supabaseAdminMaybe as TypedSupabaseClient | undefined) ??
-      (supabaseAdmin as TypedSupabaseClient) ??
-      (dataClient as TypedSupabaseClient);
-    try {
-      fallbackKpis = await buildKpisFromTables(fallbackClient, orgId);
-    } catch (fallbackError) {
-      logger.error({ fallbackError, orgId }, 'Failed to build KPI fallback from base tables');
-    }
-
-    const mergedKpis = mergeKpis((kpis.data as typeof fallbackKpis) ?? null, fallbackKpis, orgId);
+    const kpisData = normalizeKpisRow((kpis.data as DashboardKpisRow | null) ?? null);
 
     const renewalsData = renewals.data
       ? {
@@ -436,17 +271,55 @@ export async function GET(req: Request, { params }: { params: Promise<{ orgId: s
     const onboardingData = null;
 
     const recentTransactions = (recentTx.data ?? []) as RecentTransactionRow[];
+    const txIds = recentTransactions.map((t) => t.id).filter(Boolean);
+
+    const { data: txLines, error: txLinesError } = txIds.length
+      ? await dataClient
+          .from('transaction_lines')
+          .select('transaction_id, amount, posting_type')
+          .in('transaction_id', txIds)
+      : { data: null, error: null };
+
+    if (txLinesError) {
+      logger.error({ error: txLinesError, orgId }, 'Failed to load transaction lines for dashboard');
+    }
+
+    const linesByTx = new Map<string, Array<{ amount?: number | string | null; posting_type?: string | null }>>();
+    (txLines ?? []).forEach((line) => {
+      const txId = (line as { transaction_id?: string | null }).transaction_id;
+      if (!txId) return;
+      const existing = linesByTx.get(txId) ?? [];
+      existing.push({
+        amount: (line as { amount?: number | string | null }).amount ?? null,
+        posting_type: (line as { posting_type?: string | null }).posting_type ?? null,
+      });
+      linesByTx.set(txId, existing);
+    });
+
     // Transactions are already filtered by date at the database level and sorted
     // Just map to the expected format
-    const transactionsData = recentTransactions.map((t) => ({
-      id: t.id,
-      date: t.date,
-      created_at: t.created_at,
-      amount: t.total_amount ?? 0,
-      memo: t.memo ?? null,
-      property_name: null,
-      type: t.transaction_type ?? null,
-    }));
+    const transactionsData = recentTransactions.map((t) => {
+      const amount = signedAmountFromTransaction({
+        transaction_type: t.transaction_type,
+        total_amount: t.total_amount,
+        transaction_lines: linesByTx.get(t.id) ?? [],
+      });
+
+      return {
+        id: t.id,
+        date: t.date,
+        created_at: t.created_at,
+        amount: Number.isFinite(amount) ? amount : 0,
+        memo: t.memo ?? null,
+        property_name: null,
+        type: t.transaction_type ?? null,
+        bank_gl_account_id: t.bank_gl_account_id ?? null,
+        lease_id: t.lease_id ?? null,
+        reference_number: t.reference_number ?? null,
+        check_number: t.check_number ?? null,
+        payment_method: t.payment_method ?? null,
+      };
+    });
 
     const activeWorkOrders = (activeWOs.data ?? []) as ActiveWorkOrderRow[];
     const workOrdersData = activeWorkOrders.map((w) => ({
@@ -570,7 +443,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ orgId: s
 
     return new NextResponse(
       JSON.stringify({
-        kpis: mergedKpis,
+        kpis: kpisData,
         renewals: renewalsData,
         onboarding: onboardingData,
         transactions: transactionsData,

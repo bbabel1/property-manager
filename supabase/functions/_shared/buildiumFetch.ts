@@ -1,3 +1,7 @@
+// eslint-disable-next-line @typescript-eslint/triple-slash-reference -- Remote module shims for Deno type checking (see https://typescript-eslint.io/rules/triple-slash-reference/)
+/// <reference path="../../../types/deno-remotes.d.ts" />
+// eslint-disable-next-line @typescript-eslint/triple-slash-reference -- Deno globals for Edge runtime (see https://typescript-eslint.io/rules/triple-slash-reference/)
+/// <reference path="../../../types/deno.d.ts" />
 /**
  * Buildium Fetch Wrapper for Edge Functions
  *
@@ -7,7 +11,8 @@
  * 3. Egress-allowed header is set to allow the request through
  */
 
-import { assertBuildiumEnabledEdge } from './buildiumGate.ts';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { assertBuildiumEnabledEdge } from './buildiumGate.js';
 
 type BuildiumCredentials = { baseUrl: string; clientId: string; clientSecret: string };
 
@@ -38,7 +43,7 @@ function resolveBuildiumCredentials(
  * @returns Response from Buildium API
  */
 export async function buildiumFetchEdge(
-  supabase: any,
+  supabase: SupabaseClient,
   orgId: string,
   method: string,
   path: string,

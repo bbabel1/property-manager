@@ -17,6 +17,7 @@ import {
   formatDate,
   getTransactionAmountDisplay,
 } from '@/lib/transactions/formatting';
+import { amountToneClassName } from '@/lib/amount-formatting';
 import type { MonthlyLogTransaction } from '@/types/monthly-log';
 
 type TransactionTableProps = {
@@ -91,12 +92,7 @@ export default function TransactionTable({
             ) : (
               transactions.map((transaction) => {
                 const amountDisplay = getTransactionAmountDisplay(transaction);
-                const amountClass =
-                  amountDisplay.tone === 'negative'
-                    ? 'text-rose-700'
-                    : amountDisplay.tone === 'positive'
-                      ? 'text-emerald-700'
-                      : 'text-slate-900';
+                const amountClass = amountToneClassName(amountDisplay.tone);
                 const leaseLink = buildLeaseTransactionLink(transaction.lease_id);
                 const rawType = transaction.transaction_type || '';
                 const typeLabel = rawType === 'GeneralJournalEntry' ? 'Journal Entry' : rawType || '—';

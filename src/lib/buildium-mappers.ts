@@ -1381,15 +1381,6 @@ export async function upsertGLEntryWithLines(
     transactionId = data.id;
   }
 
-  // Replace lines
-  {
-    const { error } = await supabase
-      .from('transaction_lines')
-      .delete()
-      .eq('transaction_id', transactionId);
-    if (error) throw error;
-  }
-
   const pendingLines: TransactionLineInsert[] = [];
   let debitSum = 0;
   let creditSum = 0;
@@ -1449,17 +1440,23 @@ export async function upsertGLEntryWithLines(
     else creditSum += amountAbs;
   }
 
+  // Atomically replace lines with locking + database-level double-entry validation.
   if (pendingLines.length > 0) {
-    const { error } = await supabase.from('transaction_lines').insert(pendingLines);
-    if (error) throw error;
-  }
+    const lineRows = pendingLines.map((line) => ({ ...line, transaction_id: transactionId }));
+    const { error: replaceErr } = await supabase.rpc('replace_transaction_lines', {
+      p_transaction_id: transactionId,
+      p_lines: lineRows as unknown as Json,
+      p_validate_balance: true,
+    });
+    if (replaceErr) throw replaceErr;
 
-  // Double-entry integrity: debits must equal credits
-  const diff = Math.abs(debitSum - creditSum);
-  if (diff > 0.0001) {
-    throw new Error(
-      `Double-entry integrity violation: debits (${debitSum}) != credits (${creditSum})`,
-    );
+    // Application-level sanity check (redundant with validate_transaction_balance).
+    const diff = Math.abs(debitSum - creditSum);
+    if (diff > 0.0001) {
+      throw new Error(
+        `Double-entry integrity violation: debits (${debitSum}) != credits (${creditSum})`,
+      );
+    }
   }
 
   // Upsert into journal_entries table
@@ -2015,6 +2012,11 @@ export function mapLeaseTransactionFromBuildium(
   const paymentDetail = buildiumTx.PaymentDetail ?? null;
   const payee = paymentDetail?.Payee ?? null;
   const unitAgreement = buildiumTx.UnitAgreement ?? null;
+  const unitAgreementType =
+    typeof unitAgreement?.Type === 'string' ? unitAgreement.Type.toLowerCase() : null;
+  const leaseIdFromUnitAgreement =
+    unitAgreementType === 'lease' ? unitAgreement?.Id ?? null : null;
+  const buildiumLeaseId = buildiumTx.LeaseId ?? leaseIdFromUnitAgreement ?? null;
   const unitIdRaw =
     buildiumTx.UnitId ??
     buildiumTx.Unit?.Id ??
@@ -2034,7 +2036,7 @@ export function mapLeaseTransactionFromBuildium(
           ? buildiumTx.Amount
           : 0,
     check_number: buildiumTx.CheckNumber ?? null,
-    buildium_lease_id: buildiumTx.LeaseId ?? null,
+    buildium_lease_id: buildiumLeaseId,
     payee_tenant_id: buildiumTx.PayeeTenantId ?? null,
     payment_method: mapPaymentMethodToEnum(
       paymentDetail?.PaymentMethod ?? buildiumTx.PaymentMethod,
@@ -2159,7 +2161,7 @@ function resolvePostingTypeFromLine(
  * Fails the whole import if any GL account cannot be resolved.
  */
 export async function upsertLeaseTransactionWithLines(
-  buildiumTx: Partial<BuildiumLeaseTransaction>,
+  buildiumTx: Partial<BuildiumLeaseTransactionExtended>,
   supabase: TypedSupabaseClient,
 ): Promise<{ transactionId: string }> {
   const nowIso = new Date().toISOString();
@@ -2337,6 +2339,30 @@ export async function upsertLeaseTransactionWithLines(
   let creditSum = 0;
   const rawTotalAmount = Number(buildiumTx?.TotalAmount ?? buildiumTx?.Amount ?? 0);
 
+  // Determine transaction type flags early for use in line processing
+  const isPaymentTransaction =
+    buildiumTx?.TransactionType === 'Payment' ||
+    buildiumTx?.TransactionTypeEnum === 'Payment' ||
+    mappedTx.transaction_type === 'Payment';
+  const isApplyDepositTransaction =
+    buildiumTx?.TransactionType === 'ApplyDeposit' ||
+    buildiumTx?.TransactionTypeEnum === 'ApplyDeposit' ||
+    mappedTx.transaction_type === 'ApplyDeposit';
+  const isBillPaymentTransaction =
+    (buildiumTx?.TransactionTypeEnum || '').toString().toLowerCase().includes('billpayment') ||
+    (mappedTx.transaction_type || '').toString().toLowerCase().includes('billpayment') ||
+    (buildiumTx?.TransactionType || '').toString().toLowerCase().includes('billpayment');
+  const isOwnerDrawTransaction =
+    (buildiumTx?.TransactionTypeEnum || '').toString().toLowerCase().includes('owner') ||
+    (mappedTx.transaction_type || '').toString().toLowerCase().includes('owner') ||
+    (buildiumTx?.TransactionType || '').toString().toLowerCase().includes('owner');
+  const isVendorPayment =
+    isPaymentTransaction &&
+    !(buildiumTx?.LeaseId || leaseIdForUpsert) &&
+    !(buildiumTx?.Unit?.Id || buildiumTx?.UnitId);
+  const isInflow = (isPaymentTransaction && !isVendorPayment) || isApplyDepositTransaction;
+  const isOutflow = isBillPaymentTransaction || isOwnerDrawTransaction || isVendorPayment;
+
   // Track which GL accounts are bank accounts for later check
   const glAccountBankFlags = new Map<string, boolean>();
   const glAccountMeta = new Map<
@@ -2346,7 +2372,7 @@ export async function upsertLeaseTransactionWithLines(
 
   for (const line of lines) {
     const amountAbs = Math.abs(Number(line?.Amount ?? 0));
-    const postingType = resolvePostingTypeFromLine(line);
+    let postingType = resolvePostingTypeFromLine(line);
 
     // Resolve GL account (fail whole import if not resolvable)
     const glAccountBuildiumId =
@@ -2375,6 +2401,10 @@ export async function upsertLeaseTransactionWithLines(
       subType: glAccountRow?.sub_type ?? null,
     });
 
+    if (isInflow || isOutflow) {
+      postingType = isBankAccount ? (isOutflow ? 'Credit' : 'Debit') : 'Credit';
+    }
+
     // Lease transaction lines may not include explicit accounting entity; default to Rental
     const buildiumPropertyId = line?.PropertyId ?? defaultBuildiumPropertyId ?? null;
     const buildiumUnitId = line?.Unit?.Id ?? line?.UnitId ?? defaultBuildiumUnitId ?? null;
@@ -2392,8 +2422,185 @@ export async function upsertLeaseTransactionWithLines(
     const accountEntityType: EntityType =
       (accountingEntityTypeRaw || '').toString().toLowerCase() === 'company' ? 'Company' : 'Rental';
 
+    // Reclassify cash-posting payment lines that hit income/liability to Accounts Receivable
+    // This matches the webhook handler logic to keep accrual A/R balances correct
+    let glAccountIdForLine = glAccountId;
+    const isCashPosting = lineMeta.is_cash_posting === true;
+    const glTypeLower = (glAccountRow?.type || '').toLowerCase();
+    const isIncomeType = glTypeLower === 'income';
+    const isLiabilityType = glTypeLower === 'liability';
+    const isPaymentTx = isPaymentTransaction && !isVendorPayment;
+    const isCashPostingNonBankInflow = isPaymentTx && isCashPosting && !isBankAccount;
+
+    // Resolve A/R account for reclassification if needed
+    let arGlAccountIdForReclass: string | null = null;
+    const shouldReclassToAr =
+      isPaymentTx && !isBankAccount && (isCashPostingNonBankInflow || !isIncomeType);
+    if (shouldReclassToAr) {
+      arGlAccountIdForReclass = await resolveAccountsReceivableGlAccountId(
+        supabase,
+        leaseContext?.orgId ?? propertyOrgId ?? null,
+      );
+      if (arGlAccountIdForReclass) {
+        glAccountIdForLine = arGlAccountIdForReclass;
+      }
+    }
+
+    // If we re-classified a cash-posting payment line to A/R, it should no longer be marked as cash
+    const isCashPostingFlag = glAccountIdForLine === arGlAccountIdForReclass && isCashPostingNonBankInflow
+      ? false
+      : lineMeta.is_cash_posting;
+
+    // Preserve cash visibility for income payments: keep the original cash income credit,
+    // add a non-cash income debit to balance, and add an A/R credit to clear receivable.
+    if (isCashPostingNonBankInflow && isIncomeType && arGlAccountIdForReclass) {
+      // Income credit (cash)
+      pendingLineRows.push({
+        gl_account_id: glAccountId,
+        amount: amountAbs,
+        posting_type: 'Credit',
+        memo: line?.Memo ?? null,
+        account_entity_type: accountEntityType,
+        account_entity_id: buildiumPropertyId ?? defaultBuildiumPropertyId ?? null,
+        date: normalizeDateString(buildiumTx?.Date),
+        created_at: nowIso,
+        updated_at: nowIso,
+        buildium_property_id: buildiumPropertyId ?? defaultBuildiumPropertyId ?? null,
+        buildium_unit_id: buildiumUnitId ?? defaultBuildiumUnitId ?? null,
+        buildium_lease_id: buildiumTx?.LeaseId ?? null,
+        lease_id: leaseIdForUpsert,
+        property_id: localPropertyId,
+        unit_id: localUnitId,
+        reference_number: lineMeta.reference_number,
+        is_cash_posting: true,
+        accounting_entity_type_raw: lineMeta.accounting_entity_type_raw,
+      });
+      creditSum += amountAbs;
+
+      // Balancing income debit (non-cash) to keep debits=credits; filtered out on cash view for payments
+      pendingLineRows.push({
+        gl_account_id: glAccountId,
+        amount: amountAbs,
+        posting_type: 'Debit',
+        memo: line?.Memo ?? null,
+        account_entity_type: accountEntityType,
+        account_entity_id: buildiumPropertyId ?? defaultBuildiumPropertyId ?? null,
+        date: normalizeDateString(buildiumTx?.Date),
+        created_at: nowIso,
+        updated_at: nowIso,
+        buildium_property_id: buildiumPropertyId ?? defaultBuildiumPropertyId ?? null,
+        buildium_unit_id: buildiumUnitId ?? defaultBuildiumUnitId ?? null,
+        buildium_lease_id: buildiumTx?.LeaseId ?? null,
+        lease_id: leaseIdForUpsert,
+        property_id: localPropertyId,
+        unit_id: localUnitId,
+        reference_number: lineMeta.reference_number,
+        is_cash_posting: false,
+        accounting_entity_type_raw: lineMeta.accounting_entity_type_raw,
+      });
+      debitSum += amountAbs;
+
+      // A/R credit (non-cash) to clear receivable on accrual
+      pendingLineRows.push({
+        gl_account_id: arGlAccountIdForReclass,
+        amount: amountAbs,
+        posting_type: 'Credit',
+        memo: line?.Memo ?? null,
+        account_entity_type: accountEntityType,
+        account_entity_id: buildiumPropertyId ?? defaultBuildiumPropertyId ?? null,
+        date: normalizeDateString(buildiumTx?.Date),
+        created_at: nowIso,
+        updated_at: nowIso,
+        buildium_property_id: buildiumPropertyId ?? defaultBuildiumPropertyId ?? null,
+        buildium_unit_id: buildiumUnitId ?? defaultBuildiumUnitId ?? null,
+        buildium_lease_id: buildiumTx?.LeaseId ?? null,
+        lease_id: leaseIdForUpsert,
+        property_id: localPropertyId,
+        unit_id: localUnitId,
+        reference_number: lineMeta.reference_number,
+        is_cash_posting: false,
+        accounting_entity_type_raw: lineMeta.accounting_entity_type_raw,
+      });
+      creditSum += amountAbs;
+      continue;
+    }
+
+    // For liability payment lines (e.g., security deposit), keep the liability cash credit,
+    // add a non-cash liability debit to balance, and add an A/R credit to clear receivable.
+    if (isCashPostingNonBankInflow && isLiabilityType && arGlAccountIdForReclass) {
+      // Liability credit (cash)
+      pendingLineRows.push({
+        gl_account_id: glAccountId,
+        amount: amountAbs,
+        posting_type: 'Credit',
+        memo: line?.Memo ?? null,
+        account_entity_type: accountEntityType,
+        account_entity_id: buildiumPropertyId ?? defaultBuildiumPropertyId ?? null,
+        date: normalizeDateString(buildiumTx?.Date),
+        created_at: nowIso,
+        updated_at: nowIso,
+        buildium_property_id: buildiumPropertyId ?? defaultBuildiumPropertyId ?? null,
+        buildium_unit_id: buildiumUnitId ?? defaultBuildiumUnitId ?? null,
+        buildium_lease_id: buildiumTx?.LeaseId ?? null,
+        lease_id: leaseIdForUpsert,
+        property_id: localPropertyId,
+        unit_id: localUnitId,
+        reference_number: lineMeta.reference_number,
+        is_cash_posting: true,
+        accounting_entity_type_raw: lineMeta.accounting_entity_type_raw,
+      });
+      creditSum += amountAbs;
+
+      // Balancing liability debit (non-cash)
+      pendingLineRows.push({
+        gl_account_id: glAccountId,
+        amount: amountAbs,
+        posting_type: 'Debit',
+        memo: line?.Memo ?? null,
+        account_entity_type: accountEntityType,
+        account_entity_id: buildiumPropertyId ?? defaultBuildiumPropertyId ?? null,
+        date: normalizeDateString(buildiumTx?.Date),
+        created_at: nowIso,
+        updated_at: nowIso,
+        buildium_property_id: buildiumPropertyId ?? defaultBuildiumPropertyId ?? null,
+        buildium_unit_id: buildiumUnitId ?? defaultBuildiumUnitId ?? null,
+        buildium_lease_id: buildiumTx?.LeaseId ?? null,
+        lease_id: leaseIdForUpsert,
+        property_id: localPropertyId,
+        unit_id: localUnitId,
+        reference_number: lineMeta.reference_number,
+        is_cash_posting: false,
+        accounting_entity_type_raw: lineMeta.accounting_entity_type_raw,
+      });
+      debitSum += amountAbs;
+
+      // A/R credit (non-cash) to clear receivable on accrual
+      pendingLineRows.push({
+        gl_account_id: arGlAccountIdForReclass,
+        amount: amountAbs,
+        posting_type: 'Credit',
+        memo: line?.Memo ?? null,
+        account_entity_type: accountEntityType,
+        account_entity_id: buildiumPropertyId ?? defaultBuildiumPropertyId ?? null,
+        date: normalizeDateString(buildiumTx?.Date),
+        created_at: nowIso,
+        updated_at: nowIso,
+        buildium_property_id: buildiumPropertyId ?? defaultBuildiumPropertyId ?? null,
+        buildium_unit_id: buildiumUnitId ?? defaultBuildiumUnitId ?? null,
+        buildium_lease_id: buildiumTx?.LeaseId ?? null,
+        lease_id: leaseIdForUpsert,
+        property_id: localPropertyId,
+        unit_id: localUnitId,
+        reference_number: lineMeta.reference_number,
+        is_cash_posting: false,
+        accounting_entity_type_raw: lineMeta.accounting_entity_type_raw,
+      });
+      creditSum += amountAbs;
+      continue;
+    }
+
     pendingLineRows.push({
-      gl_account_id: glAccountId,
+      gl_account_id: glAccountIdForLine,
       amount: amountAbs,
       posting_type: postingType,
       memo: line?.Memo ?? null,
@@ -2409,7 +2616,7 @@ export async function upsertLeaseTransactionWithLines(
       property_id: localPropertyId,
       unit_id: localUnitId,
       reference_number: lineMeta.reference_number,
-      is_cash_posting: lineMeta.is_cash_posting,
+      is_cash_posting: isCashPostingFlag,
       accounting_entity_type_raw: lineMeta.accounting_entity_type_raw,
     });
 
@@ -2419,24 +2626,18 @@ export async function upsertLeaseTransactionWithLines(
 
   // For Payment and ApplyDeposit transactions, ensure there's a bank account debit line
   // This matches the pattern used for bill payments in the webhook handler
-  const isPaymentTransaction =
-    buildiumTx?.TransactionType === 'Payment' ||
-    buildiumTx?.TransactionTypeEnum === 'Payment' ||
-    mappedTx.transaction_type === 'Payment';
-  const isApplyDepositTransaction =
-    buildiumTx?.TransactionType === 'ApplyDeposit' ||
-    buildiumTx?.TransactionTypeEnum === 'ApplyDeposit' ||
-    mappedTx.transaction_type === 'ApplyDeposit';
-  const needsBankAccountLine = isPaymentTransaction || isApplyDepositTransaction;
+  const needsBankAccountLine = isInflow || isOutflow;
   const hasBankAccountLine = Array.from(glAccountBankFlags.values()).some((isBank) => isBank);
   const hasProvidedBankLine = bankGlAccountId
     ? pendingLineRows.some((l) => l.gl_account_id === bankGlAccountId)
     : false;
   const hasBankLikeLine = hasBankAccountLine || hasProvidedBankLine;
-  const totalAmount = Math.abs(Number(buildiumTx?.TotalAmount ?? buildiumTx?.Amount ?? 0));
+  const totalAmountAbs = Math.abs(Number(buildiumTx?.TotalAmount ?? buildiumTx?.Amount ?? 0));
   let bankGlAccountIdToUse: string | null = bankGlAccountId;
-  const bankAmountNeeded = debitSum > creditSum ? debitSum : creditSum;
-  const bankPosting = creditSum >= debitSum ? 'Debit' : 'Credit';
+  // For inflows, use the transaction total (avoids double counting when we add balancing lines);
+  // for outflows, fall back to summed debits.
+  const bankAmountNeeded = totalAmountAbs > 0 ? totalAmountAbs : isOutflow ? debitSum : creditSum;
+  const bankPosting = isOutflow ? 'Credit' : 'Debit';
 
   if (needsBankAccountLine && !hasBankLikeLine) {
     logger.warn(
@@ -2445,7 +2646,7 @@ export async function upsertLeaseTransactionWithLines(
         type: mappedTx.transaction_type,
         debitSum,
         creditSum,
-        totalAmount,
+        totalAmount: totalAmountAbs,
         buildiumLeaseId: buildiumTx?.LeaseId ?? null,
         defaultLocalPropertyId: propertyIdForHeader,
         defaultBuildiumPropertyId,
@@ -2471,8 +2672,8 @@ export async function upsertLeaseTransactionWithLines(
     rawTotalAmount >= 0 &&
     debitSum > 0 &&
     creditSum === 0 &&
-    totalAmount > 0 &&
-    Math.abs(debitSum - totalAmount) < 0.0001
+    totalAmountAbs > 0 &&
+    Math.abs(debitSum - totalAmountAbs) < 0.0001
   ) {
     logger.warn(
       {
@@ -2480,7 +2681,7 @@ export async function upsertLeaseTransactionWithLines(
         type: mappedTx.transaction_type,
         debitSum,
         creditSum,
-        totalAmount,
+        totalAmount: totalAmountAbs,
       },
       'Lease payment appears one-sided (all debits). Inverting posting types before bank-line resolution.',
     );
@@ -2493,7 +2694,9 @@ export async function upsertLeaseTransactionWithLines(
   }
 
   if (needsBankAccountLine && !bankGlAccountIdToUse) {
-    bankGlAccountIdToUse = await resolveUndepositedFundsGlAccountId(supabase, propertyOrgId);
+    bankGlAccountIdToUse =
+      (await resolveUndepositedFundsGlAccountId(supabase, propertyOrgId ?? orgIdForTransaction)) ??
+      (await resolveUndepositedFundsGlAccountId(supabase, null));
   }
 
   if (
@@ -2512,7 +2715,7 @@ export async function upsertLeaseTransactionWithLines(
           buildiumTransactionId: buildiumTx?.Id ?? null,
           bankGlAccountIdResolved: bankGlAccountIdToUse,
           creditSum,
-          totalAmount,
+          totalAmount: totalAmountAbs,
           propertyIdForHeader,
           operatingBankGlAccountId: propertyBankContext.operating_bank_gl_account_id ?? null,
           depositTrustGlAccountId: propertyBankContext.deposit_trust_gl_account_id ?? null,
@@ -2589,6 +2792,106 @@ export async function upsertLeaseTransactionWithLines(
     }
   }
 
+  // Safeguard: for tenant inflow payments, ensure we have both A/R credit and bank debit
+  // This handles cases where Buildium doesn't provide journal lines or provides incomplete lines
+  if (isPaymentTransaction && !isVendorPayment) {
+    const isBankLine = (glAccountId: unknown): boolean => {
+      const id = glAccountId != null ? String(glAccountId) : null;
+      if (!id) return false;
+      if (bankGlAccountIdToUse && id === String(bankGlAccountIdToUse)) return true;
+      return glAccountBankFlags.get(id) === true;
+    };
+
+    const arGlAccountId = await resolveAccountsReceivableGlAccountId(
+      supabase,
+      leaseContext?.orgId ?? propertyOrgId ?? null,
+    );
+    const hasAr = arGlAccountId ? pendingLineRows.some((l) => l.gl_account_id === arGlAccountId) : false;
+    const hasBank = bankGlAccountIdToUse ? pendingLineRows.some((l) => l.gl_account_id === bankGlAccountIdToUse) : false;
+    const totalAmountAbs = Math.abs(Number(buildiumTx?.TotalAmount ?? buildiumTx?.Amount ?? 0));
+
+    // If no bank account resolved yet, try to resolve it now
+    if (!bankGlAccountIdToUse) {
+      bankGlAccountIdToUse =
+        (await resolveUndepositedFundsGlAccountId(
+          supabase,
+          propertyOrgId ?? orgIdForTransaction ?? null,
+        )) ??
+        (await resolveUndepositedFundsGlAccountId(supabase, null));
+      if (!bankGlAccountIdToUse && propertyBankContext) {
+        bankGlAccountIdToUse =
+          propertyBankContext.operating_bank_gl_account_id ??
+          propertyBankContext.deposit_trust_gl_account_id ??
+          null;
+      }
+    }
+
+    // Ensure A/R credit line exists if we don't have one and we have a non-bank line that should be reclassified
+    // OR if we have no lines at all
+    const hasNonBankLine = pendingLineRows.some((l) => l.gl_account_id && !isBankLine(l.gl_account_id));
+    if (!hasAr && arGlAccountId && totalAmountAbs > 0 && (pendingLineRows.length === 0 || hasNonBankLine)) {
+      // If we have existing non-bank lines, we need to reclassify them to A/R
+      // Otherwise, create a new A/R line
+      if (hasNonBankLine && creditSum === 0 && debitSum > 0) {
+        // Reclassify existing non-bank debit lines to A/R credit
+        for (const line of pendingLineRows) {
+          if (line.gl_account_id && !isBankLine(line.gl_account_id) && line.posting_type === 'Debit') {
+            const amt = Number(line.amount ?? 0);
+            line.gl_account_id = arGlAccountId;
+            line.posting_type = 'Credit';
+            line.is_cash_posting = false;
+            creditSum += amt;
+            debitSum -= amt;
+          }
+        }
+      } else if (pendingLineRows.length === 0 || (creditSum === 0 && totalAmountAbs > 0)) {
+        // Create new A/R credit line
+        pendingLineRows.push({
+          gl_account_id: arGlAccountId,
+          amount: totalAmountAbs,
+          posting_type: 'Credit',
+          memo: buildiumTx?.Memo ?? mappedTx.memo ?? null,
+          account_entity_type: 'Rental',
+          account_entity_id: defaultBuildiumPropertyId,
+          date: normalizeDateString(buildiumTx?.Date),
+          created_at: nowIso,
+          updated_at: nowIso,
+          buildium_property_id: defaultBuildiumPropertyId,
+          buildium_unit_id: defaultBuildiumUnitId,
+          buildium_lease_id: buildiumTx?.LeaseId ?? null,
+          lease_id: leaseIdForUpsert,
+          property_id: propertyIdForHeader,
+          unit_id: unitIdForHeader ?? defaultLocalUnitId,
+          is_cash_posting: false, // A/R line should not be marked as cash posting
+        });
+        creditSum += totalAmountAbs;
+      }
+    }
+
+    // Ensure bank debit line exists
+    if (!hasBank && bankGlAccountIdToUse && totalAmountAbs > 0 && creditSum > 0) {
+      const bankAmount = creditSum; // Use credit sum to balance
+      pendingLineRows.push({
+        gl_account_id: bankGlAccountIdToUse,
+        amount: bankAmount,
+        posting_type: 'Debit',
+        memo: buildiumTx?.Memo ?? mappedTx.memo ?? null,
+        account_entity_type: 'Rental',
+        account_entity_id: defaultBuildiumPropertyId,
+        date: normalizeDateString(buildiumTx?.Date),
+        created_at: nowIso,
+        updated_at: nowIso,
+        buildium_property_id: defaultBuildiumPropertyId,
+        buildium_unit_id: defaultBuildiumUnitId,
+        buildium_lease_id: buildiumTx?.LeaseId ?? null,
+        property_id: propertyIdForHeader,
+        unit_id: unitIdForHeader ?? defaultLocalUnitId,
+        is_cash_posting: true, // Bank line should be marked as cash posting
+      });
+      debitSum += bankAmount;
+    }
+  }
+
   // Replace deposit/payment splits (DepositDetails.PaymentTransactions)
   await supabase.from('transaction_payment_transactions').delete().eq('transaction_id', transactionId);
   const splitRows = mapDepositPaymentSplitsFromBuildium(buildiumTx, { transactionId, nowIso });
@@ -2599,21 +2902,15 @@ export async function upsertLeaseTransactionWithLines(
 
   // Prefer to have a local FK, but do not hard-fail if missing for lease transactions
 
-  // Delete all existing lines for this transaction (idempotent per requirements)
-  {
-    const { error } = await supabase
-      .from('transaction_lines')
-      .delete()
-      .eq('transaction_id', transactionId);
-    if (error) throw error;
-  }
-
   const lineRows = pendingLineRows.map((r) => ({ ...r, transaction_id: transactionId }));
 
-  if (lineRows.length > 0) {
-    const { error } = await supabase.from('transaction_lines').insert(lineRows);
-    if (error) throw error;
-  }
+  // Atomic replace of lines with balance validation (avoids transient delete/insert failures)
+  const { error: replaceErr } = await supabase.rpc('replace_transaction_lines', {
+    p_transaction_id: transactionId,
+    p_lines: lineRows as unknown as Json,
+    p_validate_balance: true,
+  });
+  if (replaceErr) throw replaceErr;
 
   // Optional double-entry integrity check when both sides present
   if (debitSum > 0 && creditSum > 0) {

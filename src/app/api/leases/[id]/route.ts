@@ -8,6 +8,15 @@ import { hasPermission } from '@/lib/permissions'
 
 type LeaseRouteContext = { params: Promise<{ id: string }> }
 
+const normalizeDateOnly = (value?: string | null): string | null => {
+  if (!value) return null
+  // Keep date-only strings intact; otherwise fall back to parsed ISO date
+  const datePart = typeof value === 'string' ? value.slice(0, 10) : ''
+  if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) return datePart
+  const parsed = new Date(value)
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString().slice(0, 10)
+}
+
 export async function GET(_req: NextRequest, context: LeaseRouteContext) {
   try {
     const { supabase, user, roles } = await requireAuth()
@@ -101,63 +110,70 @@ export async function PUT(request: NextRequest, context: LeaseRouteContext) {
     let buildiumSyncError: string | null = null
     let buildiumLeaseId: number | null = updated.buildium_lease_id ?? null
     if (syncBuildium || buildiumLeaseId) {
+      const leaseFromDate = normalizeDateOnly(updated.lease_from_date ?? leaseRow.lease_from_date)
+      const leaseToDate = normalizeDateOnly(updated.lease_to_date ?? leaseRow.lease_to_date)
+      if (!leaseFromDate) {
+        buildiumSyncError = 'Lease start date missing; cannot sync to Buildium'
+      }
       // Prepare Buildium payload; prefer direct fields if provided
-      let PropertyId = updated.buildium_property_id
-      let UnitId = updated.buildium_unit_id
-      if (!PropertyId) {
-        const { data: p } = await db.from('properties').select('buildium_property_id').eq('id', updated.property_id).single()
-        PropertyId = p?.buildium_property_id ?? null
-      }
-      if (!UnitId) {
-        const { data: u } = await db.from('units').select('buildium_unit_id').eq('id', updated.unit_id).single()
-        UnitId = u?.buildium_unit_id ?? null
-      }
-      const payload: Record<string, unknown> = {
-        PropertyId,
-        UnitId,
-        LeaseFromDate: updated.lease_from_date,
-        LeaseToDate: updated.lease_to_date || undefined,
-        LeaseType: updated.lease_type || 'Fixed',
-        RenewalOfferStatus: updated.renewal_offer_status || 'NotOffered',
-        CurrentNumberOfOccupants: updated.current_number_of_occupants ?? undefined,
-        IsEvictionPending: updated.is_eviction_pending ?? undefined,
-        AutomaticallyMoveOutTenants: updated.automatically_move_out_tenants ?? undefined,
-        PaymentDueDay: updated.payment_due_day ?? undefined,
-        AccountDetails: { Rent: updated.rent_amount ?? 0, SecurityDeposit: updated.security_deposit ?? 0 }
-      }
-
-      // Only attempt create when explicitly requested; otherwise update existing Buildium lease
-      const buildiumId = updated.buildium_lease_id
-      // Resolve orgId from lease record for org-scoped credentials
-      const orgId = updated.org_id ?? undefined
-      try {
-        // Use org-scoped client for Buildium sync
-        const edgeClient = await getOrgScopedBuildiumEdgeClient(orgId);
-        if (buildiumId) {
-          const res = await edgeClient.updateLeaseInBuildium(buildiumId, payload)
-          if (res.success && res.data?.Id) {
-            await db
-              .from('lease')
-              .update({ buildium_lease_id: res.data.Id, buildium_updated_at: new Date().toISOString() })
-              .eq('id', leaseId)
-            buildiumLeaseId = Number(res.data.Id)
-          } else if (!res.success) {
-            buildiumSyncError = res.error || 'Failed to sync lease to Buildium'
-          }
-        } else if (syncBuildium) {
-          const res = await edgeClient.createLeaseInBuildium(payload)
-          if (res.success && res.data?.Id) {
-            await db
-              .from('lease')
-              .update({ buildium_lease_id: res.data.Id, buildium_updated_at: new Date().toISOString() })
-              .eq('id', leaseId)
-            buildiumLeaseId = Number(res.data.Id)
-          } else if (!res.success) {
-            buildiumSyncError = res.error || 'Failed to create lease in Buildium'
-          }
+      if (!buildiumSyncError) {
+        let PropertyId = updated.buildium_property_id
+        let UnitId = updated.buildium_unit_id
+        if (!PropertyId) {
+          const { data: p } = await db.from('properties').select('buildium_property_id').eq('id', updated.property_id).single()
+          PropertyId = p?.buildium_property_id ?? null
         }
-      } catch (syncError) {
-        buildiumSyncError = syncError instanceof Error ? syncError.message : 'Failed to sync lease to Buildium'
+        if (!UnitId) {
+          const { data: u } = await db.from('units').select('buildium_unit_id').eq('id', updated.unit_id).single()
+          UnitId = u?.buildium_unit_id ?? null
+        }
+        const payload: Record<string, unknown> = {
+          PropertyId,
+          UnitId,
+          LeaseFromDate: leaseFromDate,
+          LeaseToDate: leaseToDate || undefined,
+          LeaseType: updated.lease_type || 'Fixed',
+          RenewalOfferStatus: updated.renewal_offer_status || 'NotOffered',
+          CurrentNumberOfOccupants: updated.current_number_of_occupants ?? undefined,
+          IsEvictionPending: updated.is_eviction_pending ?? undefined,
+          AutomaticallyMoveOutTenants: updated.automatically_move_out_tenants ?? undefined,
+          PaymentDueDay: updated.payment_due_day ?? undefined,
+          AccountDetails: { Rent: updated.rent_amount ?? 0, SecurityDeposit: updated.security_deposit ?? 0 }
+        }
+
+        // Only attempt create when explicitly requested; otherwise update existing Buildium lease
+        const buildiumId = updated.buildium_lease_id
+        // Resolve orgId from lease record for org-scoped credentials
+        const orgId = updated.org_id ?? undefined
+        try {
+          // Use org-scoped client for Buildium sync
+          const edgeClient = await getOrgScopedBuildiumEdgeClient(orgId);
+          if (buildiumId) {
+            const res = await edgeClient.updateLeaseInBuildium(buildiumId, payload)
+            if (res.success && res.data?.Id) {
+              await db
+                .from('lease')
+                .update({ buildium_lease_id: res.data.Id, buildium_updated_at: new Date().toISOString() })
+                .eq('id', leaseId)
+              buildiumLeaseId = Number(res.data.Id)
+            } else if (!res.success) {
+              buildiumSyncError = res.error || 'Failed to sync lease to Buildium'
+            }
+          } else if (syncBuildium) {
+            const res = await edgeClient.createLeaseInBuildium(payload)
+            if (res.success && res.data?.Id) {
+              await db
+                .from('lease')
+                .update({ buildium_lease_id: res.data.Id, buildium_updated_at: new Date().toISOString() })
+                .eq('id', leaseId)
+              buildiumLeaseId = Number(res.data.Id)
+            } else if (!res.success) {
+              buildiumSyncError = res.error || 'Failed to create lease in Buildium'
+            }
+          }
+        } catch (syncError) {
+          buildiumSyncError = syncError instanceof Error ? syncError.message : 'Failed to sync lease to Buildium'
+        }
       }
     }
 

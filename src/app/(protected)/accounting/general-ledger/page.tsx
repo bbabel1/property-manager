@@ -23,6 +23,7 @@ import {
 import { PageBody, PageHeader, PageShell } from '@/components/layout/page-shell';
 import AccountingBasisToggle from '@/components/financials/AccountingBasisToggle';
 import LedgerFilterPersistence from '@/components/financials/LedgerFilterPersistence';
+import BuildiumTransactionsSyncButton from '@/components/financials/BuildiumTransactionsSyncButton';
 
 type SearchParams = {
   from?: string;
@@ -39,6 +40,8 @@ type PropertyRecord = {
   public_id?: string | number | null;
   name?: string | null;
   org_id?: string | null;
+  buildium_property_id?: number | null;
+  rental_type?: string | null;
 };
 
 type UnitRecord = {
@@ -87,7 +90,7 @@ export default async function GeneralLedgerPage({
 
   const { data: propertyData } = await db
     .from('properties')
-    .select('id, public_id, name, org_id')
+    .select('id, public_id, name, org_id, buildium_property_id, rental_type')
     .order('name', { ascending: true });
 
   const propertyRows = (propertyData || []) as PropertyRecord[];
@@ -295,7 +298,11 @@ export default async function GeneralLedgerPage({
       ? null
       : selectedAccountIds;
 
-  const basisParam = sp?.basis === 'cash' ? 'cash' : defaultBasis;
+  const basisRaw = typeof sp?.basis === 'string' ? sp.basis.toLowerCase() : '';
+  const basisParam: 'cash' | 'accrual' =
+    basisRaw === 'cash' || basisRaw === 'accrual'
+      ? (basisRaw as 'cash' | 'accrual')
+      : defaultBasis;
   const dateHeading = basisParam === 'cash' ? 'Date (cash basis)' : 'Date (accrual basis)';
 
   const shouldQueryLedger =
@@ -415,6 +422,13 @@ export default async function GeneralLedgerPage({
     modalDefaultPropertyId && unitsByProperty[modalDefaultPropertyId]
       ? unitsByProperty[modalDefaultPropertyId]
       : [];
+  const selectedPropertyIdForSync =
+    selectedPropertyInternalIds.length === 1 ? selectedPropertyInternalIds[0] : null;
+  const propertySyncOptions = propertyRows.map((property) => ({
+    id: String(property.id),
+    label: property.name || 'Property',
+    buildiumPropertyId: property.buildium_property_id ?? null,
+  }));
 
   return (
     <PageShell>
@@ -425,7 +439,14 @@ export default async function GeneralLedgerPage({
       />
       <PageBody>
         <div className="space-y-6">
-          <div className="flex justify-end">
+          <div className="flex flex-wrap justify-end gap-2">
+            <BuildiumTransactionsSyncButton
+              properties={propertySyncOptions}
+              selectedPropertyId={selectedPropertyIdForSync}
+              startDate={fromStr}
+              endDate={toStr}
+              basis={basisParam}
+            />
             <RecordGeneralJournalEntryButton
               autoSelectDefaultProperty={false}
               propertyOptions={propertyOptionsInternal.map(({ id, label }) => ({ id, label }))}
@@ -483,11 +504,10 @@ export default async function GeneralLedgerPage({
                     });
 
                     let running = group.prior;
-                    const detailWithBalance = detailChrono.map(({ line, signed }) => {
+                    const detailDisplay = detailChrono.map(({ line, signed }) => {
                       running += signed;
                       return { line, signed, runningAfter: running };
                     });
-                    const detailDisplay = detailWithBalance.slice().reverse();
 
                     return (
                       <Fragment key={group.id}>
@@ -578,11 +598,11 @@ export default async function GeneralLedgerPage({
                                   <TableCell>{txnLabel || '—'}</TableCell>
                                   <TableCell>{memo}</TableCell>
                                   <TableCell
-                                    className={`text-right font-medium ${signed < 0 ? 'text-destructive' : ''}`}
+                                    className={`text-right ${signed < 0 ? 'text-destructive' : ''}`}
                                   >
                                     {fmtSigned(signed)}
                                   </TableCell>
-                                  <TableCell className="text-right font-medium">
+                                  <TableCell className="text-right">
                                     {fmtSigned(runningAfter)}
                                   </TableCell>
                                 </TableRowLink>
@@ -605,11 +625,11 @@ export default async function GeneralLedgerPage({
                                 <TableCell>{txnLabel || '—'}</TableCell>
                                 <TableCell>{memo}</TableCell>
                                 <TableCell
-                                  className={`text-right font-medium ${signed < 0 ? 'text-destructive' : ''}`}
+                                  className={`text-right ${signed < 0 ? 'text-destructive' : ''}`}
                                 >
                                   {fmtSigned(signed)}
                                 </TableCell>
-                                <TableCell className="text-right font-medium">
+                                <TableCell className="text-right">
                                   {fmtSigned(runningAfter)}
                                 </TableCell>
                               </TableRow>

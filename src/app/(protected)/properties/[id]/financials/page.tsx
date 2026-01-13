@@ -275,7 +275,11 @@ export default async function FinancialsTab({
     }
   }
 
-  const basisParam: 'cash' | 'accrual' = sp?.basis === 'cash' ? 'cash' : defaultBasis;
+  const basisRaw = typeof sp?.basis === 'string' ? sp.basis.toLowerCase() : '';
+  const basisParam: 'cash' | 'accrual' =
+    basisRaw === 'cash' || basisRaw === 'accrual'
+      ? (basisRaw as 'cash' | 'accrual')
+      : defaultBasis;
   const dateHeading = basisParam === 'cash' ? 'Date (cash basis)' : 'Date (accrual basis)';
 
   const accountsPromise = (async () => {
@@ -549,13 +553,12 @@ export default async function FinancialsTab({
                     });
 
                     let running = group.prior;
-                    const detailWithBalance = detailChrono.map(
+                    const detailDisplay = detailChrono.map(
                       ({ line, signed }: { line: LedgerLine; signed: number }) => {
                         running += signed;
                         return { line, signed, runningAfter: running };
                       },
                     );
-                    const detailDisplay = detailWithBalance.slice().reverse();
 
                     return (
                       <Fragment key={group.id}>
@@ -629,13 +632,11 @@ export default async function FinancialsTab({
                                 <TableCell>{txnLabel || '—'}</TableCell>
                                 <TableCell>{memo}</TableCell>
                                 <TableCell
-                                  className={`text-right font-medium ${signed < 0 ? 'text-destructive' : ''}`}
+                                  className={`text-right ${signed < 0 ? 'text-destructive' : ''}`}
                                 >
                                   {fmtSigned(signed)}
                                 </TableCell>
-                                <TableCell className="text-right font-medium">
-                                  {fmtSigned(runningAfter)}
-                                </TableCell>
+                                <TableCell className="text-right">{fmtSigned(runningAfter)}</TableCell>
                               </>
                             );
 

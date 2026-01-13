@@ -61,6 +61,15 @@ Scripts for verifying data integrity and relationships.
 - `verify-rent-schedule-creation.ts` - Verify rent schedule creation
 - `check-property-fields.ts` - Check property field completeness
 
+### **Ingestion Assertion Scripts**
+
+These scripts exercise mapping logic against representative Buildium payloads and
+should be re-run whenever you modify `buildium-mappers` or related ingestion code.
+
+- `assert-sample-transaction-ingestion.ts` – Asserts that a sample Payment +
+  Deposit payload maps correctly into our header fields, line metadata, and
+  deposit payment splits.
+
 ## Common Workflows
 
 ### **Adding a New Property**

@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { mapPropertyFromBuildiumWithBankAccount } from '@/lib/buildium-mappers'
 import * as dotenv from 'dotenv'
 import { buildiumFetch } from '@/lib/buildium-http'
+import type { BuildiumProperty } from '@/types/buildium'
 import { ensureBuildiumEnabledForScript } from '../ensure-enabled'
 
 // Load environment variables
@@ -14,7 +15,7 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
 
 
-async function fetchBuildiumProperty(orgId: string, propertyId: number) {
+async function fetchBuildiumProperty(orgId: string, propertyId: number): Promise<BuildiumProperty> {
   const res = await buildiumFetch('GET', `/rentals/${propertyId}`, undefined, undefined, orgId)
 
   if (!res.ok || !res.json) {
@@ -23,7 +24,7 @@ async function fetchBuildiumProperty(orgId: string, propertyId: number) {
   }
 
   console.log('Property data from Buildium:', JSON.stringify(res.json, null, 2))
-  return res.json as Record<string, unknown>
+  return res.json as BuildiumProperty
 }
 
 async function fetchAndAddBuildiumProperty(propertyId: number) {

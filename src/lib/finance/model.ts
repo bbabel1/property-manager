@@ -341,6 +341,71 @@ const isChargeLikeTx = (tx: BasicTransaction): boolean => {
   );
 };
 
+export type CashBasisTxKind = 'payment' | 'charge' | undefined;
+
+/**
+ * Shared cash-basis inclusion policy.
+ *
+ * This is the canonical place where we decide whether a given GL line should
+ * participate in "cash basis" views (ledger, cash-balance-style rollups, etc.).
+ *
+ * Invariants:
+ * - Respects `exclude_from_cash_balances` on the GL account.
+ * - Excludes AR/AP-style accounts (by normalized name/sub_type), even if they
+ *   are mis-typed as generic assets.
+ * - Always includes true bank lines.
+ * - Excludes pure deposit "Charge" lines on cash basis while keeping deposit
+ *   payments/refunds.
+ * - Only shows income lines when we know there is related cash activity for
+ *   the transaction (`hasBankForTx`).
+ *
+ * Callers are responsible for:
+ * - Choosing an appropriate `txKind` (usually derived from transaction_type).
+ * - Deciding what "hasBankForTx" means in their context (ledger vs rollup).
+ */
+export function shouldIncludeOnCashBasis(
+  line: BasicLine,
+  context?: { txKind?: CashBasisTxKind; hasBankForTx?: boolean },
+): boolean {
+  const account = line?.gl_accounts || null;
+  if (!account) return false;
+  if (account.exclude_from_cash_balances) return false;
+
+  const type = (account.type || '').toLowerCase();
+  const subType = (account.sub_type || '').toLowerCase();
+  const name = (account.name || '').toLowerCase();
+  const normalizedSubType = subType.replace(/[\s_-]+/g, '');
+  const normalizedName = name.replace(/[\s_-]+/g, '');
+
+  const isArOrAp =
+    normalizedSubType === 'accountsreceivable' ||
+    normalizedSubType === 'accountspayable' ||
+    normalizedName.includes('accountsreceivable') ||
+    normalizedName.includes('accountspayable') ||
+    name.includes('accounts receivable') ||
+    name.includes('accounts payable');
+
+  if (isArOrAp) return false;
+
+  const { flags } = classifyLine(line);
+  const isBank = flags.bank;
+  const isDeposit = flags.deposit;
+
+  if (isBank) return true;
+
+  const txKind = context?.txKind;
+
+  // On cash basis, drop pure deposit "Charge" lines; keep deposit payments/refunds.
+  if (isDeposit && txKind === 'charge') return false;
+
+  // Income lines should only appear on cash basis when there is related cash activity.
+  if (type === 'income') {
+    return context?.hasBankForTx === true;
+  }
+
+  return true;
+}
+
 export function rollupFinances(params: FinanceRollupParams): FinanceRollupResult {
   let transactionLines = Array.isArray(params.transactionLines) ? params.transactionLines : [];
   const transactions = Array.isArray(params.transactions) ? params.transactions : [];

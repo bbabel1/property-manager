@@ -120,19 +120,27 @@ export async function getOrgScopedBuildiumConfig(
   if (!forceRefresh) {
     const cached = configCache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) {
-      // Verify cache staleness by checking DB updated_at if orgId provided
+      // Verify cache staleness by checking DB updated_at/config_version if orgId provided
       if (orgId) {
         try {
           const { data: dbRow } = await supabaseAdmin
             .from('buildium_integrations')
-            .select('updated_at')
+            .select('updated_at, config_version')
             .eq('org_id', orgId)
             .is('deleted_at', null)
             .maybeSingle();
 
-          // If DB row exists and updated_at differs, cache is stale
-          if (dbRow && dbRow.updated_at !== cached.updatedAt) {
-            logger.info({ orgId, cachedUpdatedAt: cached.updatedAt, dbUpdatedAt: dbRow.updated_at }, 'Buildium config cache stale, refreshing');
+          const dbUpdatedAt = dbRow?.updated_at;
+          const dbVersion = dbRow?.config_version ?? null;
+          const cachedVersion = cached.configVersion ?? null;
+          const versionChanged = dbVersion !== null && cachedVersion !== undefined && dbVersion !== cachedVersion;
+          const updatedAtChanged = dbUpdatedAt && dbUpdatedAt !== cached.updatedAt;
+
+          if (versionChanged || updatedAtChanged) {
+            logger.info(
+              { orgId, cachedUpdatedAt: cached.updatedAt, dbUpdatedAt, cachedVersion, dbVersion },
+              'Buildium config cache stale, refreshing',
+            );
             configCache.delete(cacheKey);
           } else {
             // Cache is valid
@@ -243,7 +251,7 @@ export async function getOrgScopedBuildiumConfig(
       config,
       expiresAt: Date.now() + CACHE_TTL_MS,
       updatedAt: new Date().toISOString(),
-      configVersion: 1,
+      configVersion: config.configVersion ?? 1,
     });
 
     // Log warning if orgId is undefined (for observability)

@@ -731,18 +731,19 @@ serve(async (req) => {
       replayCache: buildiumSignatureCache,
     });
     if (!verification.ok) {
+      const failedVerification = verification as { ok: false; status: number; reason: string; signature?: string | null; timestamp?: number | null };
       console.warn('buildium-webhook signature rejected', {
-        reason: verification.reason,
-        status: verification.status,
-        timestamp: verification.timestamp ?? null,
-        signaturePreview: verification.signature ? verification.signature.slice(0, 12) : null,
+        reason: failedVerification.reason,
+        status: failedVerification.status,
+        timestamp: failedVerification.timestamp ?? null,
+        signaturePreview: failedVerification.signature ? failedVerification.signature.slice(0, 12) : null,
         metric: 'buildium_webhook.signature_failure',
       });
       return new Response(
-        JSON.stringify({ error: 'Invalid signature', reason: verification.reason }),
+        JSON.stringify({ error: 'Invalid signature', reason: failedVerification.reason }),
         {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: verification.status,
+          status: failedVerification.status,
         },
       );
     }

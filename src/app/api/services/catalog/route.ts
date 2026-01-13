@@ -1,4 +1,3 @@
-
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth/guards';
 import { hasPermission } from '@/lib/permissions';
@@ -32,9 +31,7 @@ const parseNumber = (value: unknown) => {
 function normalizeBillingFrequency(value: unknown): BillingFrequency | null {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
-  const match = BILLING_FREQUENCIES.find(
-    (freq) => freq.toLowerCase() === trimmed.toLowerCase(),
-  );
+  const match = BILLING_FREQUENCIES.find((freq) => freq.toLowerCase() === trimmed.toLowerCase());
   return match ?? null;
 }
 

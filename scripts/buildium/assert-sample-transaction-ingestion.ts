@@ -46,6 +46,9 @@ const SplitSchema = z.object({
 })
 
 async function main() {
+  // This script is a fast, local safety net for Buildium ingestion:
+  // run it whenever you change `buildium-mappers` so we catch header/line/split
+  // regressions before they reach real data.
   await ensureBuildiumEnabledForScript(process.env.DEFAULT_ORG_ID ?? null)
   const nowIso = new Date('2026-04-02T12:00:00.000Z').toISOString()
 
@@ -133,4 +136,3 @@ main().catch((err) => {
   console.error('❌ Sample Buildium mapping assertion failed:', err instanceof Error ? err.message : err)
   process.exit(1)
 })
-

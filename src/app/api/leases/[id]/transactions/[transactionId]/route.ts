@@ -209,7 +209,7 @@ export async function GET(
 }
 
 export async function PUT(
-  request: Request,
+  request: NextRequest,
   context: { params: Promise<{ id: string; transactionId: string }> }
 ) {
   const { id, transactionId: txId } = await context.params

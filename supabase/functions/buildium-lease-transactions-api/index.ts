@@ -61,7 +61,7 @@ function resolvePostingType(line: any): 'Debit' | 'Credit' {
 }
 
 // Minimal GL account resolver: ensures a local gl_accounts row exists for a Buildium GL account id
-async function resolveGLAccountId(supabase: any, buildiumGLAccountId?: number | null): Promise<string | null> {
+async function resolveGLAccountId(supabase: any, orgId: string, buildiumGLAccountId?: number | null): Promise<string | null> {
   if (!buildiumGLAccountId) return null
   const { data: existing } = await supabase
     .from('gl_accounts')
@@ -71,7 +71,7 @@ async function resolveGLAccountId(supabase: any, buildiumGLAccountId?: number | 
   if (existing?.id) return existing.id
 
   // Fetch GL account details from Buildium, insert minimal row
-  const acc = await buildium<any>('GET', `/glaccounts/${buildiumGLAccountId}`)
+  const acc = await buildium<any>(supabase, orgId, 'GET', `/glaccounts/${buildiumGLAccountId}`)
   const now = new Date().toISOString()
   const insert = {
     buildium_gl_account_id: acc?.Id ?? buildiumGLAccountId,
@@ -228,7 +228,7 @@ async function upsertWithLines(
     const amountAbs = Math.abs(Number(line?.Amount ?? 0))
     const postingType = resolvePostingType(line)
     const glBuildiumId = line?.GLAccountId ?? (typeof line?.GLAccount === 'number' ? line.GLAccount : line?.GLAccount?.Id)
-    const glId = await resolveGLAccountId(supabase, glBuildiumId)
+    const glId = await resolveGLAccountId(supabase, orgIdLocal, glBuildiumId)
     if (!glId) continue
     const buildiumPropertyId = line?.PropertyId ?? null
     const buildiumUnitId = line?.UnitId ?? null

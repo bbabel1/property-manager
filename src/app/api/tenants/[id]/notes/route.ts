@@ -32,11 +32,11 @@ export async function POST(
 
     await requireOrgAdmin({
       client: auth.supabase,
-      adminClient: supabaseAdmin,
       userId: auth.user.id,
       orgId: resolvedOrg.orgId,
-      orgRoles: auth.orgRoles,
-      roles: auth.roles
+      ...(auth.orgRoles ? { orgRoles: auth.orgRoles } : {}),
+      ...(auth.roles ? { roles: auth.roles } : {}),
+      ...(supabaseAdmin ? { adminClient: supabaseAdmin } : {}),
     });
 
     // Get the tenant to retrieve buildium_tenant_id

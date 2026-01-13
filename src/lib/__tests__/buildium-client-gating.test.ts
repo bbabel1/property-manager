@@ -61,4 +61,15 @@ describe('Buildium client gating', () => {
     await expect(client.getProperty(2)).rejects.toThrow(/disabled/i);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+
+  it('does not attempt outbound calls when integration is disabled upfront', async () => {
+    const client = await getOrgScopedBuildiumClient('org-abc');
+    assertBuildiumEnabled.mockClear();
+    const fetchMock = global.fetch as unknown as Mock;
+
+    assertBuildiumEnabled.mockRejectedValueOnce(new BuildiumDisabledError('org-abc'));
+
+    await expect(client.getProperty(42)).rejects.toThrow(/disabled/i);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });

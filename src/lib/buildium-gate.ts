@@ -18,6 +18,9 @@ import { getOrgScopedBuildiumConfig } from './buildium/credentials-manager';
 import { logger } from './logger';
 
 export class BuildiumDisabledError extends Error {
+  code = 'BUILDIUM_DISABLED' as const;
+  status = 403;
+
   constructor(public orgId?: string) {
     super(
       orgId

@@ -29,11 +29,11 @@ export async function DELETE(
 
     await requireOrgAdmin({
       client: auth.supabase,
-      adminClient: supabaseAdmin,
       userId: auth.user.id,
       orgId: resolvedOrg.orgId,
-      orgRoles: auth.orgRoles,
-      roles: auth.roles,
+      ...(auth.orgRoles ? { orgRoles: auth.orgRoles } : {}),
+      ...(auth.roles ? { roles: auth.roles } : {}),
+      ...(supabaseAdmin ? { adminClient: supabaseAdmin } : {}),
     });
 
     const { data: note, error: noteError } = await supabaseAdmin

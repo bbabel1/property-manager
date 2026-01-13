@@ -62,7 +62,7 @@ After running the sync, check for balance drift:
 
 1. **Find reconciliations to check:**
    ```sql
-   SELECT 
+   SELECT
      rl.id,
      rl.bank_gl_account_id,
      rl.statement_ending_date,
@@ -121,5 +121,4 @@ After running the sync, check for balance drift:
 2. **Unauthorized API**: Ensure you have platform_admin role and valid auth token
 3. **No reconciliations found**: Check that bank accounts have `is_bank_account=true` and `buildium_gl_account_id` set
 4. **High unmatched count**: Verify transaction mapping between Buildium and local database
-
 

@@ -47,6 +47,28 @@ describe('mapLeaseTransactionFromBuildium', () => {
     expect(tx.payment_method).toBe('CreditCard');
     expect(tx.memo).toBe('Journal memo wins');
   });
+
+  it('falls back to UnitAgreement lease id when LeaseId is missing', () => {
+    const tx = mapLeaseTransactionFromBuildium({
+      Id: 99,
+      TransactionTypeEnum: 'Charge',
+      Amount: 250,
+      UnitAgreement: { Id: 18911, Type: 'Lease' },
+    });
+
+    expect(tx.buildium_lease_id).toBe(18911);
+  });
+
+  it('does not use UnitAgreement id when type is not Lease', () => {
+    const tx = mapLeaseTransactionFromBuildium({
+      Id: 101,
+      TransactionTypeEnum: 'Charge',
+      Amount: 400,
+      UnitAgreement: { Id: 777, Type: 'Unit' },
+    });
+
+    expect(tx.buildium_lease_id).toBeNull();
+  });
 });
 
 describe('mapGLEntryHeaderFromBuildium', () => {

@@ -16,6 +16,7 @@ export { default as TenantEmergencyContactInlineEditor } from './TenantEmergency
 export * from './TenantEmergencyContactInlineEditor'
 export { default as TenantFileUploadDialog } from './TenantFileUploadDialog'
 export * from './TenantFileUploadDialog'
+export * from './tenant-file-types'
 export { default as TenantFilesPanel } from './TenantFilesPanel'
 export * from './TenantFilesPanel'
 export { default as TenantNotesTable } from './TenantNotesTable'

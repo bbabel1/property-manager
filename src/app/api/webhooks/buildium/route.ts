@@ -584,6 +584,7 @@ export async function POST(req: NextRequest) {
   }
 
   // If explicitly disabled in DB, acknowledge and store as ignored_disabled
+  // Buildium retries non-2xx (1m/10m/1h, suspends after 20 failures), so return 200: https://developer.buildium.com/#section/Webhooks/Receiving-Callbacks
   if (integrationEnabled === false) {
     for (const event of events) {
       try {
@@ -2064,13 +2065,21 @@ export async function POST(req: NextRequest) {
       const transactionType = normalizeTransactionType(
         leaseTx.TransactionType || leaseTx.TransactionTypeEnum || null,
       );
+      const unitAgreement = (leaseTx as UnknownRecord | null)?.UnitAgreement ?? null;
+      const unitAgreementType =
+        typeof unitAgreement?.Type === 'string' ? unitAgreement.Type.toLowerCase() : null;
+      const buildiumLeaseId =
+        firstNumber(
+          leaseTx.LeaseId,
+          unitAgreementType === 'lease' ? (unitAgreement as UnknownRecord | null)?.Id : null,
+        ) ?? null;
       const orgFromAccount = await resolveOrgIdFromBuildiumAccount(
         buildiumAccountId ?? leaseTx?.AccountId ?? null,
       );
       const orgId =
         orgFromAccount ??
         (await resolveLeaseOrgId(
-          leaseTx.LeaseId ?? null,
+          buildiumLeaseId,
           leaseTx?.PropertyId ?? null,
           buildiumAccountId ?? leaseTx?.AccountId ?? null,
         ));
@@ -2105,7 +2114,7 @@ export async function POST(req: NextRequest) {
             ? leaseTx.TotalAmount
             : Number(leaseTx.Amount ?? 0),
         check_number: leaseTx.CheckNumber ?? null,
-        buildium_lease_id: leaseTx.LeaseId ?? null,
+        buildium_lease_id: buildiumLeaseId,
         property_id: null,
         unit_id: null,
         org_id: null,
@@ -2122,7 +2131,7 @@ export async function POST(req: NextRequest) {
         .eq('buildium_transaction_id', leaseTx.Id)
         .single();
       if (findErr && findErr.code !== 'PGRST116') throw findErr;
-      const leaseIdLocal = await resolveLocalLeaseId(leaseTx.LeaseId ?? null);
+      const leaseIdLocal = await resolveLocalLeaseId(buildiumLeaseId);
       let leaseRow: {
         property_id?: string | null;
         unit_id?: string | null;
@@ -2322,7 +2331,7 @@ export async function POST(req: NextRequest) {
           updated_at: now,
           buildium_property_id: buildiumPropertyId ?? defaultBuildiumPropertyId ?? null,
           buildium_unit_id: buildiumUnitId ?? defaultBuildiumUnitId ?? null,
-          buildium_lease_id: leaseTx.LeaseId ?? null,
+          buildium_lease_id: buildiumLeaseId,
           property_id: propertyIdLocal,
           unit_id: unitIdLocal,
         });
@@ -2358,7 +2367,7 @@ export async function POST(req: NextRequest) {
           updated_at: now,
           buildium_property_id: defaultBuildiumPropertyId,
           buildium_unit_id: defaultBuildiumUnitId,
-          buildium_lease_id: leaseTx.LeaseId ?? null,
+          buildium_lease_id: buildiumLeaseId,
           property_id: propertyIdForHeader ?? defaultPropertyId,
           unit_id: unitIdForHeader ?? defaultUnitId,
         });
@@ -2397,7 +2406,7 @@ export async function POST(req: NextRequest) {
             updated_at: now,
             buildium_property_id: defaultBuildiumPropertyId,
             buildium_unit_id: defaultBuildiumUnitId,
-            buildium_lease_id: leaseTx.LeaseId ?? null,
+            buildium_lease_id: buildiumLeaseId,
             property_id: propertyIdForHeader,
             unit_id: unitIdForHeader,
           });
