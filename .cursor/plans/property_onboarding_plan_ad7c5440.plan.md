@@ -1,6 +1,6 @@
 ---
 name: Property Onboarding Plan (Reuse-First, Schema-Aligned)
-overview: 'Create a schema-aligned, implementation-ready onboarding plan for new properties that addresses P0 UX issues, supports draft persistence, clarifies Rental Unit vs Rental Building logic, refocuses ownership collection, enables bulk unit creation, adds review step, hardens agreement sending, and gates Buildium sync with readiness checks. **STRICT REUSE-FIRST APPROACH**: All components, schemas, services, and patterns must reuse existing implementations wherever possible.'
+overview: "Create a schema-aligned, implementation-ready onboarding plan for new properties that addresses P0 UX issues, supports draft persistence, clarifies Rental Unit vs Rental Building logic, refocuses ownership collection, enables bulk unit creation, adds review step, hardens agreement sending, and gates Buildium sync with readiness checks. **STRICT REUSE-FIRST APPROACH**: All components, schemas, services, and patterns must reuse existing implementations wherever possible."
 todos: []
 ---
 
@@ -345,7 +345,6 @@ BUILDIUM_SYNC_FAILED → READY_FOR_BUILDIUM (Retry sync)
 **Schema Changes:**
 
 - Migration: Create `agreement_send_log` table (mirrors `statement_emails` structure):
-
   ```sql
       CREATE TABLE public.agreement_send_log (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -365,14 +364,14 @@ BUILDIUM_SYNC_FAILED → READY_FOR_BUILDIUM (Retry sync)
         updated_at timestamptz NOT NULL DEFAULT now(),
         UNIQUE(property_id, recipient_hash) -- Idempotency constraint
       );
-
+  
       -- RLS policies
       ALTER TABLE public.agreement_send_log ENABLE ROW LEVEL SECURITY;
       CREATE POLICY "agreement_send_log_org_read" ON public.agreement_send_log
         FOR SELECT USING (is_org_member(auth.uid(), org_id));
       CREATE POLICY "agreement_send_log_org_write" ON public.agreement_send_log
         FOR INSERT WITH CHECK (is_org_admin_or_manager(auth.uid(), org_id));
-
+  
       -- Indexes
       CREATE INDEX idx_agreement_send_log_property ON public.agreement_send_log(property_id);
       CREATE INDEX idx_agreement_send_log_sent_at ON public.agreement_send_log(sent_at DESC);
@@ -380,6 +379,7 @@ BUILDIUM_SYNC_FAILED → READY_FOR_BUILDIUM (Retry sync)
       CREATE INDEX idx_agreement_send_log_recipient_hash ON public.agreement_send_log(recipient_hash);
       CREATE INDEX idx_agreement_send_log_org ON public.agreement_send_log(org_id);
   ```
+
 
 ---
 
@@ -398,10 +398,9 @@ BUILDIUM_SYNC_FAILED → READY_FOR_BUILDIUM (Retry sync)
 **Migration Strategy:** Reversible, backfill-safe, with rollback support
 
 1. **Extend `onboarding_status_enum` (reversible):**
-
    ```sql
    BEGIN;
-
+   
    -- Add new enum values (PostgreSQL doesn't support IF NOT EXISTS for enum values)
    -- Use DO block to check first
    DO $$
@@ -413,28 +412,27 @@ BUILDIUM_SYNC_FAILED → READY_FOR_BUILDIUM (Retry sync)
      ) THEN
        ALTER TYPE public.onboarding_status_enum ADD VALUE 'DRAFT';
      END IF;
-
+   
      -- Repeat for each new value
      IF NOT EXISTS (SELECT 1 FROM pg_enum WHERE enumlabel = 'OWNERS_ADDED' AND enumtypid = 'public.onboarding_status_enum'::regtype) THEN
        ALTER TYPE public.onboarding_status_enum ADD VALUE 'OWNERS_ADDED';
      END IF;
      -- ... (repeat for all new values)
    END $$;
-
+   
    -- Note: Enum value removal requires recreating the enum (not reversible without data migration)
    -- Rollback: Document that enum values cannot be removed without recreating type
-
+   
    COMMIT;
    ```
 
 2. **RECREATE `property_onboarding` table (was dropped in cleanup):**
-
    ```sql
    BEGIN;
-
+   
    -- Drop existing table if it exists (cleanup from previous attempts)
    DROP TABLE IF EXISTS public.property_onboarding CASCADE;
-
+   
    -- Recreate with proper schema
    CREATE TABLE public.property_onboarding (
      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -446,13 +444,13 @@ BUILDIUM_SYNC_FAILED → READY_FOR_BUILDIUM (Retry sync)
      created_at timestamptz NOT NULL DEFAULT now(),
      updated_at timestamptz NOT NULL DEFAULT now()
    );
-
+   
    -- Indexes
    CREATE INDEX idx_property_onboarding_org ON public.property_onboarding(org_id);
    CREATE INDEX idx_property_onboarding_property_id ON public.property_onboarding(property_id);
    CREATE INDEX idx_property_onboarding_org_status ON public.property_onboarding(org_id, status);
    CREATE INDEX idx_property_onboarding_created_at ON public.property_onboarding(created_at DESC);
-
+   
    -- RLS policies (mirror properties.org_id scoping)
    ALTER TABLE public.property_onboarding ENABLE ROW LEVEL SECURITY;
    CREATE POLICY "property_onboarding_org_read" ON public.property_onboarding
@@ -464,19 +462,18 @@ BUILDIUM_SYNC_FAILED → READY_FOR_BUILDIUM (Retry sync)
      WITH CHECK (is_org_admin_or_manager(auth.uid(), org_id));
    CREATE POLICY "property_onboarding_org_delete" ON public.property_onboarding
      FOR DELETE USING (is_org_admin_or_manager(auth.uid(), org_id));
-
+   
    -- updated_at trigger
    CREATE TRIGGER trg_property_onboarding_updated_at
      BEFORE UPDATE ON public.property_onboarding
      FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
-
+   
    COMMIT;
    ```
 
 3. **Create `agreement_send_log` table (see schema changes section above)**
 
 4. **Create `agreement_send_log` table:**
-
    ```sql
          CREATE TABLE IF NOT EXISTS public.agreement_send_log (
            id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -494,11 +491,12 @@ BUILDIUM_SYNC_FAILED → READY_FOR_BUILDIUM (Retry sync)
            created_at timestamptz NOT NULL DEFAULT now(),
            updated_at timestamptz NOT NULL DEFAULT now()
          );
-
+   
          CREATE INDEX IF NOT EXISTS idx_agreement_send_log_property ON public.agreement_send_log(property_id);
          CREATE INDEX IF NOT EXISTS idx_agreement_send_log_sent_at ON public.agreement_send_log(sent_at DESC);
          CREATE INDEX IF NOT EXISTS idx_agreement_send_log_status ON public.agreement_send_log(status);
    ```
+
 
 ### D.2 Code Changes (By File)
 
@@ -619,10 +617,12 @@ BUILDIUM_SYNC_FAILED → READY_FOR_BUILDIUM (Retry sync)
 **Changes:**
 
 1. **RECREATE** `property_onboarding` table (was dropped in cleanup)
+
    - Full table with `current_stage` JSONB from the start (not TEXT conversion)
    - See migration details in D.1 section
 
 2. Extend `onboarding_status_enum` with new values:
+
    - `DRAFT`, `OWNERS_ADDED`, `UNITS_ADDED`, `READY_TO_SEND`, `AGREEMENT_SENT` (P0)
    - `READY_FOR_BUILDIUM`, `BUILDIUM_SYNCED`, `BUILDIUM_SYNC_FAILED` (P1)
 
@@ -1519,7 +1519,6 @@ stateDiagram-v2
 - Note: Removed `SERVICES_CONFIGURED` and `BANK_ACCOUNT_SET` from main flow (simplified)
 
 2. Create `agreement_send_log` table:
-
    ```sql
          CREATE TABLE public.agreement_send_log (
            id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1538,7 +1537,7 @@ stateDiagram-v2
            created_at timestamptz NOT NULL DEFAULT now(),
            updated_at timestamptz NOT NULL DEFAULT now()
          );
-
+   
         -- Partial index for 24h idempotency window queries (idempotency handled by idempotency_keys table)
         CREATE INDEX IF NOT EXISTS idx_agreement_send_log_idempotency_window
           ON public.agreement_send_log(property_id, template_id, recipient_hash, DATE(sent_at))
@@ -1875,6 +1874,7 @@ stateDiagram-v2
 ### API Endpoints Needed
 
 1. `POST /api/onboarding` - Create property + onboarding stub (Step 2) - **NEW**
+
    - Body (camelCase): `{ propertyType, name?, addressLine1, city?, state?, postalCode, country, borough?, neighborhood?, latitude?, longitude?, service_assignment, management_scope }`
    - Uses `buildNormalizedAddressKey()` for deduplication
    - Returns: `{ property, onboarding }` or `409 { existingOnboardingId }` if duplicate draft
@@ -1882,6 +1882,7 @@ stateDiagram-v2
    - Error codes: 400 (missing basics), 409 (duplicate draft), 422 (semantic errors)
 
 2. `PATCH /api/onboarding/:id` - Autosave draft state (all steps) - **NEW**
+
    - Body: `{ currentStage, progress?, status? }`
    - Server enforces legal status transitions only
    - Returns: `{ onboarding }`
@@ -1889,11 +1890,13 @@ stateDiagram-v2
    - Error codes: 400 (validation), 422 (invalid transition)
 
 3. `GET /api/onboarding/:id` - Load draft state (resume) - **NEW**
+
    - Returns: `{ onboarding }`
    - Auth: `requireAuth()`, `resolveOrgIdFromRequest()`, `requireOrgMember()`
    - Error codes: 404 (not found)
 
 4. `POST /api/onboarding/:id/owners` - Upsert/delete owners - **NEW**
+
    - Body (camelCase): `{ owners: [{ clientRowId, ownerId? | ownerPayload, ownershipPercentage, disbursementPercentage?, primary?, signerEmail?, signerName?, deleted? }] }`
    - Validates ownership sums to 100% (422 if invalid), requires ≥1 signer email (422 if missing)
    - Writes `ownerships` rows immediately, backfills `owners.org_id`
@@ -1903,6 +1906,7 @@ stateDiagram-v2
    - Error codes: 400 (validation), 422 (semantic errors)
 
 5. `POST /api/onboarding/:id/units` - Upsert/delete units - **NEW**
+
    - Body (camelCase): `{ units: [{ clientRowId, unitNumber, unitBedrooms?, unitBathrooms?, unitSize?, description?, deleted? }] }`
    - Enforces unique unitNumber per property (422 if duplicate)
    - Writes `units` rows immediately
@@ -1912,6 +1916,7 @@ stateDiagram-v2
    - Error codes: 400 (validation), 422 (semantic errors)
 
 6. `POST /api/onboarding/:id/finalize` - Revalidate and set READY_TO_SEND - **NEW**
+
    - No payload
    - Revalidates property basics + owners/signers + units
    - Sets status READY_TO_SEND
@@ -1920,6 +1925,7 @@ stateDiagram-v2
    - Error codes: 400 (validation), 422 (semantic errors)
 
 7. `DELETE /api/onboarding/:id` - Cancel draft (optional) - **NEW**
+
    - Only for DRAFT status
    - Cleans stub property and children if unused
    - Returns: `204 No Content`
@@ -1927,6 +1933,7 @@ stateDiagram-v2
    - Error codes: 400 (not DRAFT), 422 (has downstream references)
 
 8. `POST /api/agreements/send` - Send agreement with idempotency (Step 5) - **NEW**
+
    - Body (camelCase): `{ onboardingId?, propertyId, recipients: [{ email, name? }], templateId?, templateName?, webhookPayload? }`
    - Idempotency: Uses `idempotency_keys` table, key = `hash(propertyId + templateId/name + sorted recipients)`, scoped by `org_id`, TTL 24h
    - Creates `agreement_send_log` first, then sends
@@ -1936,12 +1943,14 @@ stateDiagram-v2
    - Error codes: 400 (validation), 409 (idempotent match), 422 (semantic errors)
 
 9. `GET /api/buildium/readiness/:propertyId` - Check Buildium readiness (P1.2) - **NEW**
+
    - Returns: `{ ready: boolean, issues: [{ code, message, path }] }`
    - Runs server-side checks (reuse `validateBuildiumPropertyPayload` + GL account/service checks)
    - Auth: `requireAuth()`, `resolveOrgIdFromRequest()`, `requireOrgMember()`
    - Error codes: 400 (validation), 404 (property not found)
 
 10. `POST /api/properties/:id/sync` - Buildium sync (EXTEND) - **MODIFY**
+
     - Requires `readiness.ready = true` (400 if not ready)
     - Writes attempt to `onboarding.current_stage` (JSONB)
     - Sets status `READY_FOR_BUILDIUM → BUILDIUM_SYNCED` or `BUILDIUM_SYNC_FAILED` with error JSON
@@ -1950,6 +1959,7 @@ stateDiagram-v2
     - Error codes: 400 (not ready), 409 (idempotent match), 422 (semantic errors)
 
 11. `GET /api/onboarding/drafts` - List drafts (P1.1) - **NEW**
+
     - Returns: `{ drafts: [{ id, propertyId, status, progress, createdAt }] }`
     - Auth: `requireAuth()`, `resolveOrgIdFromRequest()`, `requireOrgMember()`
     - Error codes: 400 (validation)
@@ -2190,7 +2200,6 @@ const autosaveDebounced = useMemo(
 **Explicit Handling:**
 
 - **Existing rows:** If `property_onboarding` table exists with TEXT `current_stage`:
-
   ```sql
   -- Handle existing TEXT data
   UPDATE public.property_onboarding
@@ -2215,6 +2224,7 @@ const autosaveDebounced = useMemo(
     FOR UPDATE USING (is_org_admin_or_manager(auth.uid(), org_id))
     WITH CHECK (is_org_admin_or_manager(auth.uid(), org_id));
   ```
+
 
 ---
 
@@ -2249,7 +2259,6 @@ callWebhookAsync(log.id, webhookUrl).catch(error => {
 - **Storage:** `idempotency_keys` table with `expires_at` column
 - **TTL:** 24 hours (`expires_at = now() + interval '24 hours'`)
 - **Cleanup:** Nightly job or partial index for queries:
-
   ```sql
   -- Partial index for active keys
   CREATE INDEX IF NOT EXISTS idx_idempotency_keys_active
@@ -2258,7 +2267,6 @@ callWebhookAsync(log.id, webhookUrl).catch(error => {
   ```
 
 - **Query pattern:**
-
   ```sql
   SELECT response FROM idempotency_keys
   WHERE key = $1 AND org_id = $2 AND expires_at > now();
@@ -2274,16 +2282,15 @@ callWebhookAsync(log.id, webhookUrl).catch(error => {
 
 - Derive all request/response types from Zod schemas
 - Share types between client/server:
-
   ```typescript
   // src/schemas/onboarding.ts
   export const OnboardingCreateSchema = z.object({...});
   export type OnboardingCreateRequest = z.infer<typeof OnboardingCreateSchema>;
   export type OnboardingCreateResponse = {...};
-
+  
   // src/app/api/onboarding/route.ts
   import { OnboardingCreateSchema, type OnboardingCreateRequest } from '@/schemas/onboarding';
-
+  
   // src/components/onboarding/OnboardingForm.tsx
   import { type OnboardingCreateRequest } from '@/schemas/onboarding';
   ```

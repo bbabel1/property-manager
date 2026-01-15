@@ -1,5 +1,8 @@
 node_modules
 .cursor
+.cursor/**
+.cursor/plans/**
+.cursor/plans/property_onboarding_plan_ad7c5440.plan.md
 docs/**
 docs/SERVICE_CATALOG_IMPLEMENTATION_REPORT.md
 docs/PLAN_VERIFICATION_REPORT.md

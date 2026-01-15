@@ -23,11 +23,20 @@ type GoogleAutocomplete = {
   getPlace: () => GooglePlaceResult;
 };
 
-type PlacesServiceStatus = 'OK' | 'ZERO_RESULTS' | 'OVER_QUERY_LIMIT' | 'REQUEST_DENIED' | 'INVALID_REQUEST' | 'UNKNOWN_ERROR';
+type PlacesServiceStatus =
+  | 'OK'
+  | 'ZERO_RESULTS'
+  | 'OVER_QUERY_LIMIT'
+  | 'REQUEST_DENIED'
+  | 'INVALID_REQUEST'
+  | 'UNKNOWN_ERROR';
 type PlacesService = {
   getDetails: (
     request: { placeId: string; fields: string[] },
-    callback: (place: GooglePlaceResult & { place_id?: string }, status: PlacesServiceStatus) => void,
+    callback: (
+      place: GooglePlaceResult & { place_id?: string },
+      status: PlacesServiceStatus,
+    ) => void,
   ) => void;
 };
 
@@ -53,7 +62,7 @@ type GoogleGlobal = {
   [key: string]: unknown;
 };
 
-interface GooglePlacesAutocompleteProps {
+export interface GooglePlacesAutocompleteProps {
   id?: string;
   value: string;
   onChange: (value: string) => void;
@@ -81,7 +90,7 @@ declare global {
   }
 }
 
-export default function GooglePlacesAutocomplete({
+const GooglePlacesAutocomplete = ({
   id,
   value,
   onChange,
@@ -90,7 +99,7 @@ export default function GooglePlacesAutocomplete({
   className = '',
   required = false,
   autoComplete,
-}: GooglePlacesAutocompleteProps) {
+}: GooglePlacesAutocompleteProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const autocompleteRef = useRef<GoogleAutocomplete | null>(null);
   const placesServiceRef = useRef<PlacesService | null>(null);
@@ -380,7 +389,9 @@ export default function GooglePlacesAutocomplete({
         fields: ['address_components', 'formatted_address', 'geometry', 'place_id'],
       });
       if (google.maps.places?.PlacesService) {
-        placesServiceRef.current = new google.maps.places.PlacesService(document.createElement('div'));
+        placesServiceRef.current = new google.maps.places.PlacesService(
+          document.createElement('div'),
+        );
       }
 
       // Install capture listeners after Google injects the dropdown
@@ -432,7 +443,9 @@ export default function GooglePlacesAutocomplete({
         }
         // #endregion
       }, 0);
-      const applyPlace = (place: GooglePlaceResult & { place_id?: string } | null | undefined) => {
+      const applyPlace = (
+        place: (GooglePlaceResult & { place_id?: string }) | null | undefined,
+      ) => {
         if (!place?.address_components) return;
 
         let address = '';
@@ -489,13 +502,7 @@ export default function GooglePlacesAutocomplete({
         }
         if (postalCode && postalSuffix) postalCode = `${postalCode}-${postalSuffix}`;
         city =
-          locality ||
-          postalTown ||
-          sublocality1 ||
-          sublocality ||
-          adminLevel3 ||
-          adminLevel2 ||
-          '';
+          locality || postalTown || sublocality1 || sublocality || adminLevel3 || adminLevel2 || '';
 
         const lat = place?.geometry?.location?.lat
           ? Number(place.geometry.location.lat())
@@ -534,12 +541,12 @@ export default function GooglePlacesAutocomplete({
       autocompleteRef.current.addListener('place_changed', () => {
         const autocomplete = autocompleteRef.current;
         if (!autocomplete) return;
-        
+
         // Small delay to ensure Google has fully populated the place object
         // Sometimes getPlace() returns incomplete data immediately after place_changed fires
         setTimeout(() => {
           const place = autocomplete.getPlace() as GooglePlaceResult & { place_id?: string };
-          
+
           if (place.address_components && place.address_components.length > 0) {
             applyPlace(place);
             return;
@@ -550,7 +557,10 @@ export default function GooglePlacesAutocomplete({
             return;
           }
           placesServiceRef.current.getDetails(
-            { placeId, fields: ['address_components', 'formatted_address', 'geometry', 'place_id'] },
+            {
+              placeId,
+              fields: ['address_components', 'formatted_address', 'geometry', 'place_id'],
+            },
             (details, status) => {
               if (status === 'OK' && details?.address_components) {
                 applyPlace(details);
@@ -641,4 +651,6 @@ export default function GooglePlacesAutocomplete({
       {error && <p className="mt-1 text-xs text-orange-600">{error}</p>}
     </div>
   );
-}
+};
+
+export default GooglePlacesAutocomplete;
