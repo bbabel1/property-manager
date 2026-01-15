@@ -7,8 +7,10 @@ import {
   CheckCircle2,
   ClipboardList,
   DollarSign,
+  FileText,
   Home,
   MapPin,
+  Send,
   Sparkles,
   UserCheck,
   Users,
@@ -29,6 +31,14 @@ import DraftAssignmentServicesEditor, {
 } from '@/components/services/DraftAssignmentServicesEditor';
 import { Checkbox } from '@/ui/checkbox';
 import { Body, Heading, Label } from '@/ui/typography';
+import {
+  OwnerSignerSection,
+  BulkUnitCreator,
+  AgreementReviewPanel,
+  AgreementTemplateSelector,
+} from '@/components/onboarding';
+import type { Signer } from '@/components/onboarding/OwnerSignerSection';
+import type { OnboardingUnit } from '@/components/onboarding/BulkUnitCreator';
 
 interface AddPropertyFormData {
   // Step 1: Property Type
@@ -128,6 +138,15 @@ const STEPS = [
   { id: 5, title: 'Management Services', icon: ClipboardList },
   { id: 6, title: 'Bank Account', icon: DollarSign },
   { id: 7, title: 'Property Manager', icon: UserCheck },
+];
+
+// Onboarding mode uses a simplified flow focused on getting to agreement sending
+const ONBOARDING_STEPS = [
+  { id: 1, title: 'Property Type', icon: Building },
+  { id: 2, title: 'Property Details', icon: MapPin },
+  { id: 3, title: 'Owners & Signers', icon: Users },
+  { id: 4, title: 'Units', icon: Home },
+  { id: 5, title: 'Review & Send', icon: Send },
 ];
 
 const TOTAL_STEPS = STEPS.length;
@@ -261,12 +280,18 @@ export default function AddPropertyModal({
   onClose,
   onSuccess,
   startInTour = false,
+  onboardingMode = false,
 }: {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: () => void;
   startInTour?: boolean;
+  /** When true, uses simplified onboarding flow with early draft persistence and agreement sending */
+  onboardingMode?: boolean;
 }) {
+  // Determine which steps to use based on mode
+  const activeSteps = onboardingMode ? ONBOARDING_STEPS : STEPS;
+  const totalSteps = activeSteps.length;
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState<AddPropertyFormData>(INITIAL_FORM_DATA);
@@ -283,7 +308,53 @@ export default function AddPropertyModal({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
 
+  // Onboarding mode state
+  const [onboardingId, setOnboardingId] = useState<string | null>(null);
+  const [propertyId, setPropertyId] = useState<string | null>(null);
+  const [signers, setSigners] = useState<Signer[]>([]);
+  const [onboardingUnits, setOnboardingUnits] = useState<OnboardingUnit[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | undefined>();
+  const [selectedTemplateName, setSelectedTemplateName] = useState<string | undefined>();
+  const [agreementSending, setAgreementSending] = useState(false);
+
   const canProceed = (step: number, data: AddPropertyFormData) => {
+    if (onboardingMode) {
+      // Onboarding mode validation
+      switch (step) {
+        case 1:
+          return !!data.propertyType;
+        case 2:
+          return (
+            !!data.addressLine1 &&
+            !!data.city &&
+            !!data.state &&
+            !!data.postalCode &&
+            !!data.country
+          );
+        case 3: {
+          // Owners & Signers: need at least one owner and one signer email
+          const total = (data.owners || []).reduce(
+            (sum, o) => sum + (Number(o.ownershipPercentage) || 0),
+            0,
+          );
+          const hasOwners = (data.owners || []).length > 0 && total === 100;
+          const hasSigners = signers.length > 0;
+          return hasOwners && hasSigners;
+        }
+        case 4: {
+          // Units: at least one unit with a number
+          return onboardingUnits.some((u) => (u.unitNumber || '').trim().length > 0);
+        }
+        case 5: {
+          // Review & Send: all previous steps must be complete and template selected
+          return !!selectedTemplateId && signers.length > 0;
+        }
+        default:
+          return true;
+      }
+    }
+
+    // Standard mode validation
     switch (step) {
       case 1:
         return !!data.propertyType;
@@ -411,11 +482,194 @@ export default function AddPropertyModal({
 
   const stepReady = canProceed(currentStep, formData);
 
-  const handleNext = () => {
-    if (currentStep < TOTAL_STEPS) {
+  const handleNext = async () => {
+    if (onboardingMode) {
+      // Handle onboarding-specific step transitions
+      if (currentStep === 2 && !onboardingId) {
+        // Create property + onboarding draft after address capture
+        await createOnboardingDraft();
+      } else if (currentStep === 3 && onboardingId) {
+        // Save owners to API
+        await saveOnboardingOwners();
+      } else if (currentStep === 4 && onboardingId) {
+        // Save units to API
+        await saveOnboardingUnits();
+      }
+    }
+
+    if (currentStep < totalSteps) {
       setCurrentStep(currentStep + 1);
     } else {
-      handleSubmit();
+      if (onboardingMode) {
+        await handleSendAgreement();
+      } else {
+        handleSubmit();
+      }
+    }
+  };
+
+  // Onboarding API functions
+  const createOnboardingDraft = async () => {
+    try {
+      setSubmitting(true);
+      setSubmitError(null);
+      const response = await fetch('/api/onboarding', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          propertyType: formData.propertyType,
+          name: formData.name || `${formData.addressLine1}, ${formData.city}`,
+          addressLine1: formData.addressLine1,
+          city: formData.city,
+          state: formData.state,
+          postalCode: formData.postalCode,
+          country: formData.country,
+          borough: formData.borough,
+          neighborhood: formData.neighborhood,
+          latitude: formData.latitude,
+          longitude: formData.longitude,
+          service_assignment: formData.service_assignment || 'Property Level',
+        }),
+      });
+
+      if (response.status === 409) {
+        const data = await response.json();
+        // Existing draft found - offer to resume
+        if (data.existingOnboardingId) {
+          setOnboardingId(data.existingOnboardingId);
+          setPropertyId(data.existingPropertyId);
+          setSubmitError('An existing draft was found for this address. Resuming...');
+          return;
+        }
+      }
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to create onboarding draft');
+      }
+
+      const data = await response.json();
+      setOnboardingId(data.onboarding.id);
+      setPropertyId(data.property.id);
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : 'Failed to create draft');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const saveOnboardingOwners = async () => {
+    if (!onboardingId) return;
+    try {
+      setSubmitting(true);
+      const ownersPayload = formData.owners.map((o, idx) => ({
+        clientRowId: crypto.randomUUID(),
+        ownerId: o.id,
+        ownershipPercentage: o.ownershipPercentage,
+        disbursementPercentage: o.disbursementPercentage,
+        primary: o.primary,
+        signerEmail: signers[idx]?.email,
+        signerName: signers[idx]?.name,
+      }));
+
+      const response = await fetch(`/api/onboarding/${onboardingId}/owners`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ owners: ownersPayload }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to save owners');
+      }
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : 'Failed to save owners');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const saveOnboardingUnits = async () => {
+    if (!onboardingId) return;
+    try {
+      setSubmitting(true);
+      const unitsPayload = onboardingUnits
+        .filter((u) => u.unitNumber.trim())
+        .map((u) => ({
+          clientRowId: u.clientRowId,
+          unitNumber: u.unitNumber,
+          unitBedrooms: u.unitBedrooms,
+          unitBathrooms: u.unitBathrooms,
+          unitSize: u.unitSize,
+          description: u.description,
+        }));
+
+      const response = await fetch(`/api/onboarding/${onboardingId}/units`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ units: unitsPayload }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to save units');
+      }
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : 'Failed to save units');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleSendAgreement = async () => {
+    if (!propertyId || !selectedTemplateId) return;
+    try {
+      setAgreementSending(true);
+      setSubmitError(null);
+
+      // First finalize the onboarding
+      if (onboardingId) {
+        const finalizeRes = await fetch(`/api/onboarding/${onboardingId}/finalize`, {
+          method: 'POST',
+        });
+        if (!finalizeRes.ok) {
+          const data = await finalizeRes.json();
+          throw new Error(data.error || 'Failed to finalize onboarding');
+        }
+      }
+
+      // Then send the agreement
+      const response = await fetch('/api/agreements/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          onboardingId,
+          propertyId,
+          recipients: signers.map((s) => ({ email: s.email, name: s.name })),
+          templateId: selectedTemplateId,
+          templateName: selectedTemplateName,
+        }),
+      });
+
+      if (response.status === 409) {
+        const data = await response.json();
+        setSubmitError(`Agreement already sent: ${data.sentAt}`);
+        return;
+      }
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to send agreement');
+      }
+
+      setSubmitSuccess('Agreement sent successfully!');
+      onClose();
+      if (onSuccess) onSuccess();
+      router.push(`/properties/${propertyId}`);
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : 'Failed to send agreement');
+    } finally {
+      setAgreementSending(false);
     }
   };
 
@@ -675,7 +929,7 @@ export default function AddPropertyModal({
             </div>
           ) : null}
           <div className="flex items-center justify-between">
-            {STEPS.map((step, index) => (
+            {activeSteps.map((step, index) => (
               <div key={step.id} className="flex items-center">
                 <div
                   className={`flex h-8 w-8 items-center justify-center rounded-full border-2 ${
@@ -688,7 +942,7 @@ export default function AddPropertyModal({
                     {currentStep > step.id ? '✓' : step.id}
                   </Label>
                 </div>
-                {index < STEPS.length - 1 && (
+                {index < activeSteps.length - 1 && (
                   <div
                     className={`mx-2 h-0.5 w-16 ${
                       currentStep > step.id ? 'bg-primary' : 'bg-border'
@@ -728,7 +982,7 @@ export default function AddPropertyModal({
             <Step2PropertyDetails formData={formData} setFormData={setFormData} />
           )}
 
-          {currentStep === 3 && (
+          {currentStep === 3 && !onboardingMode && (
             <Step3Ownership
               formData={formData}
               setFormData={setFormData}
@@ -739,9 +993,31 @@ export default function AddPropertyModal({
             />
           )}
 
-          {currentStep === 4 && <Step4UnitDetails formData={formData} setFormData={setFormData} />}
+          {currentStep === 3 && onboardingMode && (
+            <Step3OwnersAndSigners
+              formData={formData}
+              setFormData={setFormData}
+              addOwner={addOwner}
+              removeOwner={removeOwner}
+              updateOwnerPercentage={updateOwnerPercentage}
+              setPrimaryOwner={setPrimaryOwner}
+              signers={signers}
+              onSignersChange={setSigners}
+            />
+          )}
 
-          {currentStep === 5 && (
+          {currentStep === 4 && !onboardingMode && (
+            <Step4UnitDetails formData={formData} setFormData={setFormData} />
+          )}
+
+          {currentStep === 4 && onboardingMode && (
+            <Step4OnboardingUnits
+              units={onboardingUnits}
+              onUnitsChange={setOnboardingUnits}
+            />
+          )}
+
+          {currentStep === 5 && !onboardingMode && (
             <Step5ManagementServices
               formData={formData}
               setFormData={setFormData}
@@ -750,9 +1026,25 @@ export default function AddPropertyModal({
             />
           )}
 
-          {currentStep === 6 && <Step6BankAccount formData={formData} setFormData={setFormData} />}
+          {currentStep === 5 && onboardingMode && (
+            <Step5ReviewAndSend
+              formData={formData}
+              signers={signers}
+              units={onboardingUnits}
+              selectedTemplateId={selectedTemplateId}
+              onTemplateSelect={(id, name) => {
+                setSelectedTemplateId(id);
+                setSelectedTemplateName(name);
+              }}
+              onEditStep={setCurrentStep}
+            />
+          )}
 
-          {currentStep === 7 && (
+          {currentStep === 6 && !onboardingMode && (
+            <Step6BankAccount formData={formData} setFormData={setFormData} />
+          )}
+
+          {currentStep === 7 && !onboardingMode && (
             <Step7PropertyManager formData={formData} setFormData={setFormData} />
           )}
         </div>
@@ -770,7 +1062,7 @@ export default function AddPropertyModal({
           </Button>
 
           <div className="flex items-center gap-4">
-            {currentStep === TOTAL_STEPS && (
+            {!onboardingMode && currentStep === totalSteps && (
               <Label as="label" tone="muted" size="sm" className="flex items-center gap-2 select-none">
                 <Checkbox
                   className={`h-4 w-4 ${FOCUS_RING}`}
@@ -783,10 +1075,16 @@ export default function AddPropertyModal({
             <Button
               type="button"
               onClick={handleNext}
-              disabled={!nextEnabled}
+              disabled={!nextEnabled || agreementSending}
               className={`${FOCUS_RING} min-h-[44px]`}
             >
-              {submitting ? 'Saving...' : currentStep === TOTAL_STEPS ? 'Create Property' : 'Next'}
+              {submitting || agreementSending
+                ? 'Saving...'
+                : currentStep === totalSteps
+                  ? onboardingMode
+                    ? 'Send Agreement'
+                    : 'Create Property'
+                  : 'Next'}
             </Button>
           </div>
         </div>
@@ -2342,6 +2640,195 @@ function Step4UnitDetails({
         >
           + Add Another Unit
         </Button>
+      </div>
+    </div>
+  );
+}
+
+// Onboarding Mode: Step 3 - Owners & Signers
+function Step3OwnersAndSigners({
+  formData,
+  setFormData,
+  addOwner,
+  removeOwner,
+  updateOwnerPercentage,
+  setPrimaryOwner,
+  signers,
+  onSignersChange,
+}: {
+  formData: AddPropertyFormData;
+  setFormData: Dispatch<SetStateAction<AddPropertyFormData>>;
+  addOwner: (ownerId: string, ownerName?: string) => void;
+  removeOwner: (ownerId: string) => void;
+  updateOwnerPercentage: (
+    ownerId: string,
+    field: 'ownershipPercentage' | 'disbursementPercentage',
+    value: number,
+  ) => void;
+  setPrimaryOwner: (ownerId: string) => void;
+  signers: Signer[];
+  onSignersChange: (signers: Signer[]) => void;
+}) {
+  const CurrentIcon = Users;
+
+  return (
+    <div>
+      <div className="mb-6 text-center">
+        <CurrentIcon className="text-primary mx-auto mb-4 h-16 w-16" />
+        <Heading as="h3" size="h4" className="mb-2">
+          Owners & Signers
+        </Heading>
+        <Body as="p" tone="muted" size="sm">
+          Add property owners and specify who will sign the agreement
+        </Body>
+      </div>
+
+      <div className="space-y-6">
+        {/* Reuse the existing ownership selection UI */}
+        <Step3Ownership
+          formData={formData}
+          setFormData={setFormData}
+          addOwner={addOwner}
+          removeOwner={removeOwner}
+          updateOwnerPercentage={updateOwnerPercentage}
+          setPrimaryOwner={setPrimaryOwner}
+        />
+
+        {/* Add signer section */}
+        <div className="border-border rounded-lg border p-4">
+          <OwnerSignerSection
+            initialSigners={signers}
+            onSignersChange={onSignersChange}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Onboarding Mode: Step 4 - Units (Bulk Creator)
+function Step4OnboardingUnits({
+  units,
+  onUnitsChange,
+}: {
+  units: OnboardingUnit[];
+  onUnitsChange: (units: OnboardingUnit[]) => void;
+}) {
+  const CurrentIcon = Home;
+
+  return (
+    <div>
+      <div className="mb-6 text-center">
+        <CurrentIcon className="text-primary mx-auto mb-4 h-16 w-16" />
+        <Heading as="h3" size="h4" className="mb-2">
+          Units
+        </Heading>
+        <Body as="p" tone="muted" size="sm">
+          Add units to your property. You can add more details later.
+        </Body>
+      </div>
+
+      <BulkUnitCreator
+        initialUnits={units}
+        onUnitsChange={onUnitsChange}
+      />
+    </div>
+  );
+}
+
+// Onboarding Mode: Step 5 - Review & Send Agreement
+function Step5ReviewAndSend({
+  formData,
+  signers,
+  units,
+  selectedTemplateId,
+  onTemplateSelect,
+  onEditStep,
+}: {
+  formData: AddPropertyFormData;
+  signers: Signer[];
+  units: OnboardingUnit[];
+  selectedTemplateId?: string;
+  onTemplateSelect: (templateId: string, templateName: string) => void;
+  onEditStep: (step: number) => void;
+}) {
+  const CurrentIcon = Send;
+
+  // Build a mock onboarding object for the review panel
+  const reviewData = {
+    status: 'READY_TO_SEND' as const,
+    progress: 80,
+    current_stage: {},
+    properties: {
+      name: formData.name || `${formData.addressLine1}, ${formData.city}`,
+      address_line1: formData.addressLine1,
+      city: formData.city,
+      state: formData.state,
+      postal_code: formData.postalCode,
+      country: formData.country,
+      property_type: formData.propertyType,
+      service_assignment: formData.service_assignment || 'Property Level',
+    },
+    ownerships: formData.owners.map((o, idx) => ({
+      ownership_percentage: o.ownershipPercentage,
+      owners: {
+        contacts: {
+          primary_email: signers[idx]?.email || '',
+          first_name: o.name.split(' ')[0] || '',
+          last_name: o.name.split(' ').slice(1).join(' ') || '',
+          company_name: '',
+          is_company: false,
+        },
+      },
+    })),
+    units: units.filter((u) => u.unitNumber.trim()).map((u) => ({
+      unit_number: u.unitNumber,
+    })),
+  };
+
+  return (
+    <div>
+      <div className="mb-6 text-center">
+        <CurrentIcon className="text-primary mx-auto mb-4 h-16 w-16" />
+        <Heading as="h3" size="h4" className="mb-2">
+          Review & Send Agreement
+        </Heading>
+        <Body as="p" tone="muted" size="sm">
+          Review your property details and send the management agreement
+        </Body>
+      </div>
+
+      <div className="space-y-6">
+        <AgreementReviewPanel
+          onboarding={reviewData}
+          onEditStep={onEditStep}
+        />
+
+        <div className="border-border rounded-lg border p-4">
+          <AgreementTemplateSelector
+            onTemplateSelect={onTemplateSelect}
+            selectedTemplateId={selectedTemplateId}
+          />
+        </div>
+
+        <div className="border-border bg-muted/30 rounded-lg border p-4">
+          <Heading as="h4" size="h6" className="mb-2">
+            Recipients
+          </Heading>
+          <Body as="p" tone="muted" size="sm" className="mb-3">
+            The agreement will be sent to the following signers:
+          </Body>
+          <div className="space-y-2">
+            {signers.map((signer) => (
+              <div key={signer.clientRowId} className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-success" />
+                <Body as="span" size="sm">
+                  {signer.name} ({signer.email})
+                </Body>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
