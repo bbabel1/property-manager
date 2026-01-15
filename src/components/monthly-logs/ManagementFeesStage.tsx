@@ -5,6 +5,7 @@ import { Briefcase, AlertCircle, DollarSign, Settings } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { Body, Heading, Label } from '@/ui/typography';
 
 interface ManagementFeesStageProps {
   monthlyLogId: string;
@@ -148,10 +149,14 @@ export default function ManagementFeesStage({ monthlyLogId }: ManagementFeesStag
           <CardTitle>Management Fees</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center gap-2 rounded-lg bg-red-50 p-4 text-red-600">
+          <Body
+            as="div"
+            size="sm"
+            className="flex items-center gap-2 rounded-lg bg-red-50 p-4 text-red-600"
+          >
             <AlertCircle className="h-5 w-5" />
-            <p>{error || 'Failed to load management fees data'}</p>
-          </div>
+            <span>{error || 'Failed to load management fees data'}</span>
+          </Body>
         </CardContent>
       </Card>
     );
@@ -178,36 +183,48 @@ export default function ManagementFeesStage({ monthlyLogId }: ManagementFeesStag
           <div className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <div>
-                <p className="text-sm text-slate-600">Service Plan</p>
-                <p className="mt-1 font-medium text-slate-900">
+                <Label as="p" size="sm" tone="muted">
+                  Service Plan
+                </Label>
+                <Body as="p" size="sm" className="mt-1">
                   {data.servicePlan || 'Not configured'}
-                </p>
+                </Body>
               </div>
               <div>
-                <p className="text-sm text-slate-600">Fee Type</p>
-                <p className="mt-1 font-medium text-slate-900">{data.feeType || 'Not set'}</p>
+                <Label as="p" size="sm" tone="muted">
+                  Fee Type
+                </Label>
+                <Body as="p" size="sm" className="mt-1">
+                  {data.feeType || 'Not set'}
+                </Body>
               </div>
               <div>
-                <p className="text-sm text-slate-600">Management Fee</p>
-                <p className="mt-1 text-lg font-semibold text-purple-600">
+                <Label as="p" size="sm" tone="muted">
+                  Management Fee
+                </Label>
+                <Heading as="p" size="h5" className="mt-1 text-purple-600">
                   {configuredFeeValue > 0 ? formatCurrency(configuredFeeValue) : 'Not set'}
-                </p>
+                </Heading>
               </div>
               <div>
-                <p className="text-sm text-slate-600">Fee Percentage</p>
-                <p className="mt-1 font-medium text-slate-900">
+                <Label as="p" size="sm" tone="muted">
+                  Fee Percentage
+                </Label>
+                <Body as="p" size="sm" className="mt-1">
                   {data.feeType === 'Percentage'
                     ? formatPercentage(data.feePercentage)
                     : data.feeType
                       ? 'Not applicable'
                       : 'Not set'}
-                </p>
+                </Body>
               </div>
             </div>
 
             {data.activeServices.length > 0 && (
               <div>
-                <p className="text-sm text-slate-600">Active Services</p>
+                <Label as="p" size="sm" tone="muted">
+                  Active Services
+                </Label>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {data.activeServices.map((service) => (
                     <span
@@ -222,12 +239,18 @@ export default function ManagementFeesStage({ monthlyLogId }: ManagementFeesStag
             )}
 
             {!hasConfiguredFee && (
-              <div className="rounded-lg bg-amber-50 p-3 text-sm text-amber-700">
-                <p className="font-medium">No management fee configured</p>
-                <p className="mt-1 text-xs">
+              <Body
+                as="div"
+                size="sm"
+                className="rounded-lg bg-amber-50 p-3 text-amber-700"
+              >
+                <Label as="p" size="sm">
+                  No management fee configured
+                </Label>
+                <Body as="p" size="xs" className="mt-1">
                   Configure a management fee to generate fees automatically.
-                </p>
-              </div>
+                </Body>
+              </Body>
             )}
           </div>
         </CardContent>
@@ -258,22 +281,24 @@ export default function ManagementFeesStage({ monthlyLogId }: ManagementFeesStag
                   className="flex items-center justify-between rounded-lg border border-purple-200 bg-purple-50 p-4"
                 >
                   <div className="flex-1">
-                    <div className="font-medium text-slate-900">{fee.memo}</div>
-                    <div className="mt-1 text-sm text-slate-600">{formatDate(fee.date)}</div>
+                    <Label as="div">{fee.memo}</Label>
+                    <Body as="div" size="sm" tone="muted" className="mt-1">
+                      {formatDate(fee.date)}
+                    </Body>
                   </div>
                   <div className="text-right">
-                    <div className="text-lg font-semibold text-purple-600">
+                    <Heading as="div" size="h5" className="text-purple-600">
                       {formatCurrency(Math.abs(fee.total_amount))}
-                    </div>
+                    </Heading>
                   </div>
                 </div>
               ))}
 
               <div className="flex items-center justify-between border-t border-slate-300 pt-3">
-                <span className="font-medium text-slate-700">Total Management Fees</span>
-                <span className="text-xl font-bold text-purple-600">
+                <Label as="span">Total Management Fees</Label>
+                <Heading as="span" size="h4" className="text-purple-600">
                   {formatCurrency(data.totalFees)}
-                </span>
+                </Heading>
               </div>
             </div>
           ) : (
@@ -281,12 +306,14 @@ export default function ManagementFeesStage({ monthlyLogId }: ManagementFeesStag
               <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100">
                 <Briefcase className="h-6 w-6 text-slate-400" />
               </div>
-              <h3 className="mt-4 text-sm font-medium text-slate-900">No fees assigned</h3>
-              <p className="mt-2 text-sm text-slate-600">
+              <Heading as="h3" size="h6" className="mt-4">
+                No fees assigned
+              </Heading>
+              <Body as="p" size="sm" tone="muted" className="mt-2">
                 {hasConfiguredFee
                   ? 'Click "Generate Fee" to create a management fee for this period.'
                   : 'Configure a management fee for this unit first.'}
-              </p>
+              </Body>
             </div>
           )}
         </CardContent>

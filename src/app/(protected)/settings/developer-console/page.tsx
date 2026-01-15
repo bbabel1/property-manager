@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Switch } from '@/components/ui/switch'
+import { Body, Heading, Label } from '@/ui/typography'
 
 type WebhookRow = {
   name: string
@@ -134,7 +135,9 @@ export default function DeveloperConsolePage() {
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold text-foreground">Developer Console</h1>
+        <Heading as="h1" size="h3" className="font-bold">
+          Developer Console
+        </Heading>
         <div className="flex items-center gap-2">
           <Button variant="outline" asChild>
             <Link href="/settings">Back to Settings</Link>
@@ -143,7 +146,11 @@ export default function DeveloperConsolePage() {
         </div>
       </div>
 
-      {error && <div className="text-destructive text-sm">{error}</div>}
+      {error && (
+        <Body tone="default" size="sm" className="text-destructive">
+          {error}
+        </Body>
+      )}
 
       <Card>
         <CardHeader>
@@ -154,25 +161,33 @@ export default function DeveloperConsolePage() {
             <Table className="min-w-[640px]">
               <TableHeader>
                 <TableRow className="border-border/60 bg-muted/30">
-                  <TableHead className="text-xs font-semibold uppercase tracking-wide px-4 py-3">
-                    Event name
+                  <TableHead className="px-4 py-3">
+                    <Label as="span" size="xs" tone="muted" className="font-semibold uppercase tracking-wide">
+                      Event name
+                    </Label>
                   </TableHead>
-                  <TableHead className="text-right text-xs font-semibold uppercase tracking-wide px-4 py-3">
-                    Status
+                  <TableHead className="px-4 py-3 text-right">
+                    <Label as="span" size="xs" tone="muted" className="font-semibold uppercase tracking-wide">
+                      Status
+                    </Label>
                   </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody className="divide-border/60 divide-y">
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={2} className="px-4 py-6 text-center text-muted-foreground">
-                      Loading...
+                    <TableCell colSpan={2} className="px-4 py-6 text-center">
+                      <Body tone="muted" size="sm">
+                        Loading...
+                      </Body>
                     </TableCell>
                   </TableRow>
                 ) : tableError ? (
                   <TableRow>
                     <TableCell colSpan={2} className="px-4 py-6 text-center text-destructive">
-                      {tableError}
+                      <Body tone="default" size="sm" className="text-destructive">
+                        {tableError}
+                      </Body>
                     </TableCell>
                   </TableRow>
                 ) : WEBHOOK_EVENTS.map((evt, idx) => {
@@ -182,9 +197,13 @@ export default function DeveloperConsolePage() {
                       <TableCell className="px-4 py-3 font-medium text-foreground">{evt.name}</TableCell>
                       <TableCell className="px-4 py-3">
                         <div className="flex items-center justify-end gap-2">
-                          <span className="text-xs text-muted-foreground">Off</span>
+                          <Label as="span" size="xs" tone="muted">
+                            Off
+                          </Label>
                           <Switch checked={active} onCheckedChange={() => toggle(evt.name)} />
-                          <span className="text-xs text-muted-foreground">On</span>
+                          <Label as="span" size="xs" tone="muted">
+                            On
+                          </Label>
                         </div>
                       </TableCell>
                     </TableRow>

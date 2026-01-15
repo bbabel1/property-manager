@@ -11,12 +11,13 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Label as FormLabel } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { formatCurrency } from '@/lib/transactions/formatting';
+import { Body, Heading, Label } from '@/ui/typography';
 
 type ServiceOffering = {
   id: string;
@@ -502,7 +503,11 @@ export default function DraftAssignmentServicesEditor({
   if (loading) {
     return (
       <Card>
-        <CardContent className="text-muted-foreground py-6 text-center">Loading…</CardContent>
+        <CardContent className="py-6 text-center">
+          <Body as="p" size="sm" tone="muted">
+            Loading…
+          </Body>
+        </CardContent>
       </Card>
     );
   }
@@ -510,7 +515,11 @@ export default function DraftAssignmentServicesEditor({
   if (error) {
     return (
       <Card>
-        <CardContent className="py-6 text-center text-destructive">{error}</CardContent>
+        <CardContent className="py-6 text-center text-destructive">
+          <Body as="p" size="sm" className="text-destructive">
+            {error}
+          </Body>
+        </CardContent>
       </Card>
     );
   }
@@ -519,17 +528,29 @@ export default function DraftAssignmentServicesEditor({
     <>
       <Card>
         <CardHeader className="space-y-3">
-          <CardTitle className="text-xl">{title}</CardTitle>
-          <CardDescription>Assign a service plan and view included services.</CardDescription>
+          <CardTitle headingAs="h2" headingSize="h4">
+            {title}
+          </CardTitle>
+          <CardDescription>
+            Assign a service plan and view included services.
+          </CardDescription>
           <div className="rounded-lg border bg-muted/40 p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-sm text-muted-foreground">Active Plan</p>
-                <p className="text-lg font-semibold">{planSummary}</p>
+                <Body as="p" size="sm" tone="muted">
+                  Active Plan
+                </Body>
+                <Heading as="p" size="h4" className="font-semibold leading-tight">
+                  {planSummary}
+                </Heading>
               </div>
               <div className="text-right">
-                <p className="text-sm text-muted-foreground">Plan Fee</p>
-                <p className="text-lg font-semibold">{planFeeSummary}</p>
+                <Body as="p" size="sm" tone="muted">
+                  Plan Fee
+                </Body>
+                <Heading as="p" size="h4" className="font-semibold leading-tight">
+                  {planFeeSummary}
+                </Heading>
               </div>
             </div>
           </div>
@@ -539,10 +560,12 @@ export default function DraftAssignmentServicesEditor({
           {draft.plan_id ? (
             <div className="rounded-lg border p-4">
               <div className="flex items-baseline justify-between gap-3">
-                <p className="text-sm font-medium">Services</p>
-                <p className="text-muted-foreground text-xs">
+                <Heading as="p" size="h5" className="font-medium">
+                  Services
+                </Heading>
+                <Body as="p" size="sm" tone="muted" className="text-xs">
                   {isALaCarte ? 'Selected services' : 'Included services'}
-                </p>
+                </Body>
               </div>
 
               {isALaCarte ? (
@@ -568,17 +591,19 @@ export default function DraftAssignmentServicesEditor({
                         <li key={offeringId} className="rounded-md border px-3 py-2">
                           <div className="flex items-start justify-between gap-3">
                             <div>
-                              <p className="text-sm font-medium">{offering.name}</p>
-                              <p className="text-muted-foreground text-xs">
+                              <Label as="p" size="sm">
+                                {offering.name}
+                              </Label>
+                              <Body as="p" size="xs" tone="muted">
                                 {displayAmount} • {String(displayFrequency).replace(/_/g, ' ')}
                                 {overridden ? ' (override)' : ''}
-                              </p>
+                              </Body>
                             </div>
                             <div className="flex items-center gap-3">
                               <div className="flex items-center gap-2">
-                                <span className="text-muted-foreground text-xs">
+                                <Body as="span" size="xs" tone="muted">
                                   {row.is_active ? 'Active' : 'Inactive'}
-                                </span>
+                                </Body>
                                 <Switch
                                   checked={row.is_active}
                                   onCheckedChange={(checked) =>
@@ -620,11 +645,13 @@ export default function DraftAssignmentServicesEditor({
                     return (
                       <li key={offering.id} className="rounded-md border px-3 py-2">
                         <div className="flex items-center justify-between gap-3">
-                          <p className="text-sm font-medium">{offering.name}</p>
+                          <Label as="p" size="sm">
+                            {offering.name}
+                          </Label>
                           <div className="flex items-center gap-2">
-                            <span className="text-muted-foreground text-xs">
+                            <Body as="span" size="xs" tone="muted">
                               {isActive ? 'Active' : 'Inactive'}
-                            </span>
+                            </Body>
                             <Switch
                               checked={isActive}
                               onCheckedChange={(checked) => toggleIncludedServiceActive(offering.id, checked)}
@@ -677,16 +704,22 @@ export default function DraftAssignmentServicesEditor({
               return (
                 <div className="space-y-4">
                   <div className="rounded-lg border p-3">
-                    <p className="text-sm font-medium">{offering.name}</p>
-                    <p className="text-muted-foreground text-xs">Default: {defaultSummary}</p>
+                    <Label as="p" size="sm">
+                      {offering.name}
+                    </Label>
+                    <Body as="p" size="xs" tone="muted">
+                      Default: {defaultSummary}
+                    </Body>
                   </div>
 
                   <div className="flex items-center justify-between rounded-lg border p-3">
                     <div>
-                      <p className="text-sm font-medium">Active</p>
-                      <p className="text-muted-foreground text-xs">
+                      <Label as="p" size="sm">
+                        Active
+                      </Label>
+                      <Body as="p" size="xs" tone="muted">
                         Controls whether this service applies to this property.
-                      </p>
+                      </Body>
                     </div>
                     <Switch
                       checked={serviceEditForm.is_active}
@@ -817,10 +850,12 @@ export default function DraftAssignmentServicesEditor({
             <div className="flex items-start gap-3 rounded-lg border p-3">
               {isALaCartePlanName(planDetails?.name) ? (
                 <div className="space-y-1">
-                  <p className="text-sm font-medium">A-la-carte mode</p>
-                  <p className="text-muted-foreground text-xs">
+                  <Label as="p" size="sm">
+                    A-la-carte mode
+                  </Label>
+                  <Body as="p" size="xs" tone="muted">
                     No plan-level fee. Select services below and optionally override each service’s pricing.
-                  </p>
+                  </Body>
                 </div>
               ) : (
                 <>
@@ -874,8 +909,12 @@ export default function DraftAssignmentServicesEditor({
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="rounded-lg border">
                     <div className="border-b px-3 py-2">
-                      <p className="text-sm font-medium">Available</p>
-                      <p className="text-muted-foreground text-xs">Select services to include for this property.</p>
+                      <Label as="p" size="sm">
+                        Available
+                      </Label>
+                      <Body as="p" size="xs" tone="muted">
+                        Select services to include for this property.
+                      </Body>
                     </div>
                     <div className="max-h-[360px] overflow-auto p-2">
                       <div className="space-y-1">
@@ -914,8 +953,12 @@ export default function DraftAssignmentServicesEditor({
                                   }}
                                 />
                                 <div>
-                                  <p className="text-sm font-medium">{offering.name}</p>
-                                  <p className="text-muted-foreground text-xs">{offering.category}</p>
+                                  <Label as="p" size="sm">
+                                    {offering.name}
+                                  </Label>
+                                  <Body as="p" size="xs" tone="muted">
+                                    {offering.category}
+                                  </Body>
                                 </div>
                               </div>
                               <div className="text-muted-foreground text-xs">{formatOfferingDefault(offering)}</div>
@@ -923,7 +966,9 @@ export default function DraftAssignmentServicesEditor({
                           );
                         })}
                         {!visibleOfferings.length ? (
-                          <p className="text-muted-foreground px-2 py-3 text-sm">No services found.</p>
+                          <Body as="p" size="sm" tone="muted" className="px-2 py-3">
+                            No services found.
+                          </Body>
                         ) : null}
                       </div>
                     </div>
@@ -931,8 +976,12 @@ export default function DraftAssignmentServicesEditor({
 
                   <div className="rounded-lg border">
                     <div className="border-b px-3 py-2">
-                      <p className="text-sm font-medium">Selected</p>
-                      <p className="text-muted-foreground text-xs">Override pricing per service when needed.</p>
+                      <Label as="p" size="sm">
+                        Selected
+                      </Label>
+                      <Body as="p" size="xs" tone="muted">
+                        Override pricing per service when needed.
+                      </Body>
                     </div>
                     <div className="max-h-[360px] overflow-auto p-3">
                       {Object.entries(draft.a_la_carte_selections)
@@ -945,8 +994,12 @@ export default function DraftAssignmentServicesEditor({
                             <div key={offeringId} className="space-y-2 rounded-lg border p-3">
                               <div className="flex items-start justify-between gap-3">
                                 <div>
-                                  <p className="text-sm font-medium">{offering.name}</p>
-                                  <p className="text-muted-foreground text-xs">Default: {formatOfferingDefault(offering)}</p>
+                                  <Label as="p" size="sm">
+                                    {offering.name}
+                                  </Label>
+                                  <Body as="p" size="xs" tone="muted">
+                                    Default: {formatOfferingDefault(offering)}
+                                  </Body>
                                 </div>
                                 <div className="flex items-center gap-2">
                                   <Checkbox
@@ -1115,10 +1168,12 @@ export default function DraftAssignmentServicesEditor({
 
                 <div className="space-y-3">
                   <div>
-                    <p className="text-sm font-medium">Included Services</p>
-                    <p className="text-muted-foreground text-xs">
+                    <Label as="p" size="sm">
+                      Included Services
+                    </Label>
+                    <Body as="p" size="xs" tone="muted">
                       Services are configured on the Service Catalog plan. Toggle statuses when overriding to activate or deactivate individual services.
-                    </p>
+                    </Body>
                   </div>
 
                   <div className="rounded-lg border p-3">
@@ -1131,11 +1186,13 @@ export default function DraftAssignmentServicesEditor({
                           return (
                             <li key={offeringId} className="rounded border px-3 py-2">
                               <div className="flex items-center justify-between gap-3">
-                                <span className="text-sm font-medium">{offering.name}</span>
+                                <Label as="span" size="sm">
+                                  {offering.name}
+                                </Label>
                                 <div className="flex items-center gap-2">
-                                  <span className="text-muted-foreground text-xs">
+                                  <Body as="span" size="xs" tone="muted">
                                     {isActive ? 'Active' : 'Inactive'}
-                                  </span>
+                                  </Body>
                                   {overrideGlobalValues && !readOnly ? (
                                     <Switch
                                       checked={isActive}

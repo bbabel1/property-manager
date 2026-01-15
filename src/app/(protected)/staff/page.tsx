@@ -18,6 +18,8 @@ import {
 } from '@/components/ui/table';
 import { normalizeStaffRole } from '@/lib/staff-role';
 import { getAvailableUIStaffRoles } from '@/lib/enums/staff-roles';
+import { Checkbox } from '@/ui/checkbox';
+import { Body, Heading, Label } from '@/ui/typography';
 
 type Staff = {
   id: number;
@@ -137,7 +139,9 @@ export default function StaffPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Staff</h1>
+      <Heading as="h1" size="h2">
+        Staff
+      </Heading>
 
       <Card>
         <CardHeader>
@@ -155,7 +159,9 @@ export default function StaffPage() {
             </div>
           </div>
           {lastSync && (
-            <div className="text-muted-foreground mt-1 text-xs">Last staff sync: {lastSync}</div>
+            <Label as="div" size="xs" tone="muted" className="mt-1">
+              Last staff sync: {lastSync}
+            </Label>
           )}
         </CardHeader>
         <CardContent>
@@ -168,26 +174,28 @@ export default function StaffPage() {
                 placeholder="All Roles"
               />
             </div>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
+            <Label as="label" className="flex items-center gap-2">
+              <Checkbox
                 checked={filterActive}
                 onChange={(e) => setFilterActive(e.target.checked)}
               />{' '}
               Active
-            </label>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
+            </Label>
+            <Label as="label" className="flex items-center gap-2">
+              <Checkbox
                 checked={filterSynced}
                 onChange={(e) => setFilterSynced(e.target.checked)}
               />{' '}
               Synced to Buildium
-            </label>
+            </Label>
           </div>
-          {error && <div className="text-destructive mb-3 text-sm">{error}</div>}
+          {error && (
+            <Body size="sm" className="text-destructive mb-3">
+              {error}
+            </Body>
+          )}
           {loading ? (
-            <div className="text-muted-foreground">Loading…</div>
+            <Body tone="muted">Loading…</Body>
           ) : (
             <Table className="divide-border min-w-full divide-y">
               <TableHeader>
@@ -217,7 +225,7 @@ export default function StaffPage() {
                     <TableCell>
                       <div className="flex items-center gap-2">
                         {s.buildium_staff_id != null && (
-                          <span className="rounded-full bg-[var(--color-action-50)] px-2 py-0.5 text-xs text-[var(--color-action-600)]">
+                          <span className="rounded-full bg-primary-50 px-2 py-0.5 text-xs text-primary-600">
                             Synced
                           </span>
                         )}
@@ -241,8 +249,10 @@ export default function StaffPage() {
                 ))}
                 {staff.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-muted-foreground text-sm">
-                      No staff yet.
+                    <TableCell colSpan={8}>
+                      <Body size="sm" tone="muted">
+                        No staff yet.
+                      </Body>
                     </TableCell>
                   </TableRow>
                 )}
@@ -251,7 +261,11 @@ export default function StaffPage() {
           )}
         </CardContent>
       </Card>
-      {syncError && <div className="text-destructive text-sm">{syncError}</div>}
+      {syncError && (
+        <Body size="sm" className="text-destructive">
+          {syncError}
+        </Body>
+      )}
 
       {/* Staff Wizard */}
       <StaffWizardModal open={showModal} onOpenChange={setShowModal} onSaved={load} />
@@ -337,41 +351,44 @@ function EditStaffModal({
         </DialogHeader>
         {staff && (
           <div className="space-y-4">
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               <div>
-                <label className="mb-1 block text-sm">First Name</label>
+                <Label className="mb-1 block">First Name</Label>
                 <Input value={firstName} onChange={(e) => setFirst(e.target.value)} />
               </div>
               <div>
-                <label className="mb-1 block text-sm">Last Name</label>
+                <Label className="mb-1 block">Last Name</Label>
                 <Input value={lastName} onChange={(e) => setLast(e.target.value)} />
               </div>
               <div>
-                <label className="mb-1 block text-sm">Email</label>
+                <Label className="mb-1 block">Email</Label>
                 <Input value={email} onChange={(e) => setEmail(e.target.value)} />
               </div>
               <div>
-                <label className="mb-1 block text-sm">Phone</label>
+                <Label className="mb-1 block">Phone</Label>
                 <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
               </div>
               <div className="md:col-span-2">
-                <label className="mb-1 block text-sm">Title</label>
+                <Label className="mb-1 block">Title</Label>
                 <Input value={title} onChange={(e) => setTitle(e.target.value)} />
               </div>
               <div className="md:col-span-1">
-                <label className="mb-1 block text-sm">Role</label>
+                <Label className="mb-1 block">Role</Label>
                 <Dropdown value={role} onChange={setRole} options={ROLE_OPTIONS} />
               </div>
-              <label className="flex items-center gap-2 self-end text-sm md:col-span-1">
-                <input
-                  type="checkbox"
+            <Label as="label" className="flex items-center gap-2 self-end md:col-span-1">
+                <Checkbox
                   checked={active}
                   onChange={(e) => setActive(e.target.checked)}
                 />{' '}
                 Active
-              </label>
+              </Label>
             </div>
-            {err && <div className="text-destructive text-sm">{err}</div>}
+            {err && (
+              <Body size="sm" className="text-destructive">
+                {err}
+              </Body>
+            )}
             <div className="flex justify-end gap-2">
               <Button variant="cancel" onClick={onClose}>
                 Cancel

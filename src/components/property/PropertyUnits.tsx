@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Building, Plus, Search, Filter, Bed, Bath, Ruler, DollarSign, MapPin } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Body, Heading, Label } from '@/ui/typography'
 import { Unit } from '@/types/units'
 import AddUnitModal from '../AddUnitModal'
 
@@ -54,13 +55,13 @@ export function PropertyUnits({ propertyId, onUnitsChange }: PropertyUnitsProps)
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'Occupied':
-        return 'status-pill border-red-800 bg-red-100 text-red-800'
+        return 'status-pill status-pill-danger'
       case 'Available':
-        return 'status-pill border-[var(--color-success-500)] bg-[var(--color-success-50)] text-[var(--color-success-700)]'
+        return 'status-pill status-pill-success'
       case 'Maintenance':
-        return 'status-pill border-yellow-800 bg-yellow-100 text-yellow-800'
+        return 'status-pill status-pill-warning'
       default:
-        return 'bg-gray-100 text-gray-800'
+        return 'status-pill status-pill-info'
     }
   }
 
@@ -94,7 +95,9 @@ export function PropertyUnits({ propertyId, onUnitsChange }: PropertyUnitsProps)
       {isLoading && (
         <div className="text-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-2 text-muted-foreground">Loading units...</p>
+          <Body as="p" tone="muted" size="sm" className="mt-2">
+            Loading units...
+          </Body>
         </div>
       )}
 
@@ -102,8 +105,12 @@ export function PropertyUnits({ propertyId, onUnitsChange }: PropertyUnitsProps)
       {!isLoading && units.length === 0 && (
         <div className="text-center py-12">
           <Building className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-foreground mb-2">No units added</h3>
-          <p className="text-muted-foreground mb-6">Add units to this property to start managing rentals and leases.</p>
+          <Heading as="h3" size="h5" className="mb-2">
+            No units added
+          </Heading>
+          <Body as="p" tone="muted" size="sm" className="mb-6">
+            Add units to this property to start managing rentals and leases.
+          </Body>
           <Button onClick={() => setShowAddUnitModal(true)}>
             <Plus className="w-4 h-4 mr-2" />
             Add Your First Unit
@@ -117,49 +124,69 @@ export function PropertyUnits({ propertyId, onUnitsChange }: PropertyUnitsProps)
           {filteredUnits.map((unit) => (
             <div key={unit.id} className="bg-card rounded-lg border border-border p-6 transition-shadow">
               <div className="flex items-start justify-between mb-4">
-                <h3 className="font-semibold text-lg">Unit {unit.unitNumber}</h3>
-                <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(getUnitStatus())}`}>
+                <Heading as="h3" size="h6">
+                  Unit {unit.unitNumber}
+                </Heading>
+                <Label
+                  as="span"
+                  size="xs"
+                  className={`px-2 py-1 rounded-full ${getStatusColor(getUnitStatus())}`}
+                >
                   {getUnitStatus()}
-                </span>
+                </Label>
               </div>
               
               <div className="space-y-3 mb-4">
-                <div className="flex items-center gap-4 text-sm">
+                <div className="flex items-center gap-4">
                   <div className="flex items-center gap-1">
                     <Bed className="w-4 h-4 text-muted-foreground" />
-                    <span>{unit.unitBedrooms || 'N/A'}</span>
+                    <Body as="span" size="sm">
+                      {unit.unitBedrooms || 'N/A'}
+                    </Body>
                   </div>
                   <div className="flex items-center gap-1">
                     <Bath className="w-4 h-4 text-muted-foreground" />
-                    <span>{unit.unitBathrooms || 'N/A'}</span>
+                    <Body as="span" size="sm">
+                      {unit.unitBathrooms || 'N/A'}
+                    </Body>
                   </div>
                   <div className="flex items-center gap-1">
                     <Ruler className="w-4 h-4 text-muted-foreground" />
-                    <span>{unit.unitSize ? `${unit.unitSize} sq ft` : 'N/A'}</span>
+                    <Body as="span" size="sm">
+                      {unit.unitSize ? `${unit.unitSize} sq ft` : 'N/A'}
+                    </Body>
                   </div>
                 </div>
                 
                 {unit.marketRent && (
-                  <div className="flex items-center gap-1 text-sm">
+                  <div className="flex items-center gap-1">
                     <DollarSign className="w-4 h-4 text-muted-foreground" />
-                    <span className="font-medium">${unit.marketRent.toLocaleString()}/month</span>
+                    <Label as="span" size="sm">
+                      ${unit.marketRent.toLocaleString()}/month
+                    </Label>
                   </div>
                 )}
                 
                 {unit.addressLine1 && (
-                  <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                  <div className="flex items-center gap-1">
                     <MapPin className="w-4 h-4" />
-                    <span className="truncate">{unit.addressLine1}</span>
+                    <Body as="span" tone="muted" size="sm" className="truncate">
+                      {unit.addressLine1}
+                    </Body>
                   </div>
                 )}
                 
                 {unit.description && (
-                  <p className="text-sm text-muted-foreground">{unit.description}</p>
+                  <Body as="p" tone="muted" size="sm">
+                    {unit.description}
+                  </Body>
                 )}
               </div>
               
-              <div className="flex items-center justify-between text-sm text-muted-foreground">
-                <span>Unit ID: {unit.id}</span>
+              <div className="flex items-center justify-between">
+                <Body as="span" tone="muted" size="sm">
+                  Unit ID: {unit.id}
+                </Body>
                 <Button variant="outline" size="sm">
                   View Details
                 </Button>

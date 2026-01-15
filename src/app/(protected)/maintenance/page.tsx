@@ -21,6 +21,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { supabase, supabaseAdmin } from '@/lib/db';
 import type { Database } from '@/types/database';
+import { Body, Heading, Label } from '@/ui/typography';
 
 type WorkOrderStatus = 'New' | 'In progress' | 'Completed' | 'Cancelled';
 type WorkOrderPriority = 'Low' | 'Normal' | 'High' | 'Urgent';
@@ -51,20 +52,17 @@ type UIWorkOrder = {
 };
 
 const STATUS_BADGE_STYLES: Record<WorkOrderStatus, string> = {
-  New: 'border-[var(--color-warning-500)] bg-[var(--color-warning-50)] text-[var(--color-warning-600)]',
-  'In progress':
-    'border-[var(--color-action-200)] bg-[var(--color-action-50)] text-[var(--color-action-700)]',
-  Completed:
-    'border-[var(--color-success-500)] bg-[var(--color-success-50)] text-[var(--color-success-700)]',
-  Cancelled:
-    'border-[var(--color-gray-300)] bg-[var(--color-gray-50)] text-[var(--color-gray-600)]',
+  New: 'status-pill-warning',
+  'In progress': 'status-pill-info',
+  Completed: 'status-pill-success',
+  Cancelled: 'status-pill-danger',
 };
 
 const PRIORITY_DOT_STYLES: Record<WorkOrderPriority, string> = {
-  High: 'bg-[var(--color-danger-500)]',
-  Normal: 'bg-[var(--color-warning-600)]',
-  Low: 'bg-[var(--color-gray-400)]',
-  Urgent: 'bg-[var(--color-danger-700)]',
+  High: 'bg-danger-500',
+  Normal: 'bg-warning-600',
+  Low: 'bg-muted-foreground',
+  Urgent: 'bg-danger-700',
 };
 
 const TASK_KIND_LABELS: Record<NonNullable<TaskRow['task_kind']>, string> = {
@@ -342,14 +340,19 @@ export default async function MaintenancePage() {
     <div className="space-y-6 p-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-foreground text-2xl font-bold">Work orders</h1>
-          <Link
+          <Heading as="h1" size="h3">
+            Work orders
+          </Heading>
+          <Label
+            as={Link}
             href="#"
-            className="text-muted-foreground hover:text-foreground flex items-center gap-2 text-sm font-medium"
+            size="sm"
+            tone="muted"
+            className="flex items-center gap-2 hover:text-foreground"
           >
             <CircleHelp className="size-4" />
             Help
-          </Link>
+          </Label>
         </div>
         <div className="flex items-center gap-2">
           <Button asChild className="shadow-sm">
@@ -409,12 +412,14 @@ export default async function MaintenancePage() {
             </Button>
           </div>
 
-          <div className="border-border/70 text-muted-foreground flex flex-wrap items-center justify-between gap-3 border-b px-6 py-3 text-sm">
-            <span>{uiWorkOrders.length} matches</span>
+          <div className="border-border/70 flex flex-wrap items-center justify-between gap-3 border-b px-6 py-3">
+            <Body as="span" size="sm" tone="muted">
+              {uiWorkOrders.length} matches
+            </Body>
             <Button
               variant="ghost"
               size="sm"
-              className="text-muted-foreground hover:text-foreground flex items-center gap-2 px-3"
+              className="hover:text-foreground flex items-center gap-2 px-3 text-muted-foreground"
             >
               <Download className="size-4" />
               Export
@@ -424,39 +429,61 @@ export default async function MaintenancePage() {
           <div className="px-2 pt-4 pb-2 sm:px-4 md:px-6">
             <Table className="min-w-[960px]">
               <TableHeader>
-                <TableRow className="border-border/70 bg-muted/40 text-muted-foreground border-b text-xs tracking-widest uppercase">
-                  <TableHead className="text-muted-foreground pl-2 text-xs font-semibold tracking-wide">
-                    Work order
+                <TableRow className="border-border/70 bg-muted/40 border-b tracking-widest uppercase">
+                  <TableHead className="pl-2">
+                    <Label as="span" size="xs" tone="muted">
+                      Work order
+                    </Label>
                   </TableHead>
-                  <TableHead className="text-muted-foreground text-xs font-semibold tracking-wide">
-                    Unit
+                  <TableHead>
+                    <Label as="span" size="xs" tone="muted">
+                      Unit
+                    </Label>
                   </TableHead>
-                  <TableHead className="text-muted-foreground text-xs font-semibold tracking-wide">
-                    Updated
+                  <TableHead>
+                    <Label as="span" size="xs" tone="muted">
+                      Updated
+                    </Label>
                   </TableHead>
-                  <TableHead className="text-muted-foreground text-xs font-semibold tracking-wide">
-                    Age
+                  <TableHead>
+                    <Label as="span" size="xs" tone="muted">
+                      Age
+                    </Label>
                   </TableHead>
-                  <TableHead className="text-muted-foreground text-xs font-semibold tracking-wide">
-                    Status
+                  <TableHead>
+                    <Label as="span" size="xs" tone="muted">
+                      Status
+                    </Label>
                   </TableHead>
-                  <TableHead className="text-muted-foreground text-xs font-semibold tracking-wide">
-                    Due
+                  <TableHead>
+                    <Label as="span" size="xs" tone="muted">
+                      Due
+                    </Label>
                   </TableHead>
-                  <TableHead className="text-muted-foreground text-xs font-semibold tracking-wide">
-                    Assigned to
+                  <TableHead>
+                    <Label as="span" size="xs" tone="muted">
+                      Assigned to
+                    </Label>
                   </TableHead>
-                  <TableHead className="text-muted-foreground text-xs font-semibold tracking-wide">
-                    Priority
+                  <TableHead>
+                    <Label as="span" size="xs" tone="muted">
+                      Priority
+                    </Label>
                   </TableHead>
-                  <TableHead className="text-muted-foreground text-xs font-semibold tracking-wide">
-                    Vendor
+                  <TableHead>
+                    <Label as="span" size="xs" tone="muted">
+                      Vendor
+                    </Label>
                   </TableHead>
-                  <TableHead className="text-muted-foreground text-xs font-semibold tracking-wide">
-                    Bill total
+                  <TableHead>
+                    <Label as="span" size="xs" tone="muted">
+                      Bill total
+                    </Label>
                   </TableHead>
-                  <TableHead className="text-muted-foreground text-xs font-semibold tracking-wide">
-                    Bill status
+                  <TableHead>
+                    <Label as="span" size="xs" tone="muted">
+                      Bill status
+                    </Label>
                   </TableHead>
                   <TableHead>
                     <span className="sr-only">Actions</span>
@@ -466,38 +493,53 @@ export default async function MaintenancePage() {
               <TableBody>
                 {uiWorkOrders.length === 0 ? (
                   <TableRow>
-                    <TableCell
-                      colSpan={12}
-                      className="text-muted-foreground py-12 text-center text-sm"
-                    >
-                      No work orders found.
+                    <TableCell colSpan={12} className="py-12 text-center">
+                      <Body as="span" size="sm" tone="muted">
+                        No work orders found.
+                      </Body>
                     </TableCell>
                   </TableRow>
                 ) : (
                   uiWorkOrders.map((order) => (
                     <TableRow key={order.id} className="border-border/70 border-b last:border-0">
-                      <TableCell className="px-2 py-4 align-top text-sm whitespace-normal">
+                      <TableCell className="px-2 py-4 align-top whitespace-normal">
                         {order.taskId ? (
-                          <Link
+                          <Label
+                            as={Link}
                             href={`/tasks/${order.taskId}?tab=work-orders&workOrderId=${order.id}`}
-                            className="text-primary leading-5 font-medium hover:underline"
+                            size="sm"
+                            className="leading-5 text-primary hover:underline"
                           >
                             {order.title}
-                          </Link>
+                          </Label>
                         ) : (
-                          <span className="text-primary leading-5 font-medium">{order.title}</span>
+                          <Label as="span" size="sm" className="leading-5 text-primary">
+                            {order.title}
+                          </Label>
                         )}
-                        <p className="text-muted-foreground mt-1 text-xs">{order.requestType}</p>
+                        <Body as="p" size="xs" tone="muted" className="mt-1">
+                          {order.requestType}
+                        </Body>
                       </TableCell>
-                      <TableCell className="text-muted-foreground py-4 align-top text-sm whitespace-normal">
-                        {order.unit}
+                      <TableCell className="py-4 align-top whitespace-normal">
+                        <Body as="span" size="sm" tone="muted">
+                          {order.unit}
+                        </Body>
                       </TableCell>
-                      <TableCell className="py-4 align-top text-sm whitespace-normal">
-                        <p>{order.updatedAt}</p>
-                        <p className="text-muted-foreground text-xs">{order.updatedRelative}</p>
+                      <TableCell className="py-4 align-top whitespace-normal">
+                        <Body as="p" size="sm">
+                          {order.updatedAt}
+                        </Body>
+                        <Body as="p" size="xs" tone="muted">
+                          {order.updatedRelative}
+                        </Body>
                       </TableCell>
-                      <TableCell className="py-4 align-top text-sm">{order.age}</TableCell>
-                      <TableCell className="py-4 align-top text-sm">
+                      <TableCell className="py-4 align-top">
+                        <Body as="span" size="sm">
+                          {order.age}
+                        </Body>
+                      </TableCell>
+                      <TableCell className="py-4 align-top">
                         <Badge
                           variant="outline"
                           className={`status-pill ${STATUS_BADGE_STYLES[order.status]}`}
@@ -505,26 +547,40 @@ export default async function MaintenancePage() {
                           {order.status}
                         </Badge>
                       </TableCell>
-                      <TableCell className="py-4 align-top text-sm">{order.dueDate}</TableCell>
-                      <TableCell className="py-4 align-top text-sm whitespace-normal">
-                        <p className="text-foreground font-medium">{order.assignedTo}</p>
+                      <TableCell className="py-4 align-top">
+                        <Body as="span" size="sm">
+                          {order.dueDate}
+                        </Body>
                       </TableCell>
-                      <TableCell className="py-4 align-top text-sm">
+                      <TableCell className="py-4 align-top whitespace-normal">
+                        <Label as="span" size="sm">
+                          {order.assignedTo}
+                        </Label>
+                      </TableCell>
+                      <TableCell className="py-4 align-top">
                         <div className="flex items-center gap-2">
                           <span
                             className={`h-2.5 w-2.5 rounded-full ${PRIORITY_DOT_STYLES[order.priority]}`}
                           />
-                          <span>{order.priority}</span>
+                          <Body as="span" size="sm">
+                            {order.priority}
+                          </Body>
                         </div>
                       </TableCell>
-                      <TableCell className="py-4 align-top text-sm whitespace-normal">
-                        {order.vendor}
+                      <TableCell className="py-4 align-top whitespace-normal">
+                        <Body as="span" size="sm">
+                          {order.vendor}
+                        </Body>
                       </TableCell>
-                      <TableCell className="py-4 align-top text-sm whitespace-normal">
-                        <p className="text-muted-foreground font-medium">{order.billTotal}</p>
+                      <TableCell className="py-4 align-top whitespace-normal">
+                        <Label as="p" size="sm" tone="muted">
+                          {order.billTotal}
+                        </Label>
                       </TableCell>
-                      <TableCell className="py-4 align-top text-sm">
-                        <span className="text-muted-foreground">{order.billStatus}</span>
+                      <TableCell className="py-4 align-top">
+                        <Body as="span" size="sm" tone="muted">
+                          {order.billStatus}
+                        </Body>
                       </TableCell>
                       <TableCell className="py-4 text-right align-top">
                         <Button

@@ -24,6 +24,7 @@ import type { Database } from '@/types/database';
 import { RecurringBillStatusBadge } from '@/components/bills/RecurringBillStatusBadge';
 import { BillAdminNotes } from '@/components/bills/BillAdminNotes';
 import type { RecurringBillSchedule, RecurringBillInstanceMetadata } from '@/types/recurring-bills';
+import { Body, Heading, Label } from '@/ui/typography';
 
 export type BillPageParams = { billId: string };
 type BillPageProps = { params: Promise<BillPageParams> };
@@ -647,9 +648,9 @@ export default async function BillDetailsPage({ params }: BillPageProps) {
       name: 'Work order',
       value:
         workOrder?.id && workOrder.subject ? (
-          <Link href={`/maintenance/work-orders/${workOrder.id}`} className="text-primary hover:underline">
+          <Label as={Link} href={`/maintenance/work-orders/${workOrder.id}`} size="sm" className="hover:underline">
             {workOrder.subject}
-          </Link>
+          </Label>
         ) : (
           '—'
         ),
@@ -661,12 +662,9 @@ export default async function BillDetailsPage({ params }: BillPageProps) {
     detailEntries.push({
       name: 'Reversal transaction',
       value: (
-        <Link
-          href={`/transactions/${(workflow as any).reversal_transaction_id}`}
-          className="text-primary hover:underline"
-        >
+        <Label as={Link} href={`/transactions/${(workflow as any).reversal_transaction_id}`} size="sm" className="hover:underline">
           View reversal
-        </Link>
+        </Label>
       ),
     });
   }
@@ -676,7 +674,9 @@ export default async function BillDetailsPage({ params }: BillPageProps) {
       <PageHeader
         title={
           <div className="flex flex-wrap items-center gap-3">
-            <span className="text-foreground text-2xl font-semibold">{vendorName}</span>
+            <Heading as="span" size="h3">
+              {vendorName}
+            </Heading>
             {statusLabel ? (
               <Badge
                 variant={statusToVariant(statusLabel)}
@@ -709,17 +709,24 @@ export default async function BillDetailsPage({ params }: BillPageProps) {
       />
       <PageBody>
         <div className="space-y-6">
-          <Link
+          <Body
+            as={Link}
             href="/bills"
-            className="text-muted-foreground inline-flex items-center gap-2 text-sm hover:text-primary"
+            size="sm"
+            tone="muted"
+            className="inline-flex items-center gap-2 hover:text-primary"
           >
             <span aria-hidden>←</span>
             Back to bills
-          </Link>
+          </Body>
           {approvalState === 'approved' ? (
-            <div className="rounded-md border border-amber-300/70 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            <Body
+              as="div"
+              size="sm"
+              className="rounded-md border border-amber-300/70 bg-amber-50 px-3 py-2 text-amber-800"
+            >
               This bill is approved. Amount and line edits are locked; only memo and reference updates are allowed.
-            </div>
+            </Body>
           ) : null}
           <PageColumns
             gap="xl"
@@ -733,20 +740,19 @@ export default async function BillDetailsPage({ params }: BillPageProps) {
                     <CardTitle>Bill details</CardTitle>
                   </CardHeader>
                   <CardContent className="px-6 py-6">
-                    <dl className="grid gap-x-12 gap-y-6 text-sm md:grid-cols-3">
+                    <dl className="grid gap-x-12 gap-y-6 md:grid-cols-3">
                       {detailEntries.map((entry) => (
                         <div key={entry.name} className="space-y-1.5">
-                          <dt className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+                          <Label as="dt" size="xs" tone="muted" className="tracking-wide uppercase">
                             {entry.name}
-                          </dt>
-                          <dd
-                            className={cn(
-                              'text-foreground text-sm',
-                              entry.multiline ? 'whitespace-pre-wrap' : undefined,
-                            )}
+                          </Label>
+                          <Body
+                            as="dd"
+                            size="sm"
+                            className={cn(entry.multiline ? 'whitespace-pre-wrap' : undefined)}
                           >
                             {entry.value}
-                          </dd>
+                          </Body>
                         </div>
                       ))}
                     </dl>
@@ -763,24 +769,22 @@ export default async function BillDetailsPage({ params }: BillPageProps) {
                       </div>
                     </CardHeader>
                     <CardContent className="px-6 py-6">
-                      <dl className="grid gap-x-12 gap-y-6 text-sm md:grid-cols-3">
+                      <dl className="grid gap-x-12 gap-y-6 md:grid-cols-3">
                         <div className="space-y-1.5">
-                          <dt className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-                            Frequency
-                          </dt>
-                          <dd className="text-foreground text-sm">
+                          <Label as="dt" size="xs" tone="muted" className="tracking-wide uppercase">Frequency
+                          </Label>
+                          <Body as="dd" size="sm">
                             {recurringSchedule.frequency === 'Every2Weeks'
                               ? 'Biweekly'
                               : recurringSchedule.frequency === 'Yearly'
                                 ? 'Annually'
                                 : recurringSchedule.frequency}
-                          </dd>
+                          </Body>
                         </div>
                         <div className="space-y-1.5">
-                          <dt className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-                            Status
-                          </dt>
-                          <dd className="text-foreground text-sm">
+                          <Label as="dt" size="xs" tone="muted" className="tracking-wide uppercase">Status
+                          </Label>
+                          <Body as="dd" size="sm">
                             {recurringSchedule.status === 'active'
                               ? 'Active'
                               : recurringSchedule.status === 'paused'
@@ -788,50 +792,45 @@ export default async function BillDetailsPage({ params }: BillPageProps) {
                                 : recurringSchedule.status === 'ended'
                                   ? 'Ended'
                                   : 'Unknown'}
-                          </dd>
+                          </Body>
                         </div>
                         {recurringSchedule.start_date && (
                           <div className="space-y-1.5">
-                            <dt className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-                              Start Date
-                            </dt>
-                            <dd className="text-foreground text-sm">{formatDate(recurringSchedule.start_date)}</dd>
+                            <Label as="dt" size="xs" tone="muted" className="tracking-wide uppercase">Start Date
+                            </Label>
+                            <Body as="dd" size="sm">{formatDate(recurringSchedule.start_date)}</Body>
                           </div>
                         )}
                         {recurringSchedule.end_date && (
                           <div className="space-y-1.5">
-                            <dt className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-                              End Date
-                            </dt>
-                            <dd className="text-foreground text-sm">{formatDate(recurringSchedule.end_date)}</dd>
+                            <Label as="dt" size="xs" tone="muted" className="tracking-wide uppercase">End Date
+                            </Label>
+                            <Body as="dd" size="sm">{formatDate(recurringSchedule.end_date)}</Body>
                           </div>
                         )}
                         {nextRunDate && isRecurring && (
                           <div className="space-y-1.5">
-                            <dt className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-                              Next Billing Date
-                            </dt>
-                            <dd className="text-foreground text-sm">{formatDate(nextRunDate)}</dd>
+                            <Label as="dt" size="xs" tone="muted" className="tracking-wide uppercase">Next Billing Date
+                            </Label>
+                            <Body as="dd" size="sm">{formatDate(nextRunDate)}</Body>
                           </div>
                         )}
                         {recurringSchedule.last_generated_at && (
                           <div className="space-y-1.5">
-                            <dt className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-                              Last Generated
-                            </dt>
-                            <dd className="text-foreground text-sm">
+                            <Label as="dt" size="xs" tone="muted" className="tracking-wide uppercase">Last Generated
+                            </Label>
+                            <Body as="dd" size="sm">
                               {new Date(recurringSchedule.last_generated_at).toLocaleString()}
-                            </dd>
+                            </Body>
                           </div>
                         )}
                         {recurringSchedule.ended_at && (
                           <div className="space-y-1.5">
-                            <dt className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-                              Ended At
-                            </dt>
-                            <dd className="text-foreground text-sm">
+                            <Label as="dt" size="xs" tone="muted" className="tracking-wide uppercase">Ended At
+                            </Label>
+                            <Body as="dd" size="sm">
                               {new Date(recurringSchedule.ended_at).toLocaleString()}
-                            </dd>
+                            </Body>
                           </div>
                         )}
                       </dl>
@@ -845,7 +844,7 @@ export default async function BillDetailsPage({ params }: BillPageProps) {
                         </div>
                       )}
                       {!isRecurring && recurringSchedule.status === 'ended' && (
-                        <div className="mt-4 text-sm text-muted-foreground">
+                        <div className="mt-4">
                           This bill's recurring schedule has been disabled. Generated bills remain in the system.
                         </div>
                       )}
@@ -859,97 +858,116 @@ export default async function BillDetailsPage({ params }: BillPageProps) {
                   </CardHeader>
                   <CardContent className="p-0">
                     <div className="relative overflow-x-auto">
-                      <Table className="min-w-[720px] text-sm">
+                      <Table className="min-w-[720px]">
                         <TableHeader>
-                            <TableRow className="border-border/60 bg-muted/30 sticky top-0 z-10 border-b">
-                              <TableHead className="text-foreground w-[18rem] px-4 py-3 text-xs font-semibold tracking-wide uppercase">
+                          <TableRow className="border-border/60 bg-muted/30 sticky top-0 z-10 border-b">
+                            <TableHead className="w-[18rem] px-4 py-3">
+                              <Label as="span" size="xs" tone="muted" className="tracking-wide uppercase">
                                 Property or company
-                              </TableHead>
-                              <TableHead className="text-foreground w-[12rem] px-4 py-3 text-xs font-semibold tracking-wide uppercase">
+                              </Label>
+                            </TableHead>
+                            <TableHead className="w-[12rem] px-4 py-3">
+                              <Label as="span" size="xs" tone="muted" className="tracking-wide uppercase">
                                 Unit
+                              </Label>
                             </TableHead>
-                            <TableHead className="text-foreground w-[18rem] px-4 py-3 text-xs font-semibold tracking-wide uppercase">
-                              Account
+                            <TableHead className="w-[18rem] px-4 py-3">
+                              <Label as="span" size="xs" tone="muted" className="tracking-wide uppercase">
+                                Account
+                              </Label>
                             </TableHead>
-                            <TableHead className="text-foreground px-4 py-3 text-xs font-semibold tracking-wide uppercase">
-                              Description
+                            <TableHead className="px-4 py-3">
+                              <Label as="span" size="xs" tone="muted" className="tracking-wide uppercase">
+                                Description
+                              </Label>
                             </TableHead>
-                            <TableHead className="text-foreground w-[10rem] px-4 py-3 text-right text-xs font-semibold tracking-wide uppercase">
-                              Amount
+                            <TableHead className="w-[10rem] px-4 py-3 text-right">
+                              <Label as="span" size="xs" tone="muted" className="tracking-wide uppercase">
+                                Amount
+                              </Label>
                             </TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody className="divide-border/60 divide-y">
                           {debitLineItems.length === 0 ? (
                             <TableRow className="hover:bg-transparent">
-                              <TableCell
-                                colSpan={5}
-                                className="text-muted-foreground bg-background px-4 py-8 text-center text-sm"
-                              >
-                                No itemized charges recorded for this bill.
+                              <TableCell colSpan={5} className="bg-background px-4 py-8 text-center">
+                                <Body as="span" size="sm" tone="muted">
+                                  No itemized charges recorded for this bill.
+                                </Body>
                               </TableCell>
                             </TableRow>
                           ) : (
-                            <>
-                              {debitLineItems.map((item, index) => (
-                                <TableRow
-                                  key={item.id}
-                                  className={cn(
-                                    'hover:bg-muted/20 transition-colors',
-                                    index % 2 === 1 ? 'bg-muted/10' : undefined,
-                                  )}
-                                >
-                                <TableCell className="text-foreground px-4 py-3">
-                                  {item.propertyName}
+                            debitLineItems.map((item, index) => (
+                              <TableRow
+                                key={item.id}
+                                className={cn(
+                                  'hover:bg-muted/20 transition-colors',
+                                  index % 2 === 1 ? 'bg-muted/10' : undefined,
+                                )}
+                              >
+                                <TableCell className="px-4 py-3">
+                                  <Body as="span" size="sm">
+                                    {item.propertyName}
+                                  </Body>
                                 </TableCell>
-                                <TableCell className="text-foreground px-4 py-3">
-                                  {item.unitLabel}
+                                <TableCell className="px-4 py-3">
+                                  <Body as="span" size="sm">
+                                    {item.unitLabel}
+                                  </Body>
                                 </TableCell>
-                                <TableCell className="text-foreground px-4 py-3">
-                                  <div className="font-medium">{item.accountLabel}</div>
+                                <TableCell className="px-4 py-3">
+                                  <Label as="div" size="sm">
+                                    {item.accountLabel}
+                                  </Label>
                                   {(item.accountNumber || item.accountType) && (
-                                    <div className="text-muted-foreground text-xs">
+                                    <Body as="div" size="xs" tone="muted">
                                       {item.accountNumber ? `#${item.accountNumber}` : ''}
                                       {item.accountNumber && item.accountType ? ' • ' : ''}
-                                      {item.accountType
-                                        ? item.accountType.replace(/_/g, ' ').toLowerCase()
-                                        : ''}
-                                    </div>
+                                      {item.accountType ? item.accountType.replace(/_/g, ' ').toLowerCase() : ''}
+                                    </Body>
                                   )}
                                 </TableCell>
-                                <TableCell className="text-foreground px-4 py-3 whitespace-pre-wrap">
-                                  {item.description}
+                                <TableCell className="px-4 py-3 whitespace-pre-wrap">
+                                  <Body as="span" size="sm">
+                                    {item.description}
+                                  </Body>
                                 </TableCell>
-                                <TableCell className="sticky right-0 border-b border-border/60 px-4 py-3 text-right font-semibold backdrop-blur supports-[backdrop-filter]:bg-background/80">
-                                  {formatCurrency(item.initialAmount)}
+                                <TableCell className="sticky right-0 border-b border-border/60 px-4 py-3 text-right backdrop-blur supports-[backdrop-filter]:bg-background/80">
+                                  <Label as="span" size="sm">
+                                    {formatCurrency(item.initialAmount)}
+                                  </Label>
                                 </TableCell>
-                                </TableRow>
-                              ))}
-                            </>
+                              </TableRow>
+                            ))
                           )}
                         </TableBody>
-                        <TableFooter className="bg-background font-semibold">
+                        <TableFooter className="bg-background">
                           <TableRow className="border-border/60 border-t">
-                            <TableCell colSpan={4} className="text-foreground px-4 py-3">
-                              Total
+                            <TableCell colSpan={4} className="px-4 py-3">
+                              <Label as="span" size="sm">
+                                Total
+                              </Label>
                             </TableCell>
                             <TableCell className="px-4 py-3 text-right">
-                              {formatCurrency(lineItemsInitialTotal || billAmount)}
+                              <Label as="span" size="sm">
+                                {formatCurrency(lineItemsInitialTotal || billAmount)}
+                              </Label>
                             </TableCell>
                           </TableRow>
                         </TableFooter>
                       </Table>
                     </div>
-                    <div className="border-border/60 bg-muted/10 flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3 text-sm">
+                    <div className="border-border/60 bg-muted/10 flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <span className="text-muted-foreground uppercase tracking-wide">Remaining</span>
-                        <span className="font-semibold">{formatCurrency(remainingAmount)}</span>
+                        <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">Remaining</Label>
+                        <Label as="span" size="sm">{formatCurrency(remainingAmount)}</Label>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-muted-foreground uppercase tracking-wide">Total</span>
-                        <span className="font-semibold">
+                        <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">Total</Label>
+                        <Label as="span" size="sm">
                           {formatCurrency(lineItemsInitialTotal || billAmount)}
-                        </span>
+                        </Label>
                       </div>
                     </div>
                   </CardContent>
@@ -962,37 +980,53 @@ export default async function BillDetailsPage({ params }: BillPageProps) {
                     </CardHeader>
                     <CardContent className="p-0">
                       <div className="relative overflow-x-auto">
-                        <Table className="min-w-[640px] text-sm">
+                        <Table className="min-w-[640px]">
                           <TableHeader>
                             <TableRow className="border-border/60 bg-muted/30 sticky top-0 z-10 border-b">
-                              <TableHead className="text-foreground w-[14rem] px-4 py-3 text-xs font-semibold tracking-wide uppercase">
-                                Bank account
+                              <TableHead className="w-[14rem] px-4 py-3">
+                                <Label as="span" size="xs" tone="muted" className="tracking-wide uppercase">
+                                  Bank account
+                                </Label>
                               </TableHead>
-                              <TableHead className="text-foreground w-[10rem] px-4 py-3 text-xs font-semibold tracking-wide uppercase">
-                                Date
+                              <TableHead className="w-[10rem] px-4 py-3">
+                                <Label as="span" size="xs" tone="muted" className="tracking-wide uppercase">
+                                  Date
+                                </Label>
                               </TableHead>
-                              <TableHead className="text-foreground w-[10rem] px-4 py-3 text-xs font-semibold tracking-wide uppercase">
-                                Method
+                              <TableHead className="w-[10rem] px-4 py-3">
+                                <Label as="span" size="xs" tone="muted" className="tracking-wide uppercase">
+                                  Method
+                                </Label>
                               </TableHead>
-                              <TableHead className="text-foreground w-[10rem] px-4 py-3 text-right text-xs font-semibold tracking-wide uppercase">
-                                Amount paid
+                              <TableHead className="w-[10rem] px-4 py-3 text-right">
+                                <Label as="span" size="xs" tone="muted" className="tracking-wide uppercase">
+                                  Amount paid
+                                </Label>
                               </TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody className="divide-border/60 divide-y">
                             {paymentsWithDisplay.map((p) => (
                               <TableRow key={p.id} className="hover:bg-muted/20 transition-colors">
-                                <TableCell className="text-primary px-4 py-3">
-                                  {p.bankName || '—'}
+                                <TableCell className="px-4 py-3">
+                                  <Label as="span" size="sm">
+                                    {p.bankName || '—'}
+                                  </Label>
                                 </TableCell>
-                                <TableCell className="text-foreground px-4 py-3">
-                                  {p.displayDate}
+                                <TableCell className="px-4 py-3">
+                                  <Body as="span" size="sm">
+                                    {p.displayDate}
+                                  </Body>
                                 </TableCell>
-                                <TableCell className="text-foreground px-4 py-3">
-                                  {p.displayMethod || '—'}
+                                <TableCell className="px-4 py-3">
+                                  <Body as="span" size="sm">
+                                    {p.displayMethod || '—'}
+                                  </Body>
                                 </TableCell>
-                                <TableCell className="text-foreground px-4 py-3 text-right font-medium">
-                                  {formatCurrency(p.displayAmount)}
+                                <TableCell className="px-4 py-3 text-right">
+                                  <Label as="span" size="sm">
+                                    {formatCurrency(p.displayAmount)}
+                                  </Label>
                                 </TableCell>
                               </TableRow>
                             ))}
@@ -1017,12 +1051,12 @@ export default async function BillDetailsPage({ params }: BillPageProps) {
                     <CardTitle>Bill amount</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4 px-6 py-6">
-                    <div className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">
+                    <Label as="div" size="xs" tone="muted" className="uppercase tracking-wide">
                       Remaining
-                    </div>
-                    <div className="text-foreground text-2xl font-semibold">
+                    </Label>
+                    <Heading as="div" size="h4">
                       {formatCurrency(remainingAmount)}
-                    </div>
+                    </Heading>
                   </CardContent>
                 </Card>
 

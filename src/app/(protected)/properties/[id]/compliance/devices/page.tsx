@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Loader2, ArrowLeft, ArrowRight } from 'lucide-react'
 import type { ComplianceAsset } from '@/types/compliance'
+import { Body, Heading } from '@/ui/typography'
 
 type DeviceRow = {
   id: string
@@ -22,16 +23,16 @@ type DeviceRow = {
 function StatusPill({ value }: { value?: string | null }) {
   if (!value) return null
   const key = value.toLowerCase()
-  const className =
+  const variant =
     key.includes('active')
-      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+      ? 'success'
       : key.includes('out')
-      ? 'bg-amber-50 text-amber-700 border-amber-200'
-      : key.includes('retired') || key.includes('removed')
-      ? 'bg-slate-100 text-slate-700 border-slate-200'
-      : 'bg-muted text-foreground border-muted-foreground/20'
+        ? 'warning'
+        : key.includes('retired') || key.includes('removed')
+          ? 'danger'
+          : 'info'
   return (
-    <Badge variant="outline" className={className + ' text-xs'}>
+    <Badge variant={variant} className="text-xs">
       {value}
     </Badge>
   )
@@ -106,7 +107,13 @@ export default function PropertyDevicesPage() {
         <Button variant="ghost" size="sm" onClick={() => router.push(`/properties/${propertyId}/compliance`)} className="gap-2">
           <ArrowLeft className="h-4 w-4" /> Back to Compliance
         </Button>
-        <div className="rounded-md border border-destructive bg-destructive/10 p-4 text-sm text-destructive">{error}</div>
+        <Body
+          as="div"
+          size="sm"
+          className="rounded-md border border-destructive bg-destructive/10 p-4 text-destructive"
+        >
+          {error}
+        </Body>
       </div>
     )
   }
@@ -115,8 +122,12 @@ export default function PropertyDevicesPage() {
     <div className="p-6 space-y-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">Devices</h1>
-          <p className="text-sm text-muted-foreground">Manage compliance devices for {propertyName}</p>
+          <Heading as="h1" size="h3">
+            Devices
+          </Heading>
+          <Body tone="muted" size="sm">
+            Manage compliance devices for {propertyName}
+          </Body>
         </div>
         <Button variant="outline" size="sm" asChild>
           <Link href={`/properties/${propertyId}/compliance`}>

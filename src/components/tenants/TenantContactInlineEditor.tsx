@@ -8,6 +8,7 @@ import { X, Mail, MapPin, Smartphone } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import EditLink from '@/components/ui/EditLink'
 import { getSupabaseBrowserClient } from '@/lib/supabase/client'
+import { Body, Heading, Label } from '@/ui/typography'
 
 type ContactValues = {
   first_name?: string | null
@@ -82,7 +83,9 @@ export default function TenantContactInlineEditor({ contactId, initial }: { cont
   return (
     <div className="lg:col-span-2">
       <div className="mb-4 flex items-center gap-3 border-b border-border pb-3">
-        <h2 className="text-lg font-semibold text-foreground">Contact information</h2>
+        <Heading as="h2" size="h3">
+          Contact information
+        </Heading>
         {!editing ? <EditLink onClick={() => setEditing(true)} /> : null}
       </div>
       <Card className={editing ? 'relative overflow-hidden border-l-2 border-l-primary shadow-lg bg-white border border-border' : 'bg-white'}>
@@ -91,16 +94,22 @@ export default function TenantContactInlineEditor({ contactId, initial }: { cont
           {!editing ? (
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-3 text-sm">
               <div>
-                <div className="mb-1 text-xs font-medium text-muted-foreground">EMAIL</div>
-                <div className="text-foreground">{values.primary_email || '—'}</div>
+                <Label tone="muted" size="xs" className="mb-1 block">
+                  EMAIL
+                </Label>
+                <Body size="sm">{values.primary_email || '—'}</Body>
               </div>
               <div>
-                <div className="mb-1 text-xs font-medium text-muted-foreground">PHONE</div>
-                <div className="text-foreground">{values.primary_phone || values.alt_phone || '—'}</div>
+                <Label tone="muted" size="xs" className="mb-1 block">
+                  PHONE
+                </Label>
+                <Body size="sm">{values.primary_phone || values.alt_phone || '—'}</Body>
               </div>
               <div>
-                <div className="mb-1 text-xs font-medium text-muted-foreground">ADDRESS</div>
-                <div className="text-foreground space-y-0.5">
+                <Label tone="muted" size="xs" className="mb-1 block">
+                  ADDRESS
+                </Label>
+                <Body size="sm" className="space-y-0.5">
                   <div>{values.primary_address_line_1 || '—'}</div>
                   {values.primary_address_line_2 ? <div>{values.primary_address_line_2}</div> : null}
                   <div>
@@ -115,7 +124,7 @@ export default function TenantContactInlineEditor({ contactId, initial }: { cont
                       )
                       .join('') || '—'}
                   </div>
-                </div>
+                </Body>
               </div>
             </div>
           ) : (
@@ -133,18 +142,24 @@ export default function TenantContactInlineEditor({ contactId, initial }: { cont
                 <div className="space-y-3">
                   {/* Name Fields */}
                   <div>
-                    <div className="text-xs font-medium text-muted-foreground uppercase">FIRST NAME</div>
+                    <Label tone="muted" size="xs" className="mb-1 block uppercase">
+                      FIRST NAME
+                    </Label>
                     <Input value={values.first_name ?? ''} onChange={(e)=>setValues(v=>({ ...v, first_name: e.target.value }))} />
                   </div>
                   <div>
-                    <div className="text-xs font-medium text-muted-foreground uppercase">LAST NAME</div>
+                    <Label tone="muted" size="xs" className="mb-1 block uppercase">
+                      LAST NAME
+                    </Label>
                     <Input value={values.last_name ?? ''} onChange={(e)=>setValues(v=>({ ...v, last_name: e.target.value }))} />
                   </div>
 
 
                   {/* Email Addresses */}
                   <div className="space-y-2">
-                    <h4 className="text-xs font-medium text-muted-foreground uppercase">PRIMARY EMAIL</h4>
+                    <Label tone="muted" size="xs" className="uppercase">
+                      PRIMARY EMAIL
+                    </Label>
                     <div className="relative">
                       <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input className="pl-9" type="email" value={values.primary_email ?? ''} onChange={(e)=>setValues(v=>({ ...v, primary_email: e.target.value }))} />
@@ -156,7 +171,9 @@ export default function TenantContactInlineEditor({ contactId, initial }: { cont
                     ) : (
                       <div>
                         <div className="flex items-center justify-between">
-                          <div className="text-xs mb-1">Alternate email</div>
+                          <Label size="xs" className="mb-1">
+                            Alternate email
+                          </Label>
                           <button type="button" className="text-primary text-sm hover:underline" onClick={()=>{
                             setShowAltEmail(false)
                             setValues(v=>({ ...v, alt_email: '' }))
@@ -171,7 +188,9 @@ export default function TenantContactInlineEditor({ contactId, initial }: { cont
 
                   {/* Phone Numbers */}
                   <div className="space-y-2">
-                    <h4 className="text-xs font-medium text-muted-foreground uppercase">PHONE</h4>
+                    <Label tone="muted" size="xs" className="uppercase">
+                      PHONE
+                    </Label>
                     <div className="relative">
                       <Smartphone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input className="pl-9" value={values.primary_phone ?? ''} onChange={(e)=>setValues(v=>({ ...v, primary_phone: e.target.value }))} />
@@ -183,7 +202,9 @@ export default function TenantContactInlineEditor({ contactId, initial }: { cont
                     ) : (
                       <div>
                         <div className="flex items-center justify-between">
-                          <div className="text-xs mb-1">Alternate phone</div>
+                          <Label size="xs" className="mb-1">
+                            Alternate phone
+                          </Label>
                           <button type="button" className="text-primary text-sm hover:underline" onClick={()=>{
                             setShowAltPhone(false)
                             setValues(v=>({ ...v, alt_phone: '' }))

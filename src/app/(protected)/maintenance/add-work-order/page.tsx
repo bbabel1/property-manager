@@ -2,12 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import {
-  Button,
-  buttonVariants,
-} from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardTitle } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
+import { Label as FormLabel } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { DateInput } from '@/components/ui/date-input';
 import { Textarea } from '@/components/ui/textarea';
@@ -36,6 +33,7 @@ import { Trash2 } from 'lucide-react';
 import BillFileAttachmentsCard from '@/components/bills/BillFileAttachmentsCard';
 import { cn } from '@/components/ui/utils';
 import type { Database } from '@/types/database';
+import { Body, Heading, Label } from '@/ui/typography';
 
 const TASK_KIND_OPTIONS: Array<{
   value: Database['public']['Enums']['task_kind_enum'];
@@ -177,46 +175,50 @@ export default function AddWorkOrderPage() {
   return (
     <div className="mx-auto flex max-w-[1200px] flex-col gap-8 p-6 pb-12">
       <div className="space-y-2">
-        <h1 className="text-3xl font-semibold text-foreground">Add work order</h1>
-        <p className="text-muted-foreground text-sm">
+        <Heading as="h1" size="h2">
+          Add work order
+        </Heading>
+        <Body as="p" tone="muted" size="sm">
           Capture task details, vendor information, and cost estimates for this work order.
-        </p>
+        </Body>
       </div>
 
       <form className="flex flex-col gap-6">
         <Card className="border border-border/70 shadow-sm">
           <CardContent className="px-8 py-8">
             <div className="space-y-10">
-            <section className="flex flex-col gap-6">
-              <div className="flex flex-wrap items-start justify-between gap-6">
-                <div className="space-y-1.5">
-                  <CardTitle className="text-lg text-foreground">Task details</CardTitle>
-                  <CardDescription>
-                    Set up the maintenance task and choose who should participate.
-                </CardDescription>
-              </div>
-              <div className="flex w-full flex-col items-start gap-2 text-sm font-medium text-muted-foreground sm:w-auto sm:flex-row sm:items-center sm:gap-4">
-                <span className="text-xs font-semibold uppercase tracking-wide">Add to task</span>
-                <div className="inline-flex rounded-full border border-border bg-muted/30 p-1">
-                  <button
-                    type="button"
-                    className="rounded-full bg-background px-4 py-1.5 text-foreground shadow-sm transition-colors"
-                  >
-                    Create new task
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded-full px-4 py-1.5 transition-colors hover:text-foreground"
-                  >
-                    Add to existing task
-                  </button>
+              <section className="flex flex-col gap-6">
+                <div className="flex flex-wrap items-start justify-between gap-6">
+                  <div className="space-y-1.5">
+                    <CardTitle headingSize="h5">Task details</CardTitle>
+                    <CardDescription>
+                      Set up the maintenance task and choose who should participate.
+                    </CardDescription>
+                  </div>
+                  <div className="flex w-full flex-col items-start gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-4">
+                    <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                      Add to task
+                    </Label>
+                    <div className="inline-flex rounded-full border border-border bg-muted/30 p-1">
+                      <button
+                        type="button"
+                        className="rounded-full bg-background px-4 py-1.5 text-foreground shadow-sm transition-colors"
+                      >
+                        Create new task
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-full px-4 py-1.5 transition-colors hover:text-foreground"
+                      >
+                        Add to existing task
+                      </button>
+                    </div>
+                  </div>
                 </div>
-                </div>
-              </div>
 
             <div className="space-y-6">
               <div className="space-y-1.5 max-w-xl">
-                <Label htmlFor="task-type">Task type</Label>
+                <FormLabel htmlFor="task-type">Task type</FormLabel>
                 <Select
                   value={taskType || undefined}
                   onValueChange={(value) =>
@@ -237,7 +239,7 @@ export default function AddWorkOrderPage() {
                 <input type="hidden" name="task_kind" value={taskType} />
               </div>
               <div className="space-y-1.5 max-w-xl">
-                <Label htmlFor="task-category">Category</Label>
+                <FormLabel htmlFor="task-category">Category</FormLabel>
                 <Select>
                   <SelectTrigger id="task-category">
                     <SelectValue placeholder="Select category" />
@@ -251,9 +253,9 @@ export default function AddWorkOrderPage() {
                 </Select>
               </div>
               <div className="space-y-1.5 max-w-xl">
-                <Label htmlFor="assigned-to">
+                <FormLabel htmlFor="assigned-to">
                   Assigned to (required)
-                </Label>
+                </FormLabel>
                 <Select>
                   <SelectTrigger id="assigned-to">
                     <SelectValue placeholder="Select team member" />
@@ -266,7 +268,7 @@ export default function AddWorkOrderPage() {
                 </Select>
               </div>
               <div className="space-y-1.5 max-w-xl">
-                <Label htmlFor="collaborators">Collaborators</Label>
+                <FormLabel htmlFor="collaborators">Collaborators</FormLabel>
                 <Select>
                   <SelectTrigger id="collaborators">
                     <SelectValue placeholder="Select collaborators" />
@@ -280,7 +282,7 @@ export default function AddWorkOrderPage() {
               </div>
               {isResidentRequest ? (
                 <div className="space-y-1.5 max-w-xl">
-                  <Label htmlFor="resident">Resident</Label>
+                  <FormLabel htmlFor="resident">Resident</FormLabel>
                   <Select
                     value={selectedResident || undefined}
                     onValueChange={(value) => setSelectedResident(value)}
@@ -309,7 +311,7 @@ export default function AddWorkOrderPage() {
                   </Select>
                   <input type="hidden" name="tenant_id" value={selectedResident} />
                   {residentError ? (
-                    <p className="text-xs text-destructive flex flex-wrap items-center gap-2">
+                    <Body as="p" size="xs" className="text-destructive flex flex-wrap items-center gap-2">
                       <span>{residentError}</span>
                       <button
                         type="button"
@@ -322,7 +324,7 @@ export default function AddWorkOrderPage() {
                       >
                         Retry
                       </button>
-                    </p>
+                    </Body>
                   ) : null}
                 </div>
               ) : null}
@@ -332,7 +334,7 @@ export default function AddWorkOrderPage() {
 
             <section className="space-y-6">
               <div className="space-y-1.5">
-                <CardTitle className="text-lg text-foreground">Work order details</CardTitle>
+                <CardTitle headingSize="h5">Work order details</CardTitle>
                 <CardDescription>
                   Provide specific instructions, vendor preferences, and scheduling expectations.
                 </CardDescription>
@@ -340,11 +342,11 @@ export default function AddWorkOrderPage() {
 
               <div className="space-y-6">
                 <div className="space-y-1.5 max-w-2xl">
-                  <Label htmlFor="subject">Subject (required)</Label>
+                  <FormLabel htmlFor="subject">Subject (required)</FormLabel>
                   <Input id="subject" placeholder="Summarize the work to be done" />
                 </div>
                 <div className="space-y-1.5 max-w-xl">
-                  <Label htmlFor="vendor">Vendor (required)</Label>
+                  <FormLabel htmlFor="vendor">Vendor (required)</FormLabel>
                   <Select>
                     <SelectTrigger id="vendor">
                       <SelectValue placeholder="Select or add new..." />
@@ -357,7 +359,7 @@ export default function AddWorkOrderPage() {
                   </Select>
                 </div>
                 <div className="space-y-1.5 max-w-xl">
-                  <Label htmlFor="entry-details">Entry details</Label>
+                  <FormLabel htmlFor="entry-details">Entry details</FormLabel>
                   <Select>
                     <SelectTrigger id="entry-details">
                       <SelectValue placeholder="Select entry preference" />
@@ -370,7 +372,7 @@ export default function AddWorkOrderPage() {
                   </Select>
                 </div>
                 <div className="space-y-1.5 max-w-xl">
-                  <Label htmlFor="entry-contact">Entry contact</Label>
+                  <FormLabel htmlFor="entry-contact">Entry contact</FormLabel>
                   <Select>
                     <SelectTrigger id="entry-contact">
                       <SelectValue placeholder="Select entry contact" />
@@ -386,7 +388,7 @@ export default function AddWorkOrderPage() {
 
               <div className="space-y-6">
                 <div className="space-y-1.5 max-w-2xl">
-                  <Label htmlFor="work-description">Work to be performed</Label>
+                  <FormLabel htmlFor="work-description">Work to be performed</FormLabel>
                   <Textarea
                     id="work-description"
                     rows={4}
@@ -394,7 +396,7 @@ export default function AddWorkOrderPage() {
                   />
                 </div>
                 <div className="space-y-1.5 max-w-2xl">
-                  <Label htmlFor="vendor-notes">Vendor notes</Label>
+                  <FormLabel htmlFor="vendor-notes">Vendor notes</FormLabel>
                   <Textarea
                     id="vendor-notes"
                     rows={4}
@@ -405,7 +407,7 @@ export default function AddWorkOrderPage() {
 
               <div className="grid gap-6 lg:grid-cols-12">
                 <div className="space-y-1.5 lg:col-span-12 max-w-xl">
-                  <Label htmlFor="status">Status</Label>
+                  <FormLabel htmlFor="status">Status</FormLabel>
                   <Select defaultValue="new">
                     <SelectTrigger id="status">
                       <SelectValue placeholder="Select status" />
@@ -419,7 +421,7 @@ export default function AddWorkOrderPage() {
                   </Select>
                 </div>
                 <div className="space-y-1.5 lg:col-span-12 max-w-xl">
-                  <Label htmlFor="priority">Priority</Label>
+                  <FormLabel htmlFor="priority">Priority</FormLabel>
                   <Select defaultValue="normal">
                     <SelectTrigger id="priority">
                       <SelectValue placeholder="Select priority" />
@@ -433,7 +435,7 @@ export default function AddWorkOrderPage() {
                   </Select>
                 </div>
                 <div className="space-y-1.5 lg:col-span-12 max-w-xl">
-                  <Label htmlFor="due-date">Due date</Label>
+                  <FormLabel htmlFor="due-date">Due date</FormLabel>
                   <DateInput id="due-date" />
                 </div>
               </div>
@@ -447,31 +449,51 @@ export default function AddWorkOrderPage() {
 
             <section className="space-y-6">
               <div className="space-y-1.5">
-                <CardTitle className="text-lg text-foreground">Work order billing</CardTitle>
+                <CardTitle headingSize="h5">Work order billing</CardTitle>
                 <CardDescription>
                   Track invoice references and itemized costs for parts and labor.
                 </CardDescription>
               </div>
               <div className="space-y-6">
                 <div className="space-y-1.5 max-w-xl">
-                  <Label htmlFor="invoice-number">Invoice number</Label>
+                  <FormLabel htmlFor="invoice-number">Invoice number</FormLabel>
                   <Input id="invoice-number" placeholder="Enter invoice number" />
                 </div>
                 <div className="space-y-1.5 max-w-xl">
-                  <Label htmlFor="charge-to">Charge work to</Label>
+                  <FormLabel htmlFor="charge-to">Charge work to</FormLabel>
                   <Input id="charge-to" placeholder="Specify account or unit" />
                 </div>
               </div>
-              <div className="space-y-2">
+                <div className="space-y-2">
                 <div className="overflow-x-auto rounded-lg border border-border/70">
                   <Table className="min-w-[820px]">
                     <TableHeader>
-                      <TableRow className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
-                        <TableHead className="w-20 text-xs font-semibold">Qty</TableHead>
-                        <TableHead className="text-xs font-semibold">Account</TableHead>
-                        <TableHead className="text-xs font-semibold">Description</TableHead>
-                        <TableHead className="w-32 text-xs font-semibold text-right">Price</TableHead>
-                        <TableHead className="w-32 text-xs font-semibold text-right">Total</TableHead>
+                      <TableRow className="bg-muted/40 uppercase tracking-wide">
+                        <TableHead className="w-20">
+                          <Label as="span" size="xs" tone="muted">
+                            Qty
+                          </Label>
+                        </TableHead>
+                        <TableHead>
+                          <Label as="span" size="xs" tone="muted">
+                            Account
+                          </Label>
+                        </TableHead>
+                        <TableHead>
+                          <Label as="span" size="xs" tone="muted">
+                            Description
+                          </Label>
+                        </TableHead>
+                        <TableHead className="w-32 text-right">
+                          <Label as="span" size="xs" tone="muted">
+                            Price
+                          </Label>
+                        </TableHead>
+                        <TableHead className="w-32 text-right">
+                          <Label as="span" size="xs" tone="muted">
+                            Total
+                          </Label>
+                        </TableHead>
                         <TableHead className="w-12" />
                       </TableRow>
                     </TableHeader>
@@ -481,9 +503,9 @@ export default function AddWorkOrderPage() {
                           <Input aria-label="Quantity" defaultValue="1" className="w-20" />
                         </TableCell>
                         <TableCell className="max-w-xs min-w-[240px]">
-                          <Label className="sr-only" htmlFor="expense-account">
+                          <FormLabel className="sr-only" htmlFor="expense-account">
                             Expense account
-                          </Label>
+                          </FormLabel>
                           <Select
                             value={selectedExpenseAccount || undefined}
                             onValueChange={setSelectedExpenseAccount}
@@ -517,7 +539,9 @@ export default function AddWorkOrderPage() {
                           </Select>
                           <input type="hidden" name="lines[0][account_id]" value={selectedExpenseAccount} />
                           {expenseError ? (
-                            <p className="mt-2 text-xs text-destructive">{expenseError}</p>
+                            <Body as="p" size="xs" className="mt-2 text-destructive">
+                              {expenseError}
+                            </Body>
                           ) : null}
                         </TableCell>
                         <TableCell>
@@ -526,8 +550,10 @@ export default function AddWorkOrderPage() {
                         <TableCell className="text-right">
                           <Input aria-label="Price" placeholder="$0.00" className="text-right" />
                         </TableCell>
-                        <TableCell className="text-right font-medium text-muted-foreground">
-                          $0.00
+                        <TableCell className="text-right">
+                          <Label as="span" size="sm" tone="muted">
+                            $0.00
+                          </Label>
                         </TableCell>
                         <TableCell className="text-right">
                           <TooltipProvider delayDuration={100}>
@@ -550,11 +576,17 @@ export default function AddWorkOrderPage() {
                           </TooltipProvider>
                         </TableCell>
                       </TableRow>
-                      <TableRow className="bg-muted/20 font-semibold">
+                      <TableRow className="bg-muted/20">
                         <TableCell colSpan={4} className="text-right">
-                          Total
+                          <Label as="span" size="sm">
+                            Total
+                          </Label>
                         </TableCell>
-                        <TableCell className="text-right">$0.00</TableCell>
+                        <TableCell className="text-right">
+                          <Label as="span" size="sm">
+                            $0.00
+                          </Label>
+                        </TableCell>
                         <TableCell />
                       </TableRow>
                     </TableBody>

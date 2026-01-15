@@ -15,17 +15,17 @@ type Inspection = {
   agency?: string | null
 }
 
-const resultMap: Record<string, { label: string; className: string }> = {
-  pass: { label: 'Pass', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-  defects: { label: 'Defects', className: 'bg-amber-50 text-amber-700 border-amber-200' },
-  fail: { label: 'Fail', className: 'bg-rose-50 text-rose-700 border-rose-200' },
+const resultMap: Record<string, { label: string; variant: 'success' | 'warning' | 'danger' | 'info' }> = {
+  pass: { label: 'Pass', variant: 'success' },
+  defects: { label: 'Defects', variant: 'warning' },
+  fail: { label: 'Fail', variant: 'danger' },
 }
 
 function ResultPill({ value }: { value?: string | null }) {
   if (!value) return null
   const key = value.toLowerCase()
-  const info = resultMap[key] || { label: value, className: 'bg-muted text-foreground border-muted-foreground/20' }
-  return <Badge variant="outline" className={info.className + ' text-xs'}>{info.label}</Badge>
+  const info = resultMap[key] || { label: value, variant: 'info' }
+  return <Badge variant={info.variant} className="text-xs">{info.label}</Badge>
 }
 
 export function ComplianceInspectionsTable({ inspections }: { inspections: Inspection[] }) {
@@ -72,4 +72,3 @@ export function ComplianceInspectionsTable({ inspections }: { inspections: Inspe
     </Card>
   )
 }
-

@@ -10,6 +10,7 @@ import { Dropdown } from './ui/Dropdown';
 import type { BankGlAccountSummary, BankingDetailsFormValues } from '@/components/forms/types';
 import { fetchWithSupabaseAuth } from '@/lib/supabase/fetch';
 import { logError } from '@/shared/lib/logger';
+import { Body, Heading, Label } from '@/ui/typography';
 
 type BankingDetailsModalProps = {
   isOpen: boolean;
@@ -163,15 +164,19 @@ export default function BankingDetailsModal({
       <DialogContent className="border-border border-l-primary max-h-[90vh] w-[680px] max-w-[680px] overflow-y-auto rounded-none border border-l-2 bg-white p-0 shadow-lg sm:rounded-2xl">
         {/* Header */}
         <DialogHeader className="border-border border-b p-6">
-          <DialogTitle className="text-foreground text-xl font-semibold">
-            Edit Banking Details
+          <DialogTitle asChild>
+            <Heading as="div" size="h3">
+              Edit Banking Details
+            </Heading>
           </DialogTitle>
         </DialogHeader>
 
         {/* Error Message */}
         {error && (
           <div className="mx-6 mt-4 rounded-md border border-red-200 bg-red-50 p-4">
-            <p className="text-sm text-red-600">{error}</p>
+            <Body size="sm" className="text-red-600">
+              {error}
+            </Body>
           </div>
         )}
 
@@ -184,16 +189,14 @@ export default function BankingDetailsModal({
           <div className="bg-primary absolute top-0 bottom-0 left-0 w-0.5" />
           {/* Banking Information */}
           <div className="space-y-4">
-            <h4 className="flex items-center gap-2 font-medium text-gray-900">
+            <Heading as="h4" size="h4" className="flex items-center gap-2">
               <DollarSign className="h-4 w-4" />
               Banking Information
-            </h4>
+            </Heading>
 
             <div className="space-y-4">
               <div>
-                <label className="text-foreground mb-1 block text-sm font-medium">
-                  Property Reserve ($)
-                </label>
+                <Label className="mb-1 block">Property Reserve ($)</Label>
                 <div className="relative">
                   <span className="absolute top-1/2 left-3 -translate-y-1/2 text-gray-500">$</span>
                   <input
@@ -209,9 +212,7 @@ export default function BankingDetailsModal({
               </div>
 
               <div>
-                <label className="text-foreground mb-1 block text-sm font-medium">
-                  Operating Bank Account
-                </label>
+                <Label className="mb-1 block">Operating Bank Account</Label>
                 <Dropdown
                   value={formData.operating_bank_gl_account_id}
                   onChange={(value) => handleBankAccountChange('operating_bank_gl_account_id', value)}
@@ -228,9 +229,7 @@ export default function BankingDetailsModal({
               </div>
 
               <div>
-                <label className="text-foreground mb-1 block text-sm font-medium">
-                  Deposit Trust Account
-                </label>
+                <Label className="mb-1 block">Deposit Trust Account</Label>
                 <Dropdown
                   value={formData.deposit_trust_gl_account_id}
                   onChange={(value) => handleBankAccountChange('deposit_trust_gl_account_id', value)}

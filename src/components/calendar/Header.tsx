@@ -13,6 +13,7 @@ import {
   CheckSquare,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Body, Heading, Label } from '@/ui/typography'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -73,28 +74,34 @@ export function Header({
   }
 
   return (
-    <header className="h-16 border-b border-gray-200 bg-white flex items-center justify-between px-4">
+    <header className="flex h-16 items-center justify-between border-b border-gray-200 bg-white px-4">
       {/* Left section */}
       <div className="flex items-center gap-4">
         <Button
           variant="ghost"
           size="icon"
-          className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+          className="h-auto w-auto rounded-full p-2 transition-colors hover:bg-muted"
         >
-          <Menu className="w-6 h-6 text-gray-600" />
+          <Menu className="h-6 w-6 text-muted-foreground" />
         </Button>
 
         <div className="flex items-center gap-2">
-          <div className="w-10 h-10 bg-blue-500 rounded flex items-center justify-center text-white font-bold text-lg">
+          <Heading
+            as="div"
+            size="h6"
+            className="flex h-10 w-10 items-center justify-center rounded bg-primary text-primary-foreground"
+          >
             7
-          </div>
-          <span className="text-xl text-gray-700">Calendar</span>
+          </Heading>
+          <Heading as="span" size="h5">
+            Calendar
+          </Heading>
         </div>
 
         <Button
           onClick={onToday}
           variant="outline"
-          className="ml-4 px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+          className="ml-4 px-4 py-2"
         >
           Today
         </Button>
@@ -104,23 +111,23 @@ export function Header({
             onClick={onPrev}
             variant="ghost"
             size="icon"
-            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+            className="h-auto w-auto rounded-full p-2 transition-colors hover:bg-muted"
           >
-            <ChevronLeft className="w-5 h-5 text-gray-600" />
+            <ChevronLeft className="h-5 w-5 text-muted-foreground" />
           </Button>
           <Button
             onClick={onNext}
             variant="ghost"
             size="icon"
-            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+            className="h-auto w-auto rounded-full p-2 transition-colors hover:bg-muted"
           >
-            <ChevronRight className="w-5 h-5 text-gray-600" />
+            <ChevronRight className="h-5 w-5 text-muted-foreground" />
           </Button>
         </div>
 
-        <h1 className="text-xl text-gray-700 ml-2">
+        <Heading as="h1" size="h4" className="ml-2">
           {getDateDisplay()}
-        </h1>
+        </Heading>
       </div>
 
       {/* Right section */}
@@ -128,30 +135,32 @@ export function Header({
         <Button
           variant="ghost"
           size="icon"
-          className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+          className="h-auto w-auto rounded-full p-2 transition-colors hover:bg-muted"
         >
-          <Search className="w-5 h-5 text-gray-600" />
+          <Search className="h-5 w-5 text-muted-foreground" />
         </Button>
         <Button
           variant="ghost"
           size="icon"
-          className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+          className="h-auto w-auto rounded-full p-2 transition-colors hover:bg-muted"
         >
-          <HelpCircle className="w-5 h-5 text-gray-600" />
+          <HelpCircle className="h-5 w-5 text-muted-foreground" />
         </Button>
         <Button
           variant="ghost"
           size="icon"
-          className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+          className="h-auto w-auto rounded-full p-2 transition-colors hover:bg-muted"
         >
-          <Settings className="w-5 h-5 text-gray-600" />
+          <Settings className="h-5 w-5 text-muted-foreground" />
         </Button>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button className="flex items-center gap-2 px-3 py-2 bg-[#e8f0fe] text-[#1a73e8] rounded-md text-sm font-medium hover:bg-[#d2e3fc] transition-colors ml-2">
-              <span className="capitalize">{view}</span>
-              <ChevronDown className="w-4 h-4" />
+            <Button className="ml-2 flex items-center gap-2 rounded-md bg-[#e8f0fe] px-3 py-2 text-[#1a73e8] transition-colors hover:bg-[#d2e3fc]">
+              <Label as="span" size="sm" className="capitalize text-current">
+                {view}
+              </Label>
+              <ChevronDown className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
@@ -167,16 +176,16 @@ export function Header({
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <div className="flex items-center gap-1 ml-2 border-l border-gray-200 pl-4">
-          <Button className="p-2 bg-[#1a73e8] rounded-md hover:bg-[#1557b0] transition-colors">
-            <CalendarIcon className="w-5 h-5 text-white" />
+        <div className="ml-2 flex items-center gap-1 border-l border-gray-200 pl-4">
+          <Button className="rounded-md bg-primary p-2 transition-colors hover:bg-primary/90">
+            <CalendarIcon className="h-5 w-5 text-primary-foreground" />
           </Button>
           <Button
             variant="ghost"
             size="icon"
-            className="p-2 hover:bg-gray-100 rounded-md transition-colors"
+            className="rounded-md p-2 transition-colors hover:bg-muted"
           >
-            <CheckSquare className="w-5 h-5 text-gray-600" />
+            <CheckSquare className="h-5 w-5 text-muted-foreground" />
           </Button>
         </div>
 
@@ -184,4 +193,3 @@ export function Header({
     </header>
   )
 }
-

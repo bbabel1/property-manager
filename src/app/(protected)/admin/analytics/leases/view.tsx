@@ -15,6 +15,7 @@ import { Activity, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { ChartContainer, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Body, Heading, Label } from '@/ui/typography';
 
 type TelemetryEvent = {
   event: string;
@@ -51,6 +52,10 @@ function formatMs(value: number | null | undefined) {
 }
 
 export default function LeasesAnalyticsContent() {
+  const totalColor = chartConfig.total.color || 'hsl(var(--primary))';
+  const successColor = chartConfig.success.color || 'hsl(var(--success))';
+  const errorColor = chartConfig.error.color || 'hsl(var(--destructive))';
+
   const [state, setState] = useState<{
     loading: boolean;
     data: TelemetryResponse | null;
@@ -116,8 +121,10 @@ export default function LeasesAnalyticsContent() {
     <div className="bg-background text-foreground min-h-screen w-full px-6 py-6">
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">Lease telemetry</h1>
-          <p className="text-muted-foreground text-sm">Volume, success/error, and sources.</p>
+          <Heading as="h1" size="h3">Lease telemetry</Heading>
+          <Body tone="muted" size="sm">
+            Volume, success/error, and sources.
+          </Body>
         </div>
         {state.error ? (
           <Badge variant="destructive" className="gap-1">
@@ -127,89 +134,113 @@ export default function LeasesAnalyticsContent() {
         ) : null}
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Success rate</CardTitle>
-          </CardHeader>
-          <CardContent className="flex items-end gap-2">
-            <span className="text-3xl font-semibold">
-              {formatPct(state.data?.summary?.successRate)}
-            </span>
-            <span className="text-muted-foreground text-xs">last 500 events</span>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Error rate</CardTitle>
-          </CardHeader>
-          <CardContent className="flex items-end gap-2">
-            <span className="text-3xl font-semibold">{formatPct(state.data?.summary?.errorRate)}</span>
-            <span className="text-muted-foreground text-xs">last 500 events</span>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
+    <div className="grid gap-4 md:grid-cols-3">
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle>
+            <Label as="span" size="sm" tone="muted">
+              Success rate
+            </Label>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex items-end gap-2">
+          <Heading as="span" size="h2">
+            {formatPct(state.data?.summary?.successRate)}
+          </Heading>
+          <Label as="span" size="xs" tone="muted">
+            last 500 events
+          </Label>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle>
+            <Label as="span" size="sm" tone="muted">
+              Error rate
+            </Label>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex items-end gap-2">
+          <Heading as="span" size="h2">
+            {formatPct(state.data?.summary?.errorRate)}
+          </Heading>
+          <Label as="span" size="xs" tone="muted">
+            last 500 events
+          </Label>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle>
+            <Label as="span" size="sm" tone="muted">
               Avg submit duration
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex items-end gap-2">
-            <span className="text-3xl font-semibold">
-              {formatMs(state.data?.summary?.averageDurationMs)}
-            </span>
-            <span className="text-muted-foreground text-xs">success/error events</span>
-          </CardContent>
-        </Card>
-      </div>
+            </Label>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex items-end gap-2">
+          <Heading as="span" size="h2">
+            {formatMs(state.data?.summary?.averageDurationMs)}
+          </Heading>
+          <Body as="span" size="xs" tone="muted">
+            success/error events
+          </Body>
+        </CardContent>
+      </Card>
+    </div>
 
-      {state.data?.summary?.errorRate && state.data.summary.errorRate > 0.2 ? (
-        <div className="mt-3 rounded-md border border-amber-300/70 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          Elevated error rate detected for lease creation. Check validation errors, API failures, or Buildium sync.
-        </div>
-      ) : null}
+    {state.data?.summary?.errorRate && state.data.summary.errorRate > 0.2 ? (
+      <Body
+        as="div"
+        size="sm"
+        className="mt-3 rounded-md border border-amber-300/70 bg-amber-50 px-4 py-3 text-amber-900"
+      >
+        Elevated error rate detected for lease creation. Check validation errors, API failures, or Buildium sync.
+      </Body>
+    ) : null}
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Activity className="h-4 w-4" />
-              Volume & outcomes
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {series.length === 0 ? (
-              <div className="text-muted-foreground text-sm">No telemetry available yet.</div>
-            ) : (
+    <div className="mt-6 grid gap-4 lg:grid-cols-3">
+      <Card className="lg:col-span-2">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Activity className="h-4 w-4" />
+            Volume & outcomes
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {series.length === 0 ? (
+            <Body as="div" size="sm" tone="muted">
+              No telemetry available yet.
+            </Body>
+          ) : (
               <ChartContainer config={chartConfig}>
                 <AreaChart data={series}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                   <XAxis dataKey="date" tickLine={false} />
                   <YAxis allowDecimals={false} />
                   <Tooltip
-                    cursor={{ stroke: 'var(--border)' }}
+                    cursor={{ stroke: 'hsl(var(--border))' }}
                     content={<ChartTooltipContent indicator="dot" />}
                   />
                   <Legend />
                   <Area
                     type="monotone"
                     dataKey="total"
-                    stroke="var(--color-total)"
-                    fill="var(--color-total)"
+                    stroke={totalColor}
+                    fill={totalColor}
                     fillOpacity={0.18}
                   />
                   <Area
                     type="monotone"
                     dataKey="success"
-                    stroke="var(--color-success)"
-                    fill="var(--color-success)"
+                    stroke={successColor}
+                    fill={successColor}
                     fillOpacity={0.16}
                   />
                   <Area
                     type="monotone"
                     dataKey="error"
-                    stroke="var(--color-error)"
-                    fill="var(--color-error)"
+                    stroke={errorColor}
+                    fill={errorColor}
                     fillOpacity={0.12}
                   />
                 </AreaChart>
@@ -220,23 +251,22 @@ export default function LeasesAnalyticsContent() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
+            <CardTitle className="flex items-center gap-2">
               <CheckCircle2 className="h-4 w-4" />
               Top sources
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             {topSources.length === 0 ? (
-              <div className="text-muted-foreground text-sm">No source data yet.</div>
+              <Body as="div" size="sm" tone="muted">
+                No source data yet.
+              </Body>
             ) : (
               topSources.map((item) => (
-                <div
-                  key={item.source}
-                  className="flex items-center justify-between rounded-md border px-3 py-2 text-sm"
-                >
-                  <span className="truncate" title={item.source}>
+                <div key={item.source} className="flex items-center justify-between rounded-md border px-3 py-2">
+                  <Body as="span" size="sm" className="truncate" title={item.source}>
                     {item.source}
-                  </span>
+                  </Body>
                   <Badge variant="secondary">{item.count}</Badge>
                 </div>
               ))
@@ -246,9 +276,13 @@ export default function LeasesAnalyticsContent() {
       </div>
 
       {state.error ? (
-        <div className="mt-4 rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+        <Body
+          as="div"
+          size="sm"
+          className="mt-4 rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-destructive"
+        >
           {state.error}
-        </div>
+        </Body>
       ) : null}
     </div>
   );

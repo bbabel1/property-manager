@@ -3,6 +3,8 @@
 import * as React from "react";
 import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog";
 
+import { Body, Heading } from "@/ui/typography";
+import type { BodySize, HeadingSize } from "@/ui/typography";
 import { cn } from "./utils";
 import { buttonVariants } from "./button";
 
@@ -94,27 +96,47 @@ function AlertDialogFooter({
 
 function AlertDialogTitle({
   className,
+  headingAs = "h3",
+  headingSize = "h4",
+  children,
   ...props
-}: React.ComponentProps<typeof AlertDialogPrimitive.Title>) {
+}: React.ComponentProps<typeof AlertDialogPrimitive.Title> & {
+  headingAs?: React.ElementType;
+  headingSize?: HeadingSize;
+}) {
   return (
     <AlertDialogPrimitive.Title
       data-slot="alert-dialog-title"
-      className={cn("text-lg font-semibold", className)}
+      className={cn("text-left", className)}
       {...props}
-    />
+    >
+      <Heading as={headingAs} size={headingSize} className="leading-tight">
+        {children}
+      </Heading>
+    </AlertDialogPrimitive.Title>
   );
 }
 
 function AlertDialogDescription({
   className,
+  bodySize = "md",
+  tone = "muted",
+  children,
   ...props
-}: React.ComponentProps<typeof AlertDialogPrimitive.Description>) {
+}: React.ComponentProps<typeof AlertDialogPrimitive.Description> & {
+  bodySize?: BodySize;
+  tone?: "default" | "muted";
+}) {
   return (
     <AlertDialogPrimitive.Description
       data-slot="alert-dialog-description"
-      className={cn("text-muted-foreground text-sm", className)}
+      className={cn("text-left", className)}
       {...props}
-    />
+    >
+      <Body as="p" size={bodySize} tone={tone}>
+        {children}
+      </Body>
+    </AlertDialogPrimitive.Description>
   );
 }
 

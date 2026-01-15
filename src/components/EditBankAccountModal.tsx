@@ -7,7 +7,6 @@ import type { BankAccountFormValues } from '@/components/forms/types';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogHeader, DialogTitle, FullscreenDialogContent } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -18,6 +17,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { fetchWithSupabaseAuth } from '@/lib/supabase/fetch';
 import type { Database } from '@/types/database';
+import { Body, Heading, Label } from '@/ui/typography';
 
 type BankAccountInitialData = {
   name: string | null;
@@ -253,23 +253,27 @@ export default function EditBankAccountModal({
     >
       <FullscreenDialogContent className="bg-card">
         <DialogHeader className="border-border sticky top-0 z-10 border-b bg-card p-6">
-          <DialogTitle className="text-foreground text-xl font-semibold">
-            Edit Bank Account
+          <DialogTitle>
+            <Heading as="h2" size="h4" className="text-foreground">
+              Edit Bank Account
+            </Heading>
           </DialogTitle>
         </DialogHeader>
 
         {error && (
           <div className="mx-6 mt-4 rounded-md border border-red-200 bg-red-50 p-4">
-            <p className="text-sm text-red-600">{error}</p>
+            <Body as="p" size="sm" className="text-red-600">
+              {error}
+            </Body>
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="mx-auto w-full max-w-[1100px] space-y-6 p-6">
           <div className="space-y-4">
-            <h4 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+            <Heading as="h3" size="h5" className="flex items-center gap-2 text-foreground">
               <Building2 className="h-4 w-4" />
               Account Information
-            </h4>
+            </Heading>
 
             <div className="space-y-4">
               <div className="space-y-2">
@@ -377,9 +381,9 @@ export default function EditBankAccountModal({
               </div>
 
               <div className="space-y-2">
-                <p className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">
+                <Label as="p" size="xs" tone="muted" className="uppercase tracking-wide">
                   Bank Information
-                </p>
+                </Label>
                 {formData.bank_information_lines.map((line, idx) => (
                   <Input
                     key={`edit-bank-info-${idx}`}
@@ -391,11 +395,13 @@ export default function EditBankAccountModal({
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <p className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">
+                  <Label as="p" size="xs" tone="muted" className="uppercase tracking-wide">
                     Company Information
-                  </p>
+                  </Label>
                   {isLoadingOrg && (
-                    <span className="text-muted-foreground text-[11px]">Loading defaults…</span>
+                    <Body as="span" size="sm" tone="muted" className="text-[11px]">
+                      Loading defaults…
+                    </Body>
                   )}
                 </div>
                 {formData.company_information_lines.map((line, idx) => (

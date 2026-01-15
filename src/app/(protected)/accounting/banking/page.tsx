@@ -23,6 +23,7 @@ import BankingStatusFilter, {
   type BankingStatus,
 } from '@/components/financials/BankingStatusFilter';
 import BankAccountsTable from '@/components/financials/BankAccountsTable';
+import { Body, Heading } from '@/ui/typography';
 
 export const dynamic = 'force-dynamic';
 
@@ -150,12 +151,13 @@ export default async function BankingPage({
     const balanceResults = await Promise.all(
       rows.map(async (row) => {
         if (!row.org_id) return { id: row.id, balance: row.bank_balance };
-        const balanceArgs: Database['public']['Functions']['gl_account_balance_as_of']['Args'] = {
+        const balanceArgs = {
           p_org_id: row.org_id,
           p_gl_account_id: row.id,
           p_as_of: today,
-          p_property_id: undefined,
-        };
+          p_property_id: null,
+          p_entity_type: null,
+        } as unknown as Database['public']['Functions']['gl_account_balance_as_of']['Args'];
         const { data, error: balanceError } = await supabaseTyped.rpc('gl_account_balance_as_of', balanceArgs);
         if (balanceError) {
           console.error('Failed to compute balance for bank account', row.id, balanceError);
@@ -327,11 +329,13 @@ export default async function BankingPage({
     <Card className="border-border/70 border shadow-sm">
       <CardContent className="flex items-center justify-center py-16">
         <div className="space-y-2 text-center">
-          <h2 className="text-lg font-semibold text-foreground">Credit cards</h2>
-          <p className="text-sm text-muted-foreground">
+          <Heading as="h2" size="h5" className="text-foreground">
+            Credit cards
+          </Heading>
+          <Body tone="muted" size="sm">
             Tracking for credit card accounts will appear here in a future
             update.
-          </p>
+          </Body>
         </div>
       </CardContent>
     </Card>

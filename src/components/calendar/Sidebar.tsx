@@ -11,6 +11,8 @@ import { MiniCalendar } from './MiniCalendar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { CalendarEventFilter } from '@/types/calendar'
+import { Checkbox } from '@/ui/checkbox'
+import { Body, Heading, Label } from '@/ui/typography'
 
 type CalendarInfo = {
   id: string
@@ -43,16 +45,18 @@ export function Sidebar({
   const [myCalendarsOpen, setMyCalendarsOpen] = useState(true)
 
   return (
-    <aside className="w-64 border-r border-gray-200 bg-white flex flex-col h-full overflow-y-auto">
+    <aside className="flex h-full w-64 flex-col overflow-y-auto border-r border-gray-200 bg-white">
       {/* Create Button */}
       <div className="p-4">
         <Button
-          className="flex items-center gap-3 px-6 py-3 bg-white border border-gray-300 rounded-full shadow-sm hover:shadow-md hover:bg-gray-50 transition-all w-full"
+          className="flex w-full items-center gap-3 rounded-full border border-gray-300 bg-white px-6 py-3 shadow-sm transition-all hover:bg-gray-50 hover:shadow-md"
           onClick={onCreateClick}
         >
-          <Plus className="w-6 h-6 text-gray-700" />
-          <span className="text-sm font-medium text-gray-700">Create</span>
-          <ChevronDown className="w-4 h-4 text-gray-500 ml-2" />
+          <Plus className="h-6 w-6 text-muted-foreground" />
+          <Label as="span" size="sm">
+            Create
+          </Label>
+          <ChevronDown className="ml-2 h-4 w-4 text-muted-foreground" />
         </Button>
       </div>
 
@@ -64,32 +68,34 @@ export function Sidebar({
       />
 
       {/* Meet with... */}
-      <div className="px-3 py-2 border-t border-gray-100">
-        <div className="text-sm font-medium text-gray-700 mb-2">
+      <div className="border-t border-gray-100 px-3 py-2">
+        <Heading as="div" size="h6" className="mb-2">
           Meet with...
-        </div>
+        </Heading>
         <div className="relative">
-          <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             type="text"
             placeholder="Search for people"
-            className="w-full pl-9 pr-3 py-2 text-sm bg-gray-100 rounded-md border-0 focus:ring-2 focus:ring-blue-500 focus:bg-white transition-colors"
+            className="w-full rounded-md border-0 bg-muted pl-9 pr-3 py-2 transition-colors focus:bg-white focus:ring-2 focus:ring-primary/60"
           />
         </div>
       </div>
 
       {/* My calendars */}
-      <div className="px-3 py-2 border-t border-gray-100">
+      <div className="border-t border-gray-100 px-3 py-2">
         <Button
           onClick={() => setMyCalendarsOpen(!myCalendarsOpen)}
           variant="ghost"
-          className="flex items-center justify-between w-full text-sm font-medium text-gray-700 hover:bg-gray-100 rounded px-1 py-1 h-auto"
+          className="flex h-auto w-full items-center justify-between rounded px-1 py-1"
         >
-          <span>My calendars</span>
+          <Label as="span" size="sm">
+            My calendars
+          </Label>
           {myCalendarsOpen ? (
-            <ChevronUp className="w-4 h-4 text-gray-500" />
+            <ChevronUp className="h-4 w-4 text-muted-foreground" />
           ) : (
-            <ChevronDown className="w-4 h-4 text-gray-500" />
+            <ChevronDown className="h-4 w-4 text-muted-foreground" />
           )}
         </Button>
         {myCalendarsOpen && (
@@ -97,18 +103,19 @@ export function Sidebar({
             {calendars.map((cal) => (
               <label
                 key={cal.id}
-                className="flex items-center gap-2 px-1 py-1 text-sm text-gray-700 hover:bg-gray-100 rounded cursor-pointer"
+                className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 hover:bg-muted"
               >
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={cal.checked}
                   onChange={() => onCalendarToggle(cal.id)}
-                  className="w-4 h-4 rounded border-gray-300"
+                  className="h-4 w-4"
                   style={{
                     accentColor: cal.color,
                   }}
                 />
-                <span>{cal.name}</span>
+                <Body as="span" size="sm">
+                  {cal.name}
+                </Body>
               </label>
             ))}
           </div>

@@ -30,6 +30,8 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import type { FileRow } from '@/lib/files';
 import { fetchWithSupabaseAuth } from '@/lib/supabase/fetch';
+import { Select } from '@/ui/select';
+import { Body, Heading } from '@/ui/typography';
 
 type LeaseFileCategory = {
   id: string;
@@ -361,14 +363,13 @@ function LeaseFileUploadDialog({
               </div>
               <div className="bg-background grid grid-cols-12 items-center gap-3 border-t px-3 py-3">
                 <div className="col-span-4 flex items-center gap-3">
-                  <CheckCircle2 className="h-5 w-5 text-[var(--color-action-600)]" />
+                  <CheckCircle2 className="h-5 w-5 text-primary-600" />
                   <Input value={title} onChange={(event) => setTitle(event.target.value)} />
                 </div>
                 <div className="col-span-3">
-                  <select
+                  <Select
                     value={categoryName}
                     onChange={(event) => setCategoryName(event.target.value)}
-                    className="border-input bg-background focus-visible:ring-primary w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:outline-none"
                     aria-label="File category"
                   >
                     {normalizedCategoryOptions.map((option) => (
@@ -376,7 +377,7 @@ function LeaseFileUploadDialog({
                         {option.name}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </div>
                 <div className="col-span-5">
                   <Input
@@ -674,10 +675,12 @@ export default function LeaseFilesTable({
       <div className="border-border bg-background rounded-lg border shadow-sm">
         <div className="flex flex-col gap-4 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-1">
-            <h2 className="text-foreground text-sm font-semibold">Files</h2>
-            <p className="text-muted-foreground text-xs">
+            <Heading as="h2" size="h6" className="text-foreground">
+              Files
+            </Heading>
+            <Body as="p" size="xs" tone="muted">
               Upload lease documents to keep records in sync with Buildium.
-            </p>
+            </Body>
           </div>
           <div className="flex items-center gap-3">
             <Button
@@ -1050,35 +1053,36 @@ function LeaseFileEditDialog({
             </label>
             <label className="space-y-1 text-sm">
               <span className="text-muted-foreground">Category</span>
-              <select
+              <Select
                 value={categoryName}
                 onChange={(event) => setCategoryName(event.target.value)}
-                className="border-input bg-background focus-visible:ring-primary w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:outline-none"
               >
                 {categoryOptions.map((option) => (
                   <option key={option.name} value={option.name}>
                     {option.name}
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
           </div>
           <div className="rounded-lg border p-4">
-            <div className="mb-3">
-              <h3 className="text-foreground text-sm font-medium">Buildium sharing</h3>
-              <p className="text-muted-foreground text-xs">
+            <div className="mb-3 space-y-1">
+              <Heading as="h3" size="h6" className="text-foreground">
+                Buildium sharing
+              </Heading>
+              <Body as="p" size="xs" tone="muted">
                 Enable sharing with portals. Requires this file to be synced to Buildium.
-              </p>
+              </Body>
             </div>
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="text-foreground text-sm font-medium">
+                  <Body as="div" size="sm" className="font-medium text-foreground">
                     Share with rental owners
-                  </div>
-                  <div className="text-muted-foreground text-xs">
+                  </Body>
+                  <Body as="div" size="xs" tone="muted">
                     Allow owners to view this file in their Buildium portal.
-                  </div>
+                  </Body>
                 </div>
                 <Switch
                   disabled={disableSharingControls}
@@ -1088,10 +1092,12 @@ function LeaseFileEditDialog({
               </div>
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="text-foreground text-sm font-medium">Share with tenants</div>
-                  <div className="text-muted-foreground text-xs">
+                  <Body as="div" size="sm" className="font-medium text-foreground">
+                    Share with tenants
+                  </Body>
+                  <Body as="div" size="xs" tone="muted">
                     Allow tenants on this lease to view the file in the Resident Center.
-                  </div>
+                  </Body>
                 </div>
                 <Switch
                   disabled={disableSharingControls}

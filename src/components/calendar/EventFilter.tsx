@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
 import { CalendarEventFilter, EVENT_COLORS } from '@/types/calendar'
+import { Body, Label } from '@/ui/typography'
 
 const STORAGE_KEY = 'calendar_event_filters'
 
@@ -61,13 +62,17 @@ export function EventFilter({ filters, onChange }: EventFilterProps) {
   return (
     <Card className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:bg-slate-950/80">
       <CardHeader className="pb-3">
-        <CardTitle className="text-sm font-semibold">Calendars</CardTitle>
-        <p className="text-xs text-muted-foreground">Choose which sources appear in your view.</p>
+        <CardTitle headingSize="h6">Calendars</CardTitle>
+        <Body as="p" tone="muted" size="xs">
+          Choose which sources appear in your view.
+        </Body>
       </CardHeader>
       <CardContent className="space-y-5">
         {Object.entries(grouped).map(([group, options]) => (
           <div key={group} className="space-y-2">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{group}</p>
+            <Label as="p" size="xs" tone="muted" className="uppercase tracking-wide">
+              {group}
+            </Label>
             {options.map((option) => (
               <div
                 key={option.key}
@@ -80,8 +85,12 @@ export function EventFilter({ filters, onChange }: EventFilterProps) {
                     style={{ backgroundColor: option.color }}
                   />
                   <div className="space-y-0.5 min-w-0 flex-1">
-                    <p className="text-sm font-medium leading-tight">{option.label}</p>
-                    <p className="text-xs text-muted-foreground leading-tight">{option.description}</p>
+                    <Label as="p" size="sm" className="leading-tight">
+                      {option.label}
+                    </Label>
+                    <Body as="p" tone="muted" size="xs" className="leading-tight">
+                      {option.description}
+                    </Body>
                   </div>
                 </div>
                 <Switch

@@ -6,6 +6,7 @@ import { AlertCircle, CheckCircle, Eye, FileText, Loader2, Mail } from 'lucide-r
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { Body, Heading, Label } from '@/ui/typography';
 import StatementRecipientsManager from './StatementRecipientsManager';
 import StatementEmailHistory from './StatementEmailHistory';
 import StatementPreviewDialog from './StatementPreviewDialog';
@@ -180,44 +181,44 @@ export default function StatementsStage({ monthlyLogId, propertyId }: Statements
   const statusPill = (() => {
     if (!hasProperty) {
       return renderStatusPill(
-        <AlertCircle className="h-3.5 w-3.5 text-amber-600" />,
+        <AlertCircle className="h-3.5 w-3.5 text-warning-600" />,
         'Link a property to add recipients',
-        'border-slate-200 bg-white text-slate-700',
+        'status-pill-info',
       );
     }
     if (generating || previewLoading) {
       return renderStatusPill(
-        <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-600" />,
+        <Loader2 className="h-3.5 w-3.5 animate-spin text-primary-600" />,
         'Generating PDF…',
-        'border-slate-200 bg-white text-slate-700',
+        'status-pill-info',
       );
     }
     if (!pdfUrl) {
       return renderStatusPill(
-        <FileText className="h-3.5 w-3.5 text-slate-500" />,
+        <FileText className="h-3.5 w-3.5 text-muted-foreground" />,
         'Generate PDF to send',
-        'border-slate-200 bg-white text-slate-700',
+        'status-pill-info',
       );
     }
     if (recipientsLoading) {
       return renderStatusPill(
-        <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-500" />,
+        <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />,
         'Loading recipients…',
-        'border-slate-200 bg-white text-slate-700',
+        'status-pill-info',
       );
     }
     if (!gmailStatus.loading && !gmailStatus.connected) {
       return renderStatusPill(
-        <AlertCircle className="h-3.5 w-3.5 text-amber-600" />,
+        <AlertCircle className="h-3.5 w-3.5 text-warning-600" />,
         'Gmail not connected',
-        'border-amber-100 bg-amber-50 text-amber-700',
+        'status-pill-warning',
       );
     }
     if (recipientCount && recipientCount > 0 && gmailStatus.connected) {
       return renderStatusPill(
-        <CheckCircle className="h-3.5 w-3.5 text-[var(--color-success-600)]" />,
+        <CheckCircle className="h-3.5 w-3.5 text-success-600" />,
         'Ready to send',
-        'border-[var(--color-success-500)] bg-[var(--color-success-50)] text-[var(--color-success-700)]',
+        'status-pill-success',
       );
     }
     return null;
@@ -228,21 +229,25 @@ export default function StatementsStage({ monthlyLogId, propertyId }: Statements
 
   return (
     <div className="space-y-6">
-      <Card className="border border-slate-200 shadow-sm">
-        <CardHeader className="border-b border-slate-100 pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <FileText className="h-5 w-5 text-indigo-600" />
-            Statement Delivery
+      <Card className="border border-border shadow-sm">
+        <CardHeader className="border-b border-border pb-3">
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5 text-primary-600" />
+            <Heading as="p" size="h6">
+              Statement Delivery
+            </Heading>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
           {!gmailStatus.loading && !gmailStatus.connected && (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+            <div className="rounded-lg border p-3 bg-[var(--color-warning-50)] text-[var(--color-warning-700)] border-[var(--color-warning-600)]">
               <div className="flex items-start gap-2">
-                <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5" />
+                <AlertCircle className="mt-0.5 h-5 w-5 text-[var(--color-warning-600)]" />
                 <div className="flex-1">
-                  <p className="text-sm font-medium text-amber-900">Gmail Integration Required</p>
-                  <p className="text-xs text-amber-700 mt-1">
+                  <Heading as="p" size="h6" className="text-[var(--color-warning-700)]">
+                    Gmail Integration Required
+                  </Heading>
+                  <Body as="p" size="xs" tone="muted" className="mt-1">
                     Connect your Gmail account to send Monthly Log Statements.{' '}
                     <Link
                       href="/settings/integrations"
@@ -250,19 +255,21 @@ export default function StatementsStage({ monthlyLogId, propertyId }: Statements
                     >
                       Connect Gmail
                     </Link>
-                  </p>
+                  </Body>
                 </div>
               </div>
             </div>
           )}
           {gmailStatus.connected && gmailStatus.email && (
-            <div className="flex items-center gap-2 text-xs text-slate-600">
+            <Body as="div" size="xs" tone="muted" className="flex items-center gap-2">
               <Mail className="h-4 w-4" />
               <span>Sending from: {gmailStatus.email}</span>
-            </div>
+            </Body>
           )}
-          <section className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2">
-            <div className="flex items-center gap-2 text-xs text-slate-700">{statusPill}</div>
+          <section className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-muted px-3 py-2">
+            <Body as="div" size="xs" tone="muted" className="flex items-center gap-2">
+              {statusPill}
+            </Body>
             <div className="flex items-center gap-2">
               {!pdfUrl ? (
                 <Button
@@ -302,10 +309,12 @@ export default function StatementsStage({ monthlyLogId, propertyId }: Statements
 
           <section className="space-y-3">
             <div className="flex items-center justify-between gap-2">
-              <h3 className="text-sm font-semibold text-slate-900">Recipients</h3>
-              <span className="text-xs text-slate-500">
+              <Heading as="h3" size="h6">
+                Recipients
+              </Heading>
+              <Body as="span" size="xs" tone="muted">
                 {recipientsLoading ? 'Loading...' : `${recipientCount ?? 0} total`}
-              </span>
+              </Body>
             </div>
             {hasProperty ? (
               <StatementRecipientsManager
@@ -314,7 +323,9 @@ export default function StatementsStage({ monthlyLogId, propertyId }: Statements
                 onLoadingChange={setRecipientsLoading}
               />
             ) : (
-              <div className="text-sm text-slate-600">Link a property to manage recipients.</div>
+              <Body as="div" size="sm" tone="muted">
+                Link a property to manage recipients.
+              </Body>
             )}
           </section>
 

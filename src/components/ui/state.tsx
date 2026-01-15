@@ -1,6 +1,7 @@
 import { AlertTriangle, Inbox, Loader2 } from 'lucide-react';
 import type { ReactNode } from 'react';
 
+import { Body, Heading } from '@/ui/typography';
 import { Button } from './button';
 import { Card, CardContent } from './card';
 
@@ -18,8 +19,14 @@ export function LoadingState(props: Omit<StateProps, 'action'>) {
       <CardContent className="flex flex-col items-center justify-center gap-3 py-16 text-center">
         {icon ?? <Loader2 className="h-6 w-6 animate-spin text-primary" aria-hidden="true" />}
         <div className="space-y-1">
-          <p className="text-sm font-medium text-foreground">{title}</p>
-          {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
+          <Heading as="p" size="h6" className="text-foreground">
+            {title}
+          </Heading>
+          {description ? (
+            <Body as="p" size="sm" tone="muted">
+              {description}
+            </Body>
+          ) : null}
         </div>
       </CardContent>
     </Card>
@@ -33,8 +40,14 @@ export function ErrorState(props: StateProps & { actionLabel?: string; onRetry?:
       <CardContent className="flex flex-col items-center gap-4 py-16 text-center">
         {icon ?? <AlertTriangle className="h-10 w-10 text-destructive" aria-hidden="true" />}
         <div className="space-y-1">
-          <h3 className="text-lg font-semibold text-foreground">{title}</h3>
-          {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
+          <Heading as="h3" size="h4" className="text-foreground">
+            {title}
+          </Heading>
+          {description ? (
+            <Body as="p" size="sm" tone="muted">
+              {description}
+            </Body>
+          ) : null}
         </div>
         {action ?? (onRetry ? <Button onClick={onRetry}>{actionLabel || 'Try again'}</Button> : null)}
       </CardContent>
@@ -49,8 +62,14 @@ export function EmptyState(props: StateProps & { action?: ReactNode }) {
       <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
         {icon ?? <Inbox className="h-12 w-12 text-muted-foreground" aria-hidden="true" />}
         <div className="space-y-1">
-          <h3 className="text-lg font-semibold text-foreground">{title}</h3>
-          {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
+          <Heading as="h3" size="h4" className="text-foreground">
+            {title}
+          </Heading>
+          {description ? (
+            <Body as="p" size="sm" tone="muted">
+              {description}
+            </Body>
+          ) : null}
         </div>
         {action ?? null}
       </CardContent>

@@ -4,11 +4,40 @@ import * as React from 'react';
 
 import { cn } from './utils';
 
-function Table({ className, ...props }: React.ComponentProps<'table'>) {
+type TableDensity = 'compact' | 'comfortable';
+
+const tableDensityRowClasses: Record<TableDensity, string> = {
+  compact: 'hover:bg-muted/40 [&>td]:py-2',
+  comfortable: 'hover:bg-muted/50 [&>td]:py-4',
+};
+
+const tableDensityCellClasses: Record<TableDensity, string> = {
+  compact: 'px-4 py-2',
+  comfortable: 'px-6 py-4',
+};
+
+type TableProps = React.ComponentProps<'table'> & {
+  density?: TableDensity;
+};
+
+type TableSectionProps<T extends keyof JSX.IntrinsicElements> = React.ComponentProps<T> & {
+  density?: TableDensity;
+};
+
+type TableRowProps = React.ComponentProps<'tr'> & {
+  density?: TableDensity;
+};
+
+type TableCellProps = React.ComponentProps<'td'> & {
+  density?: TableDensity;
+};
+
+function Table({ className, density = 'comfortable', ...props }: TableProps) {
   return (
     <div data-slot="table-container" className="relative w-full overflow-x-auto">
       <table
         data-slot="table"
+        data-density={density}
         className={cn('w-full caption-bottom text-sm', className)}
         {...props}
       />
@@ -16,12 +45,12 @@ function Table({ className, ...props }: React.ComponentProps<'table'>) {
   );
 }
 
-function TableHeader({ className, ...props }: React.ComponentProps<'thead'>) {
+function TableHeader({ className, ...props }: TableSectionProps<'thead'>) {
   return (
     <thead
       data-slot="table-header"
       className={cn(
-        'bg-[var(--color-gray-100)] text-sm tracking-[0.05em] text-[var(--color-gray-700)] uppercase [&>tr]:border-b [&>tr]:bg-transparent [&>tr:hover]:bg-transparent',
+        'bg-muted text-sm tracking-[0.05em] text-muted-foreground uppercase [&>tr]:border-b [&>tr]:bg-transparent [&>tr:hover]:bg-transparent',
         className,
       )}
       {...props}
@@ -29,7 +58,7 @@ function TableHeader({ className, ...props }: React.ComponentProps<'thead'>) {
   );
 }
 
-function TableBody({ className, ...props }: React.ComponentProps<'tbody'>) {
+function TableBody({ className, ...props }: TableSectionProps<'tbody'>) {
   return (
     <tbody
       data-slot="table-body"
@@ -39,7 +68,7 @@ function TableBody({ className, ...props }: React.ComponentProps<'tbody'>) {
   );
 }
 
-function TableFooter({ className, ...props }: React.ComponentProps<'tfoot'>) {
+function TableFooter({ className, ...props }: TableSectionProps<'tfoot'>) {
   return (
     <tfoot
       data-slot="table-footer"
@@ -49,12 +78,15 @@ function TableFooter({ className, ...props }: React.ComponentProps<'tfoot'>) {
   );
 }
 
-function TableRow({ className, ...props }: React.ComponentProps<'tr'>) {
+function TableRow({ className, density = 'comfortable', ...props }: TableRowProps) {
+  const densityClasses = tableDensityRowClasses[density] ?? tableDensityRowClasses.comfortable;
   return (
     <tr
       data-slot="table-row"
+      data-density={density}
       className={cn(
-        'data-[state=selected]:bg-muted hover:bg-muted/50 border-b border-[var(--color-border-subtle)] transition-colors last:border-b-0',
+        'border-b border-border transition-colors last:border-b-0 data-[state=selected]:bg-muted',
+        densityClasses,
         className,
       )}
       {...props}
@@ -75,12 +107,15 @@ function TableHead({ className, ...props }: React.ComponentProps<'th'>) {
   );
 }
 
-function TableCell({ className, ...props }: React.ComponentProps<'td'>) {
+function TableCell({ className, density = 'comfortable', ...props }: TableCellProps) {
+  const densityClasses = tableDensityCellClasses[density] ?? tableDensityCellClasses.comfortable;
   return (
     <td
       data-slot="table-cell"
+      data-density={density}
       className={cn(
-        'p-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]',
+        'align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]',
+        densityClasses,
         className,
       )}
       {...props}
@@ -98,4 +133,16 @@ function TableCaption({ className, ...props }: React.ComponentProps<'caption'>) 
   );
 }
 
-export { Table, TableHeader, TableBody, TableFooter, TableHead, TableRow, TableCell, TableCaption };
+export type { TableDensity, TableProps, TableRowProps, TableCellProps };
+export {
+  Table,
+  TableHeader,
+  TableBody,
+  TableFooter,
+  TableHead,
+  TableRow,
+  TableCell,
+  TableCaption,
+  tableDensityRowClasses,
+  tableDensityCellClasses,
+};

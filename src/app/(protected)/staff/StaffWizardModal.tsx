@@ -6,6 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Dropdown } from '@/components/ui/Dropdown';
 import { normalizeStaffRole } from '@/lib/staff-role';
 import { getAvailableUIStaffRoles } from '@/lib/enums/staff-roles';
+import { Checkbox } from '@/ui/checkbox';
+import { Body, Heading, Label } from '@/ui/typography';
 
 const ROLE_OPTIONS = getAvailableUIStaffRoles().map((value) => ({ value, label: value }));
 
@@ -158,26 +160,28 @@ export default function StaffWizardModal({
         <div className="space-y-6">
           {step === 1 && (
             <div className="space-y-4">
-              <h4 className="text-sm font-medium">Personal Details</h4>
+              <Heading as="h4" size="h4">
+                Personal Details
+              </Heading>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <div>
-                  <label className="mb-1 block text-sm">First Name</label>
+                  <Label className="mb-1 block">First Name</Label>
                   <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm">Last Name</label>
+                  <Label className="mb-1 block">Last Name</Label>
                   <Input value={lastName} onChange={(e) => setLastName(e.target.value)} />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm">Email</label>
+                  <Label className="mb-1 block">Email</Label>
                   <Input value={email} onChange={(e) => setEmail(e.target.value)} />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm">Phone</label>
+                  <Label className="mb-1 block">Phone</Label>
                   <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
                 </div>
                 <div className="md:col-span-2">
-                  <label className="mb-1 block text-sm">Title</label>
+                  <Label className="mb-1 block">Title</Label>
                   <Input value={title} onChange={(e) => setTitle(e.target.value)} />
                 </div>
               </div>
@@ -185,10 +189,12 @@ export default function StaffWizardModal({
           )}
           {step === 2 && (
             <div className="space-y-4">
-              <h4 className="text-sm font-medium">Organization & Roles</h4>
+              <Heading as="h4" size="h4">
+                Organization & Roles
+              </Heading>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <div>
-                  <label className="mb-1 block text-sm">Organization</label>
+                  <Label className="mb-1 block">Organization</Label>
                   <Dropdown
                     value={orgId}
                     onChange={setOrgId}
@@ -197,60 +203,69 @@ export default function StaffWizardModal({
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm">Staff Role</label>
+                  <Label className="mb-1 block">Staff Role</Label>
                   <Dropdown value={staffRole} onChange={setStaffRole} options={ROLE_OPTIONS} />
                 </div>
-                <label className="flex items-center gap-2 text-sm md:col-span-2">
-                  <input
-                    type="checkbox"
+                <Label as="label" className="flex items-center gap-2 md:col-span-2">
+                  <Checkbox
                     checked={sendInvite}
                     onChange={(e) => setSendInvite(e.target.checked)}
                   />{' '}
                   Send invite email
-                </label>
+                </Label>
               </div>
             </div>
           )}
           {step === 3 && (
             <div className="space-y-4">
-              <h4 className="text-sm font-medium">Property Assignments</h4>
+              <Heading as="h4" size="h4">
+                Property Assignments
+              </Heading>
               <div className="bg-background max-h-56 overflow-auto rounded-md border p-2">
                 {properties.length === 0 ? (
-                  <div className="text-muted-foreground text-sm">No properties.</div>
+                  <Body size="sm" tone="muted">
+                    No properties.
+                  </Body>
                 ) : (
                   properties.map((p) => (
-                    <label key={p.id} className="flex items-center gap-2 py-1 text-sm">
-                      <input
-                        type="checkbox"
+                    <Label key={p.id} className="flex items-center gap-2 py-1">
+                      <Checkbox
                         checked={selectedProperties.has(p.id)}
                         onChange={() => toggleProperty(p.id)}
                       />
                       <span>{p.name}</span>
-                    </label>
+                    </Label>
                   ))
                 )}
               </div>
-              <p className="text-muted-foreground text-xs">
+              <Body tone="muted" size="sm" className="text-xs">
                 Assignments will be saved as Property Manager for selected properties.
-              </p>
+              </Body>
             </div>
           )}
           {step === 4 && (
             <div className="space-y-3">
-              <h4 className="text-sm font-medium">Sync</h4>
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
+              <Heading as="h4" size="h4">
+                Sync
+              </Heading>
+              <Label as="label" className="flex items-center gap-2">
+                <Checkbox
                   checked={syncToBuildium}
                   onChange={(e) => setSyncToBuildium(e.target.checked)}
                 />{' '}
                 Sync staff to Buildium after saving
-              </label>
+              </Label>
             </div>
           )}
-          {err && <div className="text-destructive text-sm">{err}</div>}
+          {err && (
+            <Body size="sm" className="text-destructive">
+              {err}
+            </Body>
+          )}
           <div className="flex items-center justify-between pt-2">
-            <div className="text-muted-foreground text-xs">Step {step} of 4</div>
+            <Label as="div" size="xs" tone="muted">
+              Step {step} of 4
+            </Label>
             <div className="flex items-center gap-2">
               {step > 1 && (
                 <Button variant="outline" onClick={() => setStep(step - 1)}>

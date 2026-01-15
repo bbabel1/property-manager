@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { DatePicker } from '@/components/ui/date-picker';
-import { Label } from '@/components/ui/label';
+import { Label as FormLabel } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -30,6 +30,7 @@ import TransactionFileUploadDialog, {
 import DestructiveActionModal from '@/components/common/DestructiveActionModal';
 import type { DepositStatus } from '@/types/deposits';
 import { Lock, Paperclip } from 'lucide-react';
+import { Body, Heading, Label } from '@/ui/typography';
 
 type BankAccountOption = {
   id: string;
@@ -385,7 +386,9 @@ export default function EditDepositForm(props: EditDepositFormProps): JSX.Elemen
       <div className="flex flex-col gap-3 rounded-md border bg-muted/40 p-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-1">
           <div className="text-xs font-semibold tracking-wide text-muted-foreground">Deposit</div>
-          <div className="text-lg font-semibold leading-tight">{displayId}</div>
+          <Heading as="p" size="h5" className="leading-tight">
+            {displayId}
+          </Heading>
           {depositBankLabel ? (
             <div className="text-sm text-muted-foreground">Bank account: {depositBankLabel}</div>
           ) : null}
@@ -437,9 +440,9 @@ export default function EditDepositForm(props: EditDepositFormProps): JSX.Elemen
           </div>
 
           <div>
-            <Label htmlFor="edit-deposit-date" className="text-xs font-semibold tracking-wide">
+            <FormLabel htmlFor="edit-deposit-date" className="text-xs font-semibold tracking-wide">
               DATE <span className="text-destructive">*</span>
-            </Label>
+            </FormLabel>
             <DatePicker
               id="edit-deposit-date"
               value={formData.date}
@@ -449,9 +452,9 @@ export default function EditDepositForm(props: EditDepositFormProps): JSX.Elemen
           </div>
 
           <div className="sm:col-span-2">
-            <Label htmlFor="edit-deposit-memo" className="text-xs font-semibold tracking-wide">
+            <FormLabel htmlFor="edit-deposit-memo" className="text-xs font-semibold tracking-wide">
               MEMO
-            </Label>
+            </FormLabel>
             <Textarea
               id="edit-deposit-memo"
               value={formData.memo}
@@ -469,25 +472,31 @@ export default function EditDepositForm(props: EditDepositFormProps): JSX.Elemen
 
         <Card>
           <CardContent className="py-6">
-            <div className="text-muted-foreground text-xs font-semibold tracking-widest uppercase">
+            <Label as="div" size="xs" tone="muted" className="font-semibold uppercase tracking-widest">
               Total deposit amount
-            </div>
-            <div className="text-foreground mt-2 text-2xl font-semibold">{fmtUsd(totalAmount)}</div>
-            <div className="text-muted-foreground mt-1 text-sm">
+            </Label>
+            <Heading as="div" size="h3" className="text-foreground mt-2 font-semibold leading-tight">
+              {fmtUsd(totalAmount)}
+            </Heading>
+            <Body as="div" size="sm" tone="muted" className="mt-1">
               {paymentCount} deposited payment{paymentCount !== 1 ? 's' : ''}
-            </div>
+            </Body>
           </CardContent>
         </Card>
 
         <div className="flex items-center justify-between">
-          <div className="text-sm font-semibold">Other deposit items</div>
+          <Heading as="div" size="h5" className="font-semibold">
+            Other deposit items
+          </Heading>
           <Button type="button" variant="ghost" size="sm" disabled>
             + Add another
           </Button>
         </div>
 
         <div className="space-y-3">
-          <div className="text-sm font-semibold">Payments</div>
+          <Heading as="div" size="h5" className="font-semibold">
+            Payments
+          </Heading>
           {paymentRows.length > 0 ? (
             <div className="overflow-x-auto rounded-md border">
               <Table className="min-w-[980px]">
@@ -543,7 +552,9 @@ export default function EditDepositForm(props: EditDepositFormProps): JSX.Elemen
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <div className="text-sm font-semibold">Attachments</div>
+              <Label as="div" size="sm">
+                Attachments
+              </Label>
               <div className="text-xs text-muted-foreground">Add supporting files for this deposit.</div>
               {attachmentError ? <p className="text-xs text-destructive">{attachmentError}</p> : null}
               {attachmentsDisabled ? (
@@ -579,7 +590,9 @@ export default function EditDepositForm(props: EditDepositFormProps): JSX.Elemen
                   <div className="flex min-w-0 flex-col gap-0.5">
                     <div className="flex items-center gap-2">
                       <Paperclip className="h-4 w-4 text-muted-foreground" aria-hidden />
-                      <div className="truncate text-sm font-medium">{a.title}</div>
+                      <Label as="div" size="sm" className="truncate">
+                        {a.title}
+                      </Label>
                     </div>
                     <div className="text-xs text-muted-foreground">
                       {a.category || 'Uncategorized'}

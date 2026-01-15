@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { ReactNode } from 'react';
 
 import { cn } from '@/components/ui/utils';
+import { Body } from '@/ui/typography';
 
 type BillsTabSwitcherProps = {
   initialTab: 'unpaid' | 'paid';
@@ -57,24 +58,28 @@ export default function BillsTabSwitcher({
           <button
             onClick={() => handleChange('unpaid')}
             aria-current={value === 'unpaid' ? 'page' : undefined}
-            className={`border-b-2 px-1 py-4 text-sm font-medium transition-colors ${
+            className={`border-b-2 px-1 py-4 transition-colors ${
               value === 'unpaid'
                 ? 'border-primary text-primary'
                 : 'text-muted-foreground hover:text-foreground hover:border-muted-foreground border-transparent'
             }`}
           >
-            Unpaid bills
+            <Body as="span" size="sm" className="font-medium leading-tight">
+              Unpaid bills
+            </Body>
           </button>
           <button
             onClick={() => handleChange('paid')}
             aria-current={value === 'paid' ? 'page' : undefined}
-            className={`border-b-2 px-1 py-4 text-sm font-medium transition-colors ${
+            className={`border-b-2 px-1 py-4 transition-colors ${
               value === 'paid'
                 ? 'border-primary text-primary'
                 : 'text-muted-foreground hover:text-foreground hover:border-muted-foreground border-transparent'
             }`}
           >
-            Paid bills
+            <Body as="span" size="sm" className="font-medium leading-tight">
+              Paid bills
+            </Body>
           </button>
         </nav>
       </div>

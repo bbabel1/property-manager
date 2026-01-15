@@ -11,7 +11,9 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Select } from '@/ui/select';
 import { CheckCircle2 } from 'lucide-react';
+import { InteractiveSurface } from '@/ui/interactive-surface';
 
 export type TransactionAttachmentDraft = {
   file: File;
@@ -114,7 +116,7 @@ export default function TransactionFileUploadDialog({
 
   return (
     <Dialog open={open} onOpenChange={(value) => (value ? onOpenChange(true) : close())}>
-      <DialogContent className="top-[35%] w-[680px] max-w-[680px] translate-y-[-35%]">
+      <DialogContent size="md">
         <DialogHeader>
           <DialogTitle>Upload file</DialogTitle>
           <DialogDescription>
@@ -126,22 +128,35 @@ export default function TransactionFileUploadDialog({
 
         {step === 'select' ? (
           <div className="space-y-4">
-            <label
-              onDrop={onDrop}
-              onDragOver={(event) => event.preventDefault()}
+            <InteractiveSurface
+              asChild
+              tabIndex={0}
+              role="button"
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  fileInputRef.current?.click();
+                }
+              }}
               className="border-muted-foreground/40 bg-muted/40 text-muted-foreground hover:border-primary hover:text-primary flex h-40 cursor-pointer items-center justify-center rounded-md border-2 border-dashed text-sm transition"
             >
-              <div className="text-center">
-                Drag &amp; drop files here or <span className="text-primary underline">Browse</span>
-              </div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                className="hidden"
-                onChange={onFileInputChange}
-                accept="application/pdf,image/*"
-              />
-            </label>
+              <label
+                onDrop={onDrop}
+                onDragOver={(event) => event.preventDefault()}
+              >
+                <div className="text-center">
+                  Drag &amp; drop files here or{" "}
+                  <span className="text-primary underline">Browse</span>
+                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  className="hidden"
+                  onChange={onFileInputChange}
+                  accept="application/pdf,image/*"
+                />
+              </label>
+            </InteractiveSurface>
             <div className="text-muted-foreground text-xs">
               Supported formats include PDF and common image types. Maximum size {(maxBytes / (1024 * 1024)).toFixed(0)} MB.
             </div>
@@ -156,7 +171,7 @@ export default function TransactionFileUploadDialog({
               </div>
               <div className="bg-background grid grid-cols-12 items-center gap-3 border-t px-3 py-3">
                 <div className="col-span-4 flex items-center gap-3">
-                  <CheckCircle2 className="h-5 w-5 text-[var(--color-action-600)]" />
+                  <CheckCircle2 className="h-5 w-5 text-primary-600" />
                   <Input
                     id="transaction-file-title"
                     value={title}
@@ -164,18 +179,17 @@ export default function TransactionFileUploadDialog({
                   />
                 </div>
                 <div className="col-span-3">
-                  <select
+                  <Select
                     id="transaction-file-category"
                     value={category}
                     onChange={(event) => setCategory(event.target.value)}
-                    className="border-input bg-background w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:outline-none"
                   >
                     {CATEGORY_OPTIONS.map((opt) => (
                       <option key={opt} value={opt}>
                         {opt}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </div>
                 <div className="col-span-5">
                   <Input

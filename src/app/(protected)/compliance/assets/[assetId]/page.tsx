@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ComplianceChecklistTable } from '@/components/compliance/ComplianceChecklistTable'
 import { ViolationsList } from '@/components/compliance/ViolationsList'
 import { Loader2, ExternalLink, Wrench } from 'lucide-react'
+import { Body, Label } from '@/ui/typography'
 import type { ComplianceAssetWithRelations } from '@/types/compliance'
 
 export default function AssetDetailPage() {
@@ -68,7 +69,9 @@ export default function AssetDetailPage() {
         <PageHeader title="Asset Details" />
         <PageBody>
           <div className="rounded-lg border border-destructive bg-destructive/10 p-4">
-            <p className="text-sm text-destructive">Error: {error || 'Failed to load asset data'}</p>
+            <Body as="p" size="sm" className="text-destructive">
+              Error: {error || 'Failed to load asset data'}
+            </Body>
           </div>
         </PageBody>
       </PageShell>
@@ -115,43 +118,57 @@ export default function AssetDetailPage() {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm text-muted-foreground">Property</p>
+                  <Label as="p" size="xs" tone="muted">
+                    Property
+                  </Label>
                   {asset.property ? (
-                    <Link
+                    <Label
+                      as={Link}
                       href={`/properties/${asset.property.id}`}
-                      className="text-primary hover:underline font-medium"
+                      size="sm"
+                      className="text-primary hover:underline"
                     >
                       {asset.property.name}
-                    </Link>
+                    </Label>
                   ) : (
-                    <p className="text-sm">—</p>
+                    <Body as="p" size="sm">
+                      —
+                    </Body>
                   )}
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Asset Type</p>
+                  <Label as="p" size="xs" tone="muted">
+                    Asset Type
+                  </Label>
                   <Badge variant="outline">{asset.asset_type}</Badge>
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Last Inspection</p>
-                  <p className="text-sm">
+                  <Label as="p" size="xs" tone="muted">
+                    Last Inspection
+                  </Label>
+                  <Body as="p" size="sm">
                     {lastInspection?.inspection_date
                       ? new Date(lastInspection.inspection_date).toLocaleDateString()
                       : '—'}
-                  </p>
+                  </Body>
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Next Due</p>
-                  <p className="text-sm">
-                    {nextDueItem
-                      ? new Date(nextDueItem.due_date).toLocaleDateString()
-                      : '—'}
-                  </p>
+                  <Label as="p" size="xs" tone="muted">
+                    Next Due
+                  </Label>
+                  <Body as="p" size="sm">
+                    {nextDueItem ? new Date(nextDueItem.due_date).toLocaleDateString() : '—'}
+                  </Body>
                 </div>
               </div>
               {asset.location_notes && (
                 <div>
-                  <p className="text-sm text-muted-foreground">Location Notes</p>
-                  <p className="text-sm">{asset.location_notes}</p>
+                  <Label as="p" size="xs" tone="muted">
+                    Location Notes
+                  </Label>
+                  <Body as="p" size="sm">
+                    {asset.location_notes}
+                  </Body>
                 </div>
               )}
             </CardContent>
@@ -170,35 +187,51 @@ export default function AssetDetailPage() {
                 <table className="w-full">
                   <thead>
                     <tr className="border-b">
-                      <th className="p-4 text-left text-sm font-medium">Date</th>
-                      <th className="p-4 text-left text-sm font-medium">Type</th>
-                      <th className="p-4 text-left text-sm font-medium">Status</th>
-                      <th className="p-4 text-left text-sm font-medium">Inspector</th>
-                      <th className="p-4 text-left text-sm font-medium">Tracking Number</th>
+                      <Label as="th" size="sm" className="p-4 text-left">
+                        Date
+                      </Label>
+                      <Label as="th" size="sm" className="p-4 text-left">
+                        Type
+                      </Label>
+                      <Label as="th" size="sm" className="p-4 text-left">
+                        Status
+                      </Label>
+                      <Label as="th" size="sm" className="p-4 text-left">
+                        Inspector
+                      </Label>
+                      <Label as="th" size="sm" className="p-4 text-left">
+                        Tracking Number
+                      </Label>
                     </tr>
                   </thead>
                   <tbody>
                     {asset.events && asset.events.length > 0 ? (
                       asset.events.map((event) => (
                         <tr key={event.id} className="border-b">
-                          <td className="p-4 text-sm">
+                          <Body as="td" size="sm" className="p-4">
                             {event.inspection_date
                               ? new Date(event.inspection_date).toLocaleDateString()
                               : '—'}
-                          </td>
-                          <td className="p-4 text-sm">{event.inspection_type || event.event_type}</td>
-                          <td className="p-4 text-sm">{event.compliance_status || '—'}</td>
-                          <td className="p-4 text-sm">{event.inspector_name || '—'}</td>
-                          <td className="p-4 text-sm font-mono">
+                          </Body>
+                          <Body as="td" size="sm" className="p-4">
+                            {event.inspection_type || event.event_type}
+                          </Body>
+                          <Body as="td" size="sm" className="p-4">
+                            {event.compliance_status || '—'}
+                          </Body>
+                          <Body as="td" size="sm" className="p-4">
+                            {event.inspector_name || '—'}
+                          </Body>
+                          <Body as="td" size="sm" className="p-4 font-mono">
                             {event.external_tracking_number || '—'}
-                          </td>
+                          </Body>
                         </tr>
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={5} className="p-8 text-center text-muted-foreground">
+                        <Body as="td" size="sm" tone="muted" colSpan={5} className="p-8 text-center">
                           No inspections found
-                        </td>
+                        </Body>
                       </tr>
                     )}
                   </tbody>

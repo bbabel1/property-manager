@@ -21,6 +21,7 @@ import { getSupabaseBrowserClient } from '@/lib/supabase/client'
 import type { Database } from '@/types/database'
 import { toast } from 'sonner'
 import { fetchWithSupabaseAuth } from '@/lib/supabase/fetch'
+import { Body, Heading } from '@/ui/typography'
 
 type Note = Database['public']['Tables']['tenant_notes']['Row']
 
@@ -118,7 +119,9 @@ export default function RecentNotesSection({ tenantId }: RecentNotesSectionProps
     <>
       <div className="space-y-4">
         <div className="flex items-center gap-2">
-          <h2 className="text-lg font-semibold text-foreground">Recent notes</h2>
+          <Heading as="h2" size="h3">
+            Recent notes
+          </Heading>
           <Button 
             variant="link" 
             className="px-2 py-0 h-auto"
@@ -130,15 +133,15 @@ export default function RecentNotesSection({ tenantId }: RecentNotesSectionProps
         <div className="rounded-lg border border-border bg-background shadow-sm overflow-hidden">
 
         {loading ? (
-          <div className="px-4 py-6 text-sm text-muted-foreground text-center">
+          <Body tone="muted" size="sm" className="px-4 py-6 text-center">
             Loading recent notes...
-          </div>
+          </Body>
         ) : error ? (
-          <div className="px-4 py-6 text-sm text-destructive text-center">
+          <Body size="sm" className="px-4 py-6 text-center text-destructive">
             {error}
-          </div>
+          </Body>
         ) : notes.length === 0 ? (
-          <div className="px-4 py-6 text-sm text-muted-foreground">
+          <Body tone="muted" size="sm" className="px-4 py-6">
             You don't have any notes for this tenant right now.{' '}
             <Button 
               variant="link" 
@@ -147,7 +150,7 @@ export default function RecentNotesSection({ tenantId }: RecentNotesSectionProps
             >
               Add your first note
             </Button>
-          </div>
+          </Body>
         ) : (
           <Table>
             <TableBody className="divide-y divide-border">

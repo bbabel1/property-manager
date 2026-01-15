@@ -5,6 +5,9 @@ import { Home } from 'lucide-react';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Dropdown } from './ui/Dropdown';
+import { Input } from '@/ui/input';
+import { Textarea } from '@/ui/textarea';
+import { Body, Heading, Label } from '@/ui/typography';
 
 import {
   type BedroomEnum,
@@ -153,22 +156,28 @@ export default function AddUnitModal({
         if (!open) onClose();
       }}
     >
-      <DialogContent className="bg-card border-border/80 max-h-[90vh] w-[680px] max-w-[680px] overflow-y-auto rounded-none border p-0 shadow-2xl sm:rounded-2xl">
+      <DialogContent size="md" className="bg-card max-h-[90vh] overflow-y-auto p-0">
         {/* Header */}
         <DialogHeader className="border-border border-b p-6">
-          <DialogTitle className="text-foreground text-xl font-semibold">Add New Unit</DialogTitle>
+          <DialogTitle asChild>
+            <Heading size="h3">Add New Unit</Heading>
+          </DialogTitle>
         </DialogHeader>
 
         {/* Error/Success Messages */}
         {error && (
           <div className="bg-destructive/10 border-destructive/20 mx-6 mt-4 rounded-md border p-4">
-            <p className="text-destructive text-sm">{error}</p>
+            <Body as="p" size="sm" className="text-destructive">
+              {error}
+            </Body>
           </div>
         )}
 
         {success && (
           <div className="bg-success/10 border-success/20 mx-6 mt-4 rounded-md border p-4">
-            <p className="text-success text-sm">{success}</p>
+            <Body as="p" size="sm" className="text-success">
+              {success}
+            </Body>
           </div>
         )}
 
@@ -176,36 +185,43 @@ export default function AddUnitModal({
         <div className="space-y-6 p-6">
           <div className="mb-6 text-center">
             <Home className="text-primary mx-auto mb-4 h-12 w-12" />
-            <h3 className="text-foreground text-lg font-medium">Unit Information</h3>
-            <p className="text-muted-foreground text-sm">Enter the unit details</p>
+            <Heading as="h2" size="h4" className="text-center">
+              Unit Information
+            </Heading>
+            <Body size="sm" tone="muted" className="text-center">
+              Enter the unit details
+            </Body>
           </div>
 
           {/* Unit Details Section */}
           <div className="space-y-4">
-            <h4 className="flex items-center gap-2 font-medium text-gray-900">
+            <Heading as="h3" size="h5" className="flex items-center gap-2">
               <Home className="h-4 w-4" />
               Unit Details
-            </h4>
+            </Heading>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">
+                <Label htmlFor="unit-number" className="mb-1 block">
                   Unit Number *
-                </label>
-                <input
+                </Label>
+                <Input
+                  id="unit-number"
                   type="text"
                   value={formData.unitNumber}
                   onChange={(e) => setFormData({ ...formData, unitNumber: e.target.value })}
-                  className="h-9 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   placeholder="e.g., 101"
                 />
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Square Feet</label>
-                <input
+                <Label htmlFor="unit-size" className="mb-1 block">
+                  Square Feet
+                </Label>
+                <Input
+                  id="unit-size"
                   type="number"
-                  min="0"
+                  min={0}
                   value={formData.unitSize || ''}
                   onChange={(e) =>
                     setFormData({
@@ -213,7 +229,6 @@ export default function AddUnitModal({
                       unitSize: e.target.value ? Number(e.target.value) : undefined,
                     })
                   }
-                  className="h-9 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   placeholder="e.g., 750"
                 />
               </div>
@@ -221,7 +236,9 @@ export default function AddUnitModal({
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Bedrooms *</label>
+                <Label as="p" className="mb-1 block">
+                  Bedrooms *
+                </Label>
                 <Dropdown
                   value={formData.unitBedrooms}
                   onChange={(value) =>
@@ -233,7 +250,9 @@ export default function AddUnitModal({
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Bathrooms *</label>
+                <Label as="p" className="mb-1 block">
+                  Bathrooms *
+                </Label>
                 <Dropdown
                   value={formData.unitBathrooms}
                   onChange={(value) =>
@@ -246,13 +265,18 @@ export default function AddUnitModal({
             </div>
 
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">Market Rent</label>
+              <Label htmlFor="market-rent" className="mb-1 block">
+                Market Rent
+              </Label>
               <div className="relative">
-                <span className="absolute top-1/2 left-3 -translate-y-1/2 text-gray-500">$</span>
-                <input
+                <span className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2">
+                  $
+                </span>
+                <Input
+                  id="market-rent"
                   type="number"
-                  min="0"
-                  step="0.01"
+                  min={0}
+                  step={0.01}
                   value={formData.marketRent || ''}
                   onChange={(e) =>
                     setFormData({
@@ -260,18 +284,21 @@ export default function AddUnitModal({
                       marketRent: e.target.value ? Number(e.target.value) : undefined,
                     })
                   }
-                  className="h-9 w-full rounded-md border border-gray-300 py-2 pr-3 pl-8 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  className="pl-8"
                   placeholder="e.g., 1800.00"
                 />
               </div>
             </div>
 
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">Description</label>
-              <textarea
+              <Label htmlFor="description" className="mb-1 block">
+                Description
+              </Label>
+              <Textarea
+                id="description"
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                className="min-h-[80px] w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                className="min-h-[80px]"
                 rows={3}
                 placeholder="Brief description of the unit..."
               />

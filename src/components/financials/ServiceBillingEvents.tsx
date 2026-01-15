@@ -12,6 +12,7 @@ import Link from 'next/link';
 import { ExternalLink, X, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import DestructiveActionModal from '@/components/common/DestructiveActionModal';
+import { Body, Heading } from '@/ui/typography';
 
 interface BillingEvent {
   id: string;
@@ -121,7 +122,9 @@ export default function ServiceBillingEvents({ propertyId, unitId }: ServiceBill
     return (
       <Card>
         <CardContent className="py-6 text-center text-muted-foreground">
-          Loading billing events...
+          <Body as="p" size="sm" tone="muted">
+            Loading billing events...
+          </Body>
         </CardContent>
       </Card>
     );
@@ -131,7 +134,11 @@ export default function ServiceBillingEvents({ propertyId, unitId }: ServiceBill
     return (
       <Card>
         <CardContent className="py-6">
-          <div className="text-destructive text-center">{error}</div>
+          <div className="text-destructive text-center">
+            <Body as="p" size="sm">
+              {error}
+            </Body>
+          </div>
           <div className="mt-4 text-center">
             <Button onClick={loadEvents} variant="outline">
               Retry
@@ -155,33 +162,53 @@ export default function ServiceBillingEvents({ propertyId, unitId }: ServiceBill
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Total Billed</CardTitle>
+            <CardTitle>
+              <Heading as="h3" size="h5">
+                Total Billed
+              </Heading>
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(totalAmount)}</div>
-            <p className="text-muted-foreground text-xs">{filteredEvents.length} events</p>
+            <Heading as="p" size="h3">
+              {formatCurrency(totalAmount)}
+            </Heading>
+            <Body as="p" size="xs" tone="muted">
+              {filteredEvents.length} events
+            </Body>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Invoiced</CardTitle>
+            <CardTitle>
+              <Heading as="h3" size="h5">
+                Invoiced
+              </Heading>
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{formatCurrency(invoicedAmount)}</div>
-            <p className="text-muted-foreground text-xs">
+            <Heading as="p" size="h3" className="text-green-600">
+              {formatCurrency(invoicedAmount)}
+            </Heading>
+            <Body as="p" size="xs" tone="muted">
               {filteredEvents.filter((e) => e.invoiced_at).length} events
-            </p>
+            </Body>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Pending</CardTitle>
+            <CardTitle>
+              <Heading as="h3" size="h5">
+                Pending
+              </Heading>
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-600">{formatCurrency(pendingAmount)}</div>
-            <p className="text-muted-foreground text-xs">
+            <Heading as="p" size="h3" className="text-orange-600">
+              {formatCurrency(pendingAmount)}
+            </Heading>
+            <Body as="p" size="xs" tone="muted">
               {filteredEvents.filter((e) => !e.invoiced_at).length} events
-            </p>
+            </Body>
           </CardContent>
         </Card>
       </div>
@@ -189,9 +216,15 @@ export default function ServiceBillingEvents({ propertyId, unitId }: ServiceBill
       {/* Filters */}
       <Card>
         <CardHeader>
-          <CardTitle>Billing Events</CardTitle>
+          <CardTitle>
+            <Heading as="h2" size="h4">
+              Billing Events
+            </Heading>
+          </CardTitle>
           <CardDescription>
-            Service fee billing events and their associated transactions
+            <Body as="p" size="sm" tone="muted">
+              Service fee billing events and their associated transactions
+            </Body>
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -233,7 +266,9 @@ export default function ServiceBillingEvents({ propertyId, unitId }: ServiceBill
 
           {filteredEvents.length === 0 ? (
             <div className="text-muted-foreground rounded-md border border-dashed p-6 text-center text-sm">
-              No billing events found for the selected filters.
+              <Body as="p" size="sm" tone="muted">
+                No billing events found for the selected filters.
+              </Body>
             </div>
           ) : (
             <div className="border-border overflow-hidden rounded-lg border">

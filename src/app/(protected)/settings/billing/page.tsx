@@ -5,15 +5,18 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
+import { Body, Heading, Label } from '@/ui/typography'
 
 export default function BillingPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-2">
-        <h1 className="text-2xl font-bold text-foreground">Billing &amp; Plans</h1>
-        <p className="text-sm text-muted-foreground">
+        <Heading as="h1" size="h3">
+          Billing &amp; Plans
+        </Heading>
+        <Body tone="muted" size="sm">
           Manage your subscription, invoices, and payment methods for this workspace.
-        </p>
+        </Body>
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -21,12 +24,16 @@ export default function BillingPage() {
           <CardHeader className="flex items-start justify-between">
             <div>
               <CardTitle>Current plan</CardTitle>
-              <p className="text-sm text-muted-foreground">Pro · Billed monthly</p>
+              <Body tone="muted" size="sm">
+                Pro · Billed monthly
+              </Body>
             </div>
             <Badge variant="secondary">Active</Badge>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="text-sm text-muted-foreground">Includes users, owner portal, and maintenance flows.</div>
+            <Body tone="muted" size="sm">
+              Includes users, owner portal, and maintenance flows.
+            </Body>
             <div className="flex gap-2">
               <Button size="sm" variant="default" onClick={() => toast.info('Upgrade')}>
                 Upgrade
@@ -44,16 +51,24 @@ export default function BillingPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             <div>
-              <div className="flex items-center justify-between text-sm">
-                <span>Team seats</span>
-                <span>8 / 15</span>
+              <div className="flex items-center justify-between">
+                <Label as="span" size="sm">
+                  Team seats
+                </Label>
+                <Label as="span" size="sm">
+                  8 / 15
+                </Label>
               </div>
               <Progress value={53} className="mt-1.5" />
             </div>
             <div>
-              <div className="flex items-center justify-between text-sm">
-                <span>Storage</span>
-                <span>32 GB / 100 GB</span>
+              <div className="flex items-center justify-between">
+                <Label as="span" size="sm">
+                  Storage
+                </Label>
+                <Label as="span" size="sm">
+                  32 GB / 100 GB
+                </Label>
               </div>
               <Progress value={32} className="mt-1.5" />
             </div>
@@ -69,7 +84,9 @@ export default function BillingPage() {
           <CardTitle>Payment method</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="text-sm text-muted-foreground">Visa ending in 4242 · Expires 10/27</div>
+          <Body tone="muted" size="sm">
+            Visa ending in 4242 · Expires 10/27
+          </Body>
           <div className="flex gap-2">
             <Button size="sm" variant="outline" onClick={() => toast.info('Update card')}>
               Update card

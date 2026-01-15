@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
 import PropertyComplianceView from '@/app/(protected)/properties/[id]/compliance/ComplianceView';
+import { Body, Label } from '@/ui/typography';
 
 type BuildingProperty = {
   id: string;
@@ -70,17 +71,21 @@ export default function BuildingCompliancePage() {
 
   if (loading) {
     return (
-      <div className="flex items-center gap-2 py-12 text-muted-foreground">
+      <Body as="div" size="sm" tone="muted" className="flex items-center gap-2 py-12">
         <Loader2 className="h-5 w-5 animate-spin" />
         Loading compliance...
-      </div>
+      </Body>
     );
   }
 
   if (error) {
     return (
       <Card>
-        <CardContent className="text-destructive py-6">Failed to load building compliance: {error}</CardContent>
+        <CardContent className="py-6">
+          <Body as="p" size="sm" className="text-destructive">
+            Failed to load building compliance: {error}
+          </Body>
+        </CardContent>
       </Card>
     );
   }
@@ -88,8 +93,10 @@ export default function BuildingCompliancePage() {
   if (!propertyOptions.length) {
     return (
       <Card>
-        <CardContent className="text-muted-foreground py-6">
-          No linked properties found for this building. Add a property to view compliance.
+        <CardContent className="py-6">
+          <Body tone="muted" size="sm">
+            No linked properties found for this building. Add a property to view compliance.
+          </Body>
         </CardContent>
       </Card>
     );
@@ -99,7 +106,7 @@ export default function BuildingCompliancePage() {
     <Stack gap="md">
       {propertyOptions.length > 1 ? (
         <div className="flex items-center gap-3">
-          <div className="text-sm font-medium">Select property</div>
+          <Label size="sm">Select property</Label>
           <Select
             value={selectedPropertyId || undefined}
             onValueChange={(value) => setSelectedPropertyId(value)}
@@ -125,7 +132,11 @@ export default function BuildingCompliancePage() {
         <PropertyComplianceView propertyIdOverride={selectedPropertyId} />
       ) : (
         <Card>
-          <CardContent className="py-6 text-muted-foreground">Select a property to view compliance.</CardContent>
+          <CardContent className="py-6">
+            <Body tone="muted" size="sm">
+              Select a property to view compliance.
+            </Body>
+          </CardContent>
         </Card>
       )}
     </Stack>

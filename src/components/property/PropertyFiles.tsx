@@ -1,5 +1,6 @@
 import { FileText, Upload, Download, Search, Filter, Folder, File, Image as ImageIcon, FileType } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Body, Heading, Label } from '@/ui/typography'
 
 interface PropertyFilesProps {
   propertyId: string
@@ -54,8 +55,12 @@ export function PropertyFiles({ propertyId: _propertyId }: PropertyFilesProps) {
       {files.length === 0 && (
         <div className="text-center py-12">
           <Folder className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-foreground mb-2">No files uploaded</h3>
-          <p className="text-muted-foreground mb-6">Upload property documents, photos, and other files to keep them organized.</p>
+          <Heading as="h3" size="h5" className="text-foreground mb-2">
+            No files uploaded
+          </Heading>
+          <Body tone="muted" size="sm" className="mb-6">
+            Upload property documents, photos, and other files to keep them organized.
+          </Body>
           <Button>
             <Upload className="w-4 h-4 mr-2" />
             Upload Your First File
@@ -67,25 +72,31 @@ export function PropertyFiles({ propertyId: _propertyId }: PropertyFilesProps) {
       {files.length > 0 && (
         <div className="bg-card rounded-lg border">
           <div className="p-6 border-b border-border">
-            <h2 className="text-lg font-semibold">Property Files</h2>
-            <p className="text-sm text-muted-foreground">{files.length} files</p>
+            <Heading as="h2" size="h5">
+              Property Files
+            </Heading>
+            <Label as="p" size="xs" tone="muted">
+              {files.length} files
+            </Label>
           </div>
-          <div className="divide-y divide-[var(--color-border-subtle)]">
+          <div className="divide-y divide-border-subtle">
             {files.map((file) => (
               <div key={file.id} className="p-6 flex items-center justify-between">
                 <div className="flex items-center space-x-4">
                   {getFileIcon(file.type)}
                   <div>
-                    <h3 className="font-medium">{file.name}</h3>
-                    <p className="text-sm text-muted-foreground">
+                    <Heading as="h3" size="h6" className="font-medium">
+                      {file.name}
+                    </Heading>
+                    <Body tone="muted" size="sm">
                       {file.size} • {file.category} • Uploaded by {file.uploadedBy}
-                    </p>
+                    </Body>
                   </div>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <span className="text-sm text-muted-foreground">
+                  <Body as="span" tone="muted" size="sm">
                     {new Date(file.uploadedAt).toLocaleDateString()}
-                  </span>
+                  </Body>
                   <Button variant="outline" size="sm">
                     <Download className="w-4 h-4" />
                   </Button>

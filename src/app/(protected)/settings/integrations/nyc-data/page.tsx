@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 import { ArrowLeft, Database, Eye, EyeOff, Loader2, ShieldCheck } from 'lucide-react'
+import { Body, Heading, Label as TextLabel } from '@/ui/typography'
 
 type DatasetKey =
   | 'elevatorDevices'
@@ -579,34 +580,37 @@ export default function NYCDataSourcesPage() {
           <ArrowLeft className="h-4 w-4" />
           Back to Integrations
         </Button>
-        <div className="flex items-center gap-2">
+        <Heading as="h1" size="h2" className="flex items-center gap-2">
           <Database className="h-5 w-5 text-muted-foreground" />
-          <h1 className="text-2xl font-bold text-foreground">NYC Data Sources</h1>
-        </div>
+          NYC Data Sources
+        </Heading>
       </div>
 
       <div className="space-y-4">
-        <div className="text-sm text-muted-foreground">
+        <Body as="div" tone="muted" size="sm">
           NYC Open Data is authoritative for devices/inspections/violations. DOB NOW remains the source for filings. You only need one Socrata App Token for all datasets below.
-        </div>
+        </Body>
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Connection</CardTitle>
+            <CardTitle>Connection</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1">
-                <Label className="text-xs">Base URL</Label>
+                <TextLabel as="span" size="xs" tone="muted">
+                  Base URL
+                </TextLabel>
                 <Input
                   value={config.baseUrl}
                   disabled={loading}
                   onChange={(e) => setConfig((prev) => ({ ...prev, baseUrl: e.target.value }))}
-                  className="text-xs"
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Socrata App Token</Label>
+                <TextLabel as="span" size="xs" tone="muted">
+                  Socrata App Token
+                </TextLabel>
                 <div className="flex gap-2">
                   <Input
                     type={showToken ? 'text' : 'password'}
@@ -619,7 +623,6 @@ export default function NYCDataSourcesPage() {
                         appToken: e.target.value,
                       }))
                     }
-                    className="text-xs"
                   />
                   <Button
                     type="button"
@@ -633,20 +636,20 @@ export default function NYCDataSourcesPage() {
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Body as="div" size="xs" tone="muted" className="flex items-center gap-2">
               <ShieldCheck className="h-4 w-4" />
               <span>Open Data = devices/inspections/violations. DOB NOW = filings/applications.</span>
-            </div>
+            </Body>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div className="space-y-1">
-              <CardTitle className="text-base">Data Source Catalog</CardTitle>
-              <p className="text-xs text-muted-foreground">
+              <CardTitle>Data Source Catalog</CardTitle>
+              <Body as="p" size="xs" tone="muted">
                 Manage entries stored in the NYC data sources table.
-              </p>
+              </Body>
             </div>
             <Button size="sm" onClick={() => setAddSourceOpen(true)}>
               Add Source
@@ -654,44 +657,79 @@ export default function NYCDataSourcesPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             {sourcesLoading ? (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Body as="div" size="sm" tone="muted" className="flex items-center gap-2">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Loading data sources...
-              </div>
+              </Body>
             ) : dataSources.length ? (
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[180px]">Key</TableHead>
-                    <TableHead className="w-[160px]">Dataset ID</TableHead>
-                    <TableHead className="w-[200px]">Title</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead className="w-[120px]">Status</TableHead>
-                    <TableHead className="w-[120px] text-right">Manage</TableHead>
+                    <TableHead className="w-[180px]">
+                      <TextLabel as="span" size="xs" tone="muted">
+                        Key
+                      </TextLabel>
+                    </TableHead>
+                    <TableHead className="w-[160px]">
+                      <TextLabel as="span" size="xs" tone="muted">
+                        Dataset ID
+                      </TextLabel>
+                    </TableHead>
+                    <TableHead className="w-[200px]">
+                      <TextLabel as="span" size="xs" tone="muted">
+                        Title
+                      </TextLabel>
+                    </TableHead>
+                    <TableHead>
+                      <TextLabel as="span" size="xs" tone="muted">
+                        Description
+                      </TextLabel>
+                    </TableHead>
+                    <TableHead className="w-[120px]">
+                      <TextLabel as="span" size="xs" tone="muted">
+                        Status
+                      </TextLabel>
+                    </TableHead>
+                    <TableHead className="w-[120px] text-right">
+                      <TextLabel as="span" size="xs" tone="muted">
+                        Manage
+                      </TextLabel>
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {dataSources.map((source) => (
                     <TableRow key={source.key}>
-                      <TableCell className="font-mono text-xs text-foreground">{source.key}</TableCell>
-                      <TableCell className="font-mono text-xs text-foreground">{source.dataset_id}</TableCell>
-                      <TableCell className="text-sm text-foreground">{source.title || '—'}</TableCell>
-                      <TableCell className="w-[420px] max-w-[420px] text-xs text-muted-foreground align-top">
-                        <div
+                      <TableCell className="w-[180px] px-4 py-3">
+                        <TextLabel as="span" size="xs">
+                          {source.key}
+                        </TextLabel>
+                      </TableCell>
+                      <TableCell className="w-[160px] px-4 py-3">
+                        <TextLabel as="span" size="xs">
+                          {source.dataset_id}
+                        </TextLabel>
+                      </TableCell>
+                      <TableCell className="px-4 py-3">
+                        <Body as="span" size="sm">
+                          {source.title || '—'}
+                        </Body>
+                      </TableCell>
+                      <TableCell className="w-[420px] max-w-[420px] px-4 py-3 align-top">
+                        <Body
+                          as="div"
+                          size="xs"
+                          tone="muted"
                           className="overflow-hidden text-ellipsis"
                           style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}
                         >
                           {source.description || '—'}
-                        </div>
+                        </Body>
                       </TableCell>
                       <TableCell>
                         <Badge
-                          variant="outline"
-                          className={
-                            source.is_enabled
-                              ? 'status-pill border-[var(--color-success-500)] bg-[var(--color-success-50)] text-[var(--color-success-700)]'
-                              : 'status-pill'
-                          }
+                          variant={source.is_enabled ? 'success' : 'danger'}
+                          className="status-pill"
                         >
                           {source.is_enabled ? 'Enabled' : 'Disabled'}
                         </Badge>
@@ -706,18 +744,20 @@ export default function NYCDataSourcesPage() {
                 </TableBody>
               </Table>
             ) : (
-              <p className="text-sm text-muted-foreground">
+              <Body as="p" size="sm" tone="muted">
                 No data sources yet. Click &quot;Add Source&quot; to add one to the table.
-              </p>
+              </Body>
             )}
           </CardContent>
         </Card>
 
         <div className="space-y-3">
-          <div className="text-sm font-semibold text-foreground">HPD Charge Data (not configured)</div>
-          <p className="text-xs text-muted-foreground">
+          <TextLabel as="div" size="sm">
+            HPD Charge Data (not configured)
+          </TextLabel>
+          <Body as="p" size="xs" tone="muted">
             These datasets are not yet wired into the sync pipeline; table columns still need to be mapped before use.
-          </p>
+          </Body>
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {[
               {
@@ -740,11 +780,15 @@ export default function NYCDataSourcesPage() {
             ].map((card) => (
               <Card key={card.title}>
                 <CardHeader>
-                  <CardTitle className="text-base">{card.title}</CardTitle>
+                  <CardTitle>{card.title}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
-                  <p className="text-sm text-muted-foreground whitespace-pre-line">{card.description}</p>
-                  <p className="text-xs text-muted-foreground">Dataset ID: {card.defaultId}</p>
+                  <Body as="p" size="sm" tone="muted" className="whitespace-pre-line">
+                    {card.description}
+                  </Body>
+                  <Body as="p" size="xs" tone="muted">
+                    Dataset ID: {card.defaultId}
+                  </Body>
                 </CardContent>
               </Card>
             ))}
@@ -776,7 +820,9 @@ export default function NYCDataSourcesPage() {
           </DialogHeader>
           <div className="space-y-3">
             <div className="space-y-1">
-              <Label className="text-xs">Dataset ID</Label>
+              <TextLabel as="span" size="xs" tone="muted">
+                Dataset ID
+              </TextLabel>
               <Input
                 value={newSource.datasetId}
                 onChange={(e) => setNewSource((prev) => ({ ...prev, datasetId: e.target.value }))}
@@ -785,7 +831,9 @@ export default function NYCDataSourcesPage() {
               />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">Title</Label>
+              <TextLabel as="span" size="xs" tone="muted">
+                Title
+              </TextLabel>
               <Input
                 value={newSource.title}
                 onChange={(e) => setNewSource((prev) => ({ ...prev, title: e.target.value }))}
@@ -794,7 +842,9 @@ export default function NYCDataSourcesPage() {
               />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">Description</Label>
+              <TextLabel as="span" size="xs" tone="muted">
+                Description
+              </TextLabel>
               <Textarea
                 value={newSource.description}
                 onChange={(e) => setNewSource((prev) => ({ ...prev, description: e.target.value }))}
@@ -805,10 +855,12 @@ export default function NYCDataSourcesPage() {
             </div>
             <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
               <div className="space-y-1">
-                <Label className="text-xs">Enabled</Label>
-                <p className="text-xs text-muted-foreground">
+                <TextLabel as="span" size="xs" tone="muted">
+                  Enabled
+                </TextLabel>
+                <Body as="p" size="xs" tone="muted">
                   Disabled sources stay in the table but are ignored by sync jobs.
-                </p>
+                </Body>
               </div>
               <Switch
                 checked={newSource.isEnabled}
@@ -852,11 +904,15 @@ export default function NYCDataSourcesPage() {
           {editSource ? (
             <div className="space-y-3">
               <div className="space-y-1">
-                <Label className="text-xs">Key</Label>
+                <TextLabel as="span" size="xs" tone="muted">
+                  Key
+                </TextLabel>
                 <Input value={editSource.key} disabled />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Dataset ID</Label>
+                <TextLabel as="span" size="xs" tone="muted">
+                  Dataset ID
+                </TextLabel>
                 <Input
                   value={editValues.datasetId}
                   onChange={(e) => setEditValues((prev) => ({ ...prev, datasetId: e.target.value }))}
@@ -864,7 +920,9 @@ export default function NYCDataSourcesPage() {
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Title</Label>
+                <TextLabel as="span" size="xs" tone="muted">
+                  Title
+                </TextLabel>
                 <Input
                   value={editValues.title}
                   onChange={(e) => setEditValues((prev) => ({ ...prev, title: e.target.value }))}
@@ -873,7 +931,9 @@ export default function NYCDataSourcesPage() {
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Description</Label>
+                <TextLabel as="span" size="xs" tone="muted">
+                  Description
+                </TextLabel>
                 <Textarea
                   value={editValues.description}
                   onChange={(e) => setEditValues((prev) => ({ ...prev, description: e.target.value }))}
@@ -884,10 +944,12 @@ export default function NYCDataSourcesPage() {
               </div>
               <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
                 <div className="space-y-1">
-                  <Label className="text-xs">Enabled</Label>
-                  <p className="text-xs text-muted-foreground">
-                    Disabled sources stay in the table but are ignored by sync jobs.
-                  </p>
+                <TextLabel as="span" size="xs" tone="muted">
+                  Enabled
+                </TextLabel>
+                <Body as="p" size="xs" tone="muted">
+                  Disabled sources stay in the table but are ignored by sync jobs.
+                </Body>
                 </div>
                 <Switch
                   checked={editValues.isEnabled}
@@ -899,7 +961,9 @@ export default function NYCDataSourcesPage() {
               </div>
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">Select a data source to manage it.</p>
+            <Body as="p" size="sm" tone="muted">
+              Select a data source to manage it.
+            </Body>
           )}
           <DialogFooter className="flex items-center justify-end gap-2">
             <Button variant="outline" onClick={() => setEditOpen(false)} disabled={editingSource}>

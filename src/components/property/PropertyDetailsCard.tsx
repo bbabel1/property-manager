@@ -9,6 +9,9 @@ import InlineEditCard from '@/components/form/InlineEditCard';
 import EditLink from '@/components/ui/EditLink';
 import RepeaterField from '@/components/form/fields/RepeaterField';
 import { normalizeStaffRole } from '@/lib/staff-role';
+import { Select } from '@/ui/select';
+import { Checkbox } from '@/ui/checkbox';
+import { Body, Heading, Label } from '@/ui/typography';
 
 type OwnerOption = { id: string; name: string };
 type OwnerRow = {
@@ -122,8 +125,9 @@ export default function PropertyDetailsCard({ property }: { property: Property }
   const [previewUrl, setPreviewUrl] = useState<string | null>(initialUrl);
   const [propertyType, setPropertyType] = useState<string>(property.property_type || '');
   const [yearBuilt, setYearBuilt] = useState<number | null>(property.year_built ?? null);
-  const sectionLabelClass = 'eyebrow-label';
-  const formLabelClass = 'block text-sm font-medium text-muted-foreground';
+  const sectionLabelClass =
+    'text-xs font-medium uppercase tracking-[0.12em] leading-tight text-muted-foreground';
+  const formLabelClass = 'block text-sm font-[var(--font-weight-medium)] text-muted-foreground';
   const formInputClass =
     'h-11 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-background';
 
@@ -537,8 +541,10 @@ export default function PropertyDetailsCard({ property }: { property: Property }
 
   return (
     <>
-      <div className="section-title-row">
-        <h2 className="section-title-text">Property Details</h2>
+      <div className="mb-4 flex flex-wrap items-center gap-3 border-b border-border-strong pb-3">
+        <Heading as="h2" size="h5" className="text-lg font-semibold text-foreground">
+          Property Details
+        </Heading>
         {!editing && <EditLink onClick={() => setEditing(true)} />}
       </div>
       <InlineEditCard
@@ -552,25 +558,25 @@ export default function PropertyDetailsCard({ property }: { property: Property }
         variant="plain"
         headerHidden={true}
         titleHidden={true}
-        className="surface-card p-6"
+        className="border-border bg-card p-6"
         view={
           <div className="grid grid-cols-1 items-start gap-6 md:grid-cols-5">
             <div className="flex flex-wrap items-center justify-between gap-3 md:col-span-5">
               <div className="flex items-center gap-2">
                 {syncMsg && (
-                  <span className="text-sm font-medium text-[var(--color-action-600)] dark:text-[var(--color-action-300)]">
+                  <Label as="span" size="sm" className="text-primary-600 dark:text-primary-300">
                     {syncMsg}
-                  </span>
+                  </Label>
                 )}
                 {syncErr && (
-                  <span className="text-sm font-medium text-red-700 dark:text-red-300">
+                  <Label as="span" size="sm" className="text-red-700 dark:text-red-300">
                     {syncErr}
-                  </span>
+                  </Label>
                 )}
               </div>
             </div>
             <div className="relative md:col-span-2">
-              <div className="bg-card w-full overflow-hidden rounded-lg border border-[var(--color-border-subtle)]">
+              <div className="w-full overflow-hidden rounded-lg border border-border-subtle bg-card">
                 {/* Fixed aspect ratio ~ 429x322 (≈ 75%) */}
                 <div className="relative w-full pb-[75%]">
                   {previewUrl ? (
@@ -680,20 +686,22 @@ export default function PropertyDetailsCard({ property }: { property: Property }
                   <p className="text-destructive mt-1 text-sm">{uploadError}</p>
                 ) : null}
                 {uploadSuccess ? (
-                  <p className="text-primary mt-1 text-sm font-medium">{uploadSuccess}</p>
+                  <Body as="p" size="sm" className="text-primary mt-1">
+                    {uploadSuccess}
+                  </Body>
                 ) : null}
               </div>
             </div>
             <div className="space-y-5 md:col-span-3">
               <div>
                 <p className={sectionLabelClass}>Address</p>
-                <p className="text-foreground text-sm leading-tight font-medium">
+                <Label as="p" size="sm" className="leading-tight">
                   {property.address_line1}
-                </p>
+                </Label>
                 {property.address_line2 ? (
-                  <p className="text-foreground text-sm leading-tight font-medium">
+                  <Label as="p" size="sm" className="leading-tight">
                     {property.address_line2}
-                  </p>
+                  </Label>
                 ) : null}
                 <p className="text-muted-foreground text-sm leading-tight">
                   {property.city}, {property.state} {property.postal_code}
@@ -719,7 +727,7 @@ export default function PropertyDetailsCard({ property }: { property: Property }
                       property.owners && property.owners.length > 0 ? property.owners : owners;
                     return displayOwners && displayOwners.length > 0 ? (
                       <>
-                        <div className="text-muted-foreground card-divider flex items-center justify-between border-b pb-1.5 text-sm">
+                        <div className="text-muted-foreground flex items-center justify-between border-b border-border-subtle pb-1.5 text-sm">
                           <span className="sr-only md:not-sr-only">Name</span>
                           <div className="grid min-w-[140px] grid-cols-2 gap-8 text-right">
                             <span>Ownership</span>
@@ -754,8 +762,10 @@ export default function PropertyDetailsCard({ property }: { property: Property }
                             </div>
                           </div>
                         ))}
-                        <div className="card-divider mt-1 flex items-center justify-between border-t pt-2">
-                          <span className="text-foreground text-sm font-medium">Total</span>
+                        <div className="mt-1 flex items-center justify-between border-t border-border-subtle pt-2">
+                          <Label as="span" size="sm">
+                            Total
+                          </Label>
                           <div className="grid min-w-[140px] grid-cols-2 gap-8 text-right text-sm">
                             <span className="font-bold">
                               {(() => {
@@ -790,7 +800,7 @@ export default function PropertyDetailsCard({ property }: { property: Property }
           </div>
         }
         edit={
-          <div className="surface-card relative p-6 text-sm transition-colors">
+          <div className="relative rounded-lg border border-border bg-card p-6 text-sm transition-colors">
             <div className="bg-primary absolute top-2 bottom-2 left-0 w-0.5 rounded-r-sm" />
             <button
               type="button"
@@ -809,7 +819,9 @@ export default function PropertyDetailsCard({ property }: { property: Property }
             <div className="space-y-6">
               {/* Address */}
               <div>
-                <h4 className="text-foreground mb-2 text-sm font-medium">Address Information</h4>
+                <Heading as="h4" size="h6" className="mb-2">
+                  Address Information
+                </Heading>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
                     <label className={`${formLabelClass} mb-1`}>Street Address</label>
@@ -856,11 +868,13 @@ export default function PropertyDetailsCard({ property }: { property: Property }
 
               {/* Property Info */}
               <div>
-                <h4 className="text-foreground mb-2 text-sm font-medium">Property Info</h4>
+                <Heading as="h4" size="h6" className="mb-2">
+                  Property Info
+                </Heading>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
                     <label className={`${formLabelClass} mb-1`}>Property Type</label>
-                    <select
+                    <Select
                       value={propertyType}
                       onChange={(e) => setPropertyType(e.target.value)}
                       className={`${formInputClass} pr-10`}
@@ -872,7 +886,7 @@ export default function PropertyDetailsCard({ property }: { property: Property }
                           {type}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                   </div>
                   <div>
                     <label className={`${formLabelClass} mb-1`}>Year Built</label>
@@ -894,9 +908,11 @@ export default function PropertyDetailsCard({ property }: { property: Property }
 
               {/* Property Management */}
               <div>
-                <h4 className="text-foreground mb-2 text-sm font-medium">Property Management</h4>
+                <Heading as="h4" size="h6" className="mb-2">
+                  Property Management
+                </Heading>
                 <label className={`${formLabelClass} mb-1`}>Property Manager</label>
-                <select
+                <Select
                   className={`${formInputClass} pr-10`}
                   value={managerId}
                   onChange={(e) => setManagerId(e.target.value)}
@@ -908,7 +924,7 @@ export default function PropertyDetailsCard({ property }: { property: Property }
                       {m.name}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
 
               {/* Rental Owners */}
@@ -918,7 +934,7 @@ export default function PropertyDetailsCard({ property }: { property: Property }
                     <div key={row.id} className="grid grid-cols-12 items-center gap-2">
                       <div className="col-span-5">
                         <label className={`${formLabelClass} mb-1`}>Owner Name</label>
-                        <select
+                        <Select
                           value={row.ownerId}
                           onChange={(e) => onOwnerSelect(row.id, e.target.value)}
                           className={`${formInputClass} pr-10`}
@@ -931,7 +947,7 @@ export default function PropertyDetailsCard({ property }: { property: Property }
                               {o.name}
                             </option>
                           ))}
-                        </select>
+                        </Select>
                       </div>
                       <div className="col-span-2">
                         <label className={`${formLabelClass} mb-1`}>Ownership %</label>
@@ -1000,7 +1016,9 @@ export default function PropertyDetailsCard({ property }: { property: Property }
 
                   {showCreateInline && (
                     <div className="border-border bg-muted/10 dark:bg-muted/20 mt-4 space-y-3 rounded-md border p-3">
-                      <h5 className="text-foreground text-sm font-medium">New Owner</h5>
+                      <Heading as="h5" size="h6">
+                        New Owner
+                      </Heading>
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                         <div>
                           <label className={`${formLabelClass} mb-1`}>First name</label>
@@ -1060,12 +1078,11 @@ export default function PropertyDetailsCard({ property }: { property: Property }
                           />
                         </div>
                         <div className="flex items-center gap-2">
-                          <input
+                          <Checkbox
                             id="new-owner-primary"
-                            type="checkbox"
                             checked={createPrimary}
                             onChange={(e) => setCreatePrimary(e.target.checked)}
-                            className="border-border accent-primary h-4 w-4 rounded"
+                            className="h-4 w-4"
                           />
                           <label
                             htmlFor="new-owner-primary"

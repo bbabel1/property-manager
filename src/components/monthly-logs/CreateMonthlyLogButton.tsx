@@ -20,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select'
+import { Body, Label } from '@/ui/typography'
 
 const MONTH_OPTIONS = [
   { value: '01', label: 'January' },
@@ -184,12 +185,14 @@ export default function CreateMonthlyLogButton({
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-3">
-            <label className="text-sm font-medium text-foreground">Start Month</label>
+            <Label size="sm" className="text-foreground">
+              Start Month
+            </Label>
             <div className="flex flex-wrap gap-4">
               <div className="flex flex-col gap-1">
-                <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <Label size="xs" tone="muted" className="uppercase tracking-wide">
                   Month
-                </span>
+                </Label>
                 <Select value={selectedMonth} onValueChange={setSelectedMonth}>
                   <SelectTrigger className="w-44">
                     <SelectValue placeholder="Select month" />
@@ -204,9 +207,9 @@ export default function CreateMonthlyLogButton({
                 </Select>
               </div>
               <div className="flex flex-col gap-1">
-                <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <Label size="xs" tone="muted" className="uppercase tracking-wide">
                   Year
-                </span>
+                </Label>
                 <Select value={selectedYear} onValueChange={setSelectedYear}>
                   <SelectTrigger className="w-32">
                     <SelectValue placeholder="Select year" />
@@ -221,11 +224,15 @@ export default function CreateMonthlyLogButton({
                 </Select>
               </div>
             </div>
-            <p className="text-xs text-muted-foreground">
+            <Body as="p" size="sm" tone="muted" className="text-xs">
               The monthly log will use the first day of the selected month as the period start.
-            </p>
+            </Body>
           </div>
-          {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          {error ? (
+            <Body as="p" size="sm" className="text-destructive">
+              {error}
+            </Body>
+          ) : null}
           <DialogFooter>
             <Button
               type="button"

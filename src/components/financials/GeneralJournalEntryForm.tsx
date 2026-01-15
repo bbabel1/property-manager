@@ -66,6 +66,7 @@ import {
   parseCurrencyInput,
   sanitizeCurrencyInput,
 } from '@/lib/journal-entries';
+import { Body, Heading, Label } from '@/ui/typography';
 
 const MAX_ATTACHMENT_BYTES = 1000 * 1024;
 
@@ -614,9 +615,9 @@ export function GeneralJournalEntryForm({
       className={cn('space-y-3', isCompact && 'space-y-2')}
     >
       <div className="flex items-center justify-between">
-        <h3 id="journal-grid-title" className="text-sm font-semibold text-foreground">
+        <Heading as="h3" id="journal-grid-title" size="h6">
           Debits and credits
-        </h3>
+        </Heading>
         <Button
           type="button"
           variant="ghost"
@@ -941,9 +942,17 @@ export function GeneralJournalEntryForm({
 
       <section aria-labelledby="attachment-title" className="space-y-3">
         <div>
-          <h3 id="attachment-title" className="text-sm font-semibold text-foreground">
-            Attachment <span className="text-muted-foreground text-xs font-normal">(1 file up to 1000 kb)</span>
-          </h3>
+          <Heading
+            as="h3"
+            id="attachment-title"
+            size="h6"
+            className="flex items-center gap-2"
+          >
+            Attachment
+            <Body as="span" size="xs" tone="muted">
+              (1 file up to 1000 kb)
+            </Body>
+          </Heading>
         </div>
         <div
           role="button"
@@ -963,10 +972,10 @@ export function GeneralJournalEntryForm({
           )}
         >
           <UploadCloud className="mx-auto mb-3 size-6 text-muted-foreground" />
-          <p className="text-sm font-medium text-foreground">
+          <Label as="p" size="sm">
             Drag & drop a supporting document, or{' '}
             <span className="text-primary underline">browse your computer</span>
-          </p>
+          </Label>
           <p className="text-muted-foreground text-xs">PDF or image formats work best.</p>
           <input
             ref={attachmentInputRef}
@@ -1069,7 +1078,9 @@ export function GeneralJournalEntryForm({
       >
         {layout === 'modal' ? null : (
           <div className="border-border flex items-center justify-between border-b px-4 py-4 sm:px-6">
-            <h1 className="text-2xl font-semibold text-foreground">General Journal Entry</h1>
+            <Heading as="h1" size="h3">
+              General Journal Entry
+            </Heading>
             <Button
               type="button"
               variant="ghost"

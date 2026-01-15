@@ -31,6 +31,7 @@ import { ExpiringLeaseBucketKey, ExpiringLeaseCounts, useDashboardMetrics } from
 import { supabase } from '@/lib/db';
 import { amountToneClassName, formatAmountDisplay } from '@/lib/amount-formatting';
 import { formatCurrency } from '@/lib/format-currency';
+import { Body, Heading, Label } from '@/ui/typography';
 
 type ExpiringStageKey = 'notStarted' | 'offers' | 'renewals' | 'moveOuts';
 
@@ -162,7 +163,9 @@ export default function DashboardPage() {
               align="center"
               className="rounded-md border border-red-200 bg-red-50 px-3 py-3 text-red-700"
             >
-              <span>Couldn’t load dashboard.</span>
+              <Body as="span" size="sm">
+                Couldn’t load dashboard.
+              </Body>
               <Button variant="outline" size="sm" onClick={refresh}>
                 Retry
               </Button>
@@ -174,14 +177,14 @@ export default function DashboardPage() {
                 <div className="flex items-center justify-between">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <p className="text-muted-foreground text-sm font-medium">Total Properties</p>
+                      <Label size="sm" tone="muted">Total Properties</Label>
                       <span className="status-pill status-pill-success px-2 py-0.5 text-[11px]">
                         Active
                       </span>
                     </div>
-                    <p className="text-foreground text-2xl font-bold">
+                    <Heading as="p" size="h3">
                       {isLoading ? '—' : (k?.total_properties ?? 0)}
-                    </p>
+                    </Heading>
                     <div className="flex items-center gap-2">
                       <Badge variant="secondary" className="text-xs">
                         {isLoading ? '—' : `${k?.total_units ?? 0} active units`}
@@ -199,17 +202,17 @@ export default function DashboardPage() {
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div className="space-y-1">
-                    <p className="text-muted-foreground text-sm font-medium">Occupancy Rate</p>
-                    <p className="text-foreground text-2xl font-bold">
+                    <Label size="sm" tone="muted">Occupancy Rate</Label>
+                    <Heading as="p" size="h3">
                       {isLoading ? '—' : `${k?.occupancy_rate ?? 0}%`}
-                    </p>
+                    </Heading>
                     <div className="flex items-center gap-2">
-                      <Badge variant="default" className="bg-success text-xs text-white">
+                      <Badge variant="success" className="text-xs">
                         {isLoading ? '—' : `${k?.occupied_units ?? 0} occupied`}
                       </Badge>
-                      <span className="text-muted-foreground text-xs">
+                      <Body size="xs" tone="muted">
                         {isLoading ? '—' : `${k?.available_units ?? 0} available`}
-                      </span>
+                      </Body>
                     </div>
                   </div>
                   <div className="bg-success/10 flex h-12 w-12 items-center justify-center rounded-lg">
@@ -223,19 +226,19 @@ export default function DashboardPage() {
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div className="space-y-1">
-                    <p className="text-muted-foreground text-sm font-medium">Monthly Rent Roll</p>
-                    <p className="text-foreground text-2xl font-bold">
+                    <Label size="sm" tone="muted">Monthly Rent Roll</Label>
+                    <Heading as="p" size="h3">
                       {isLoading ? '—' : formatCurrency(k?.monthly_rent_roll ?? 0)}
-                    </p>
+                    </Heading>
                     <div className="flex items-center gap-2">
                       <Badge variant="secondary" className="text-xs">
                         {isLoading ? '—' : `${k?.active_leases ?? 0} active leases`}
                       </Badge>
                       {typeof k?.growth_rate === 'number' && (
-                        <span className="text-success text-xs">
+                        <Body size="xs" className="text-success">
                           {k.growth_rate >= 0 ? '+' : ''}
                           {k.growth_rate}%
-                        </span>
+                        </Body>
                       )}
                     </div>
                   </div>
@@ -250,15 +253,15 @@ export default function DashboardPage() {
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div className="space-y-1">
-                    <p className="text-muted-foreground text-sm font-medium">Open Work Orders</p>
-                    <p className="text-foreground text-2xl font-bold">
+                    <Label size="sm" tone="muted">Open Work Orders</Label>
+                    <Heading as="p" size="h3">
                       {isLoading ? '—' : (k?.open_work_orders ?? 0)}
-                    </p>
+                    </Heading>
                     <div className="flex items-center gap-2">
                       <Badge variant="destructive" className="text-xs">
                         {isLoading ? '—' : `${k?.urgent_work_orders ?? 0} urgent`}
                       </Badge>
-                      <span className="text-muted-foreground text-xs">&nbsp;</span>
+                      <Body size="xs" tone="muted">&nbsp;</Body>
                     </div>
                   </div>
                   <div className="bg-warning/10 flex h-12 w-12 items-center justify-center rounded-lg">
@@ -289,12 +292,10 @@ export default function DashboardPage() {
                 >
                   <TabsList>
                     {expiringBuckets.map((bucket) => (
-                      <TabsTrigger
-                        key={bucket.key}
-                        value={bucket.key}
-                        className="px-3 py-1 text-xs sm:text-sm"
-                      >
-                        {bucket.label}
+                      <TabsTrigger key={bucket.key} value={bucket.key} className="px-3 py-1">
+                        <Label as="span" size="sm">
+                          {bucket.label}
+                        </Label>
                       </TabsTrigger>
                     ))}
                   </TabsList>
@@ -311,7 +312,9 @@ export default function DashboardPage() {
                           const pct = maxCount > 0 ? (count / maxCount) * 100 : 0;
                           return (
                             <div className="flex items-center gap-3" key={stage.key}>
-                              <div className="w-24 text-sm text-muted-foreground">{stage.label}</div>
+                              <Body as="div" size="sm" tone="muted" className="w-24">
+                                {stage.label}
+                              </Body>
                               <div className="flex-1">
                                 <div className="bg-muted h-3 w-full rounded-full">
                                   <div
@@ -320,18 +323,18 @@ export default function DashboardPage() {
                                   />
                                 </div>
                               </div>
-                              <div className="w-8 text-right text-sm font-semibold text-foreground">
+                              <Heading as="div" size="h6" className="w-8 text-right">
                                 {isLoading ? '—' : count}
-                              </div>
+                              </Heading>
                             </div>
                           );
                         })}
-                        <div className="flex items-center justify-between pt-2 text-sm">
-                          <span className="text-foreground font-semibold">
+                        <div className="flex items-center justify-between pt-2">
+                          <Heading as="span" size="h6">
                             {isLoading
                               ? 'Loading…'
                               : `${counts.total} ${counts.total === 1 ? 'lease' : 'leases'}`}
-                          </span>
+                          </Heading>
                           <Button variant="link" size="sm" className="px-0 text-primary" asChild>
                             <Link href="/leases" className="inline-flex items-center gap-1">
                               View all
@@ -357,35 +360,35 @@ export default function DashboardPage() {
                 <div className="mb-6 grid grid-cols-3 gap-4">
                   <div className="space-y-2 text-center">
                     <div className="bg-primary/10 mx-auto flex h-12 w-12 items-center justify-center rounded-full">
-                      <span className="text-primary text-lg font-bold">
+                      <Heading as="span" size="h5" className="text-primary">
                         {isLoading ? '—' : (data?.onboarding?.in_progress ?? 0)}
-                      </span>
+                      </Heading>
                     </div>
                     <div>
-                      <p className="text-foreground text-sm font-medium">In Progress</p>
-                      <p className="text-muted-foreground text-xs">Active</p>
+                      <Label size="sm">In Progress</Label>
+                      <Body size="xs" tone="muted">Active</Body>
                     </div>
                   </div>
                   <div className="space-y-2 text-center">
                     <div className="bg-warning/10 mx-auto flex h-12 w-12 items-center justify-center rounded-full">
-                      <span className="text-warning text-lg font-bold">
+                      <Heading as="span" size="h5" className="text-warning">
                         {isLoading ? '—' : (data?.onboarding?.pending_approval ?? 0)}
-                      </span>
+                      </Heading>
                     </div>
                     <div>
-                      <p className="text-foreground text-sm font-medium">Pending</p>
-                      <p className="text-muted-foreground text-xs">Approval</p>
+                      <Label size="sm">Pending</Label>
+                      <Body size="xs" tone="muted">Approval</Body>
                     </div>
                   </div>
                   <div className="space-y-2 text-center">
                     <div className="bg-destructive/10 mx-auto flex h-12 w-12 items-center justify-center rounded-full">
-                      <span className="text-destructive text-lg font-bold">
+                      <Heading as="span" size="h5" className="text-destructive">
                         {isLoading ? '—' : (data?.onboarding?.overdue ?? 0)}
-                      </span>
+                      </Heading>
                     </div>
                     <div>
-                      <p className="text-foreground text-sm font-medium">Overdue</p>
-                      <p className="text-muted-foreground text-xs">Needs attention</p>
+                      <Label size="sm">Overdue</Label>
+                      <Body size="xs" tone="muted">Needs attention</Body>
                     </div>
                   </div>
                 </div>
@@ -400,17 +403,33 @@ export default function DashboardPage() {
               <DollarSign className="text-primary mr-2 h-5 w-5" />
               <CardTitle>Recent Transactions</CardTitle>
             </div>
-            <p className="text-muted-foreground text-xs">Last 7 days</p>
+            <Body size="xs" tone="muted">Last 7 days</Body>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead className="text-right">Amount</TableHead>
+                    <TableHead>
+                      <Label as="span" size="xs" tone="muted">
+                        Date
+                      </Label>
+                    </TableHead>
+                    <TableHead>
+                      <Label as="span" size="xs" tone="muted">
+                        Description
+                      </Label>
+                    </TableHead>
+                    <TableHead>
+                      <Label as="span" size="xs" tone="muted">
+                        Type
+                      </Label>
+                    </TableHead>
+                    <TableHead className="text-right">
+                      <Label as="span" size="xs" tone="muted">
+                        Amount
+                      </Label>
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -442,20 +461,30 @@ export default function DashboardPage() {
                         onClick={href ? handleClick : undefined}
                         onKeyDown={href ? handleKeyDown : undefined}
                       >
-                        <TableCell className="text-sm">{dateLabel}</TableCell>
-                        <TableCell className="text-sm">
-                          {t.memo || 'Transaction'}
+                        <TableCell>
+                          <Body as="span" size="sm">
+                            {dateLabel}
+                          </Body>
                         </TableCell>
-                        <TableCell className="text-sm capitalize">
-                          {t.type ? t.type.toLowerCase() : '—'}
+                        <TableCell>
+                          <Body as="span" size="sm">
+                            {t.memo || 'Transaction'}
+                          </Body>
+                        </TableCell>
+                        <TableCell className="capitalize">
+                          <Body as="span" size="sm">
+                            {t.type ? t.type.toLowerCase() : '—'}
+                          </Body>
                         </TableCell>
                         <TableCell
                           className={cn(
-                            'text-right text-sm',
+                            'text-right',
                             amountToneClassName(amountDisplay.tone),
                           )}
                         >
-                          {amountDisplay.display}
+                          <Body as="span" size="sm" className={amountToneClassName(amountDisplay.tone)}>
+                            {amountDisplay.display}
+                          </Body>
                         </TableCell>
                       </TableRow>
                     );
@@ -463,17 +492,17 @@ export default function DashboardPage() {
                 </TableBody>
               </Table>
               {!isLoading && txSlice.length === 0 && (
-                <div className="text-muted-foreground text-sm">
+                <Body size="sm" tone="muted">
                   No transactions in the last 7 days.
-                </div>
+                </Body>
               )}
               {isLoading && txSlice.length === 0 && (
-                <div className="text-muted-foreground text-sm">Loading transactions…</div>
+                <Body size="sm" tone="muted">Loading transactions…</Body>
               )}
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground text-xs">
+                <Body size="xs" tone="muted">
                   {transactions.length} in last 7 days
-                </span>
+                </Body>
                 <div className="flex items-center gap-2">
                   <Button
                     variant="outline"
@@ -483,9 +512,9 @@ export default function DashboardPage() {
                   >
                     Previous
                   </Button>
-                  <span className="text-muted-foreground text-xs">
+                  <Body size="xs" tone="muted">
                     Page {currentTxPage} of {txTotalPages}
-                  </span>
+                  </Body>
                   <Button
                     variant="outline"
                     size="sm"
@@ -529,11 +558,11 @@ export default function DashboardPage() {
                         )}
                       </div>
                       <div>
-                        <p className="text-foreground text-sm font-medium">{w.title}</p>
-                        <p className="text-muted-foreground text-xs">
+                        <Label size="sm">{w.title}</Label>
+                        <Body size="xs" tone="muted">
                           {(w.priority || '').toLowerCase()} •{' '}
                           {new Date(w.created_at).toLocaleDateString()}
-                        </p>
+                        </Body>
                       </div>
                     </div>
                     <Button variant="link" size="sm" asChild>
@@ -543,7 +572,7 @@ export default function DashboardPage() {
                 );
               })}
               {!isLoading && (data?.workOrders?.length ?? 0) === 0 && (
-                <div className="text-muted-foreground text-sm">No active work orders.</div>
+                <Body size="sm" tone="muted">No active work orders.</Body>
               )}
             </div>
           </CardContent>

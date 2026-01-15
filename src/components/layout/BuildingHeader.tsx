@@ -6,6 +6,7 @@ import { useSelectedLayoutSegment } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Building2, MapPin } from 'lucide-react';
+import { Body, Heading, Label } from '@/ui/typography';
 
 type BuildingShell = {
   id: string;
@@ -68,10 +69,10 @@ export default function BuildingHeader({ buildingId }: Props) {
 
   return (
     <header className="space-y-3 p-6 pb-2">
-      <div className="flex items-center gap-2 text-muted-foreground text-xs">
+      <Label as="div" size="xs" tone="muted" className="flex items-center gap-2">
         <Building2 className="h-4 w-4" />
-        <span>Building profile</span>
-      </div>
+        Building profile
+      </Label>
 
       {loading ? (
         <div className="space-y-2">
@@ -80,31 +81,41 @@ export default function BuildingHeader({ buildingId }: Props) {
         </div>
       ) : (
         <>
-          <h1 className="text-foreground flex items-center gap-2 text-2xl font-bold">
+          <Heading as="h1" size="h2" className="flex items-center gap-2">
             {title}
             {building?.borough ? <Badge variant="secondary">{building.borough}</Badge> : null}
             {building?.bin ? <Badge variant="outline">BIN {building.bin}</Badge> : null}
             {building?.bbl ? <Badge variant="outline">BBL {building.bbl}</Badge> : null}
-          </h1>
-          <p className="text-muted-foreground flex items-center gap-2 text-sm">
+          </Heading>
+          <Body as="p" tone="muted" size="sm" className="flex items-center gap-2">
             <MapPin className="h-4 w-4" />
             {subtitle || '—'}
-          </p>
+          </Body>
         </>
       )}
 
       <div className="border-border mt-2 border-b">
         <nav className="flex space-x-8" aria-label="Building sections" role="navigation">
-          {tabs.map((t) => (
-            <Link
-              key={t.key}
-              href={t.href}
-              aria-current={seg === t.key ? 'page' : undefined}
-              className={`border-b-2 px-1 py-4 text-sm font-medium transition-colors ${seg === t.key ? 'border-primary text-primary' : 'text-muted-foreground hover:text-foreground hover:border-muted-foreground border-transparent'}`}
-            >
-              {t.label}
-            </Link>
-          ))}
+          {tabs.map((t) => {
+            const isActive = seg === t.key;
+            return (
+              <Link
+                key={t.key}
+                href={t.href}
+                aria-current={isActive ? 'page' : undefined}
+                className={`border-b-2 px-1 py-4 transition-colors ${isActive ? 'border-primary' : 'border-transparent hover:border-muted-foreground'}`}
+              >
+                <Label
+                  as="span"
+                  size="sm"
+                  tone={isActive ? 'default' : 'muted'}
+                  className={isActive ? undefined : 'transition-colors hover:text-foreground'}
+                >
+                  {t.label}
+                </Label>
+              </Link>
+            );
+          })}
         </nav>
       </div>
     </header>

@@ -24,6 +24,7 @@ import { formatCurrency } from '@/lib/format-currency';
 import { Download, FileText } from 'lucide-react';
 import supabase from '@/lib/db';
 import { toast } from 'sonner';
+import { Body, Heading } from '@/ui/typography';
 
 type ProfitabilityRow = {
   offering_id: string;
@@ -192,7 +193,11 @@ export default function ServiceReportsPage() {
     return (
       <PageShell>
         <PageBody>
-          <div className="text-muted-foreground py-12 text-center">Loading report...</div>
+          <div className="py-12 text-center">
+            <Body as="p" tone="muted">
+              Loading report...
+            </Body>
+          </div>
         </PageBody>
       </PageShell>
     );
@@ -205,10 +210,12 @@ export default function ServiceReportsPage() {
           {/* Header */}
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-foreground text-2xl font-bold">Service Performance Report</h1>
-              <p className="text-muted-foreground mt-1 text-sm">
+              <Heading as="h1" size="h2" className="text-foreground">
+                Service Performance Report
+              </Heading>
+              <Body as="p" size="sm" tone="muted" className="mt-1">
                 Detailed service metrics, revenue, costs, and profitability analysis
-              </p>
+              </Body>
             </div>
             <div className="flex items-center gap-2">
               <Select
@@ -239,8 +246,16 @@ export default function ServiceReportsPage() {
           {reportData?.profitability && reportData.profitability.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle>Service Profitability</CardTitle>
-                <CardDescription>Revenue, costs, and margins by service offering</CardDescription>
+                <CardTitle>
+                  <Heading as="h2" size="h4">
+                    Service Profitability
+                  </Heading>
+                </CardTitle>
+                <CardDescription>
+                  <Body as="p" size="sm" tone="muted">
+                    Revenue, costs, and margins by service offering
+                  </Body>
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="border-border overflow-hidden rounded-lg border">
@@ -295,8 +310,16 @@ export default function ServiceReportsPage() {
           {reportData?.utilization && reportData.utilization.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle>Service Utilization</CardTitle>
-                <CardDescription>Active service usage across properties and units</CardDescription>
+                <CardTitle>
+                  <Heading as="h2" size="h4">
+                    Service Utilization
+                  </Heading>
+                </CardTitle>
+                <CardDescription>
+                  <Body as="p" size="sm" tone="muted">
+                    Active service usage across properties and units
+                  </Body>
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="border-border overflow-hidden rounded-lg border">
@@ -334,8 +357,10 @@ export default function ServiceReportsPage() {
           {(!reportData ||
             (reportData.profitability?.length === 0 && reportData.utilization?.length === 0)) && (
             <Card>
-              <CardContent className="text-muted-foreground py-6 text-center">
-                No report data available for the selected period.
+              <CardContent className="py-6 text-center">
+                <Body as="p" tone="muted">
+                  No report data available for the selected period.
+                </Body>
               </CardContent>
             </Card>
           )}

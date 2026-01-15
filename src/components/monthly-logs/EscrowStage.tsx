@@ -5,6 +5,7 @@ import { Shield, TrendingUp, TrendingDown, AlertCircle, DollarSign } from 'lucid
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/components/ui/utils';
 import { toast } from 'sonner';
+import { Body, Heading, Label } from '@/ui/typography';
 
 interface EscrowStageProps {
   monthlyLogId: string;
@@ -114,7 +115,9 @@ export default function EscrowStage({ monthlyLogId }: EscrowStageProps) {
         <CardContent>
           <div className="flex items-center gap-2 rounded-lg bg-red-50 p-4 text-red-600">
             <AlertCircle className="h-5 w-5" />
-            <p>{error || 'Failed to load escrow data'}</p>
+            <Body as="p" size="sm">
+              {error || 'Failed to load escrow data'}
+            </Body>
           </div>
         </CardContent>
       </Card>
@@ -131,11 +134,13 @@ export default function EscrowStage({ monthlyLogId }: EscrowStageProps) {
           <div className="flex items-center gap-2 rounded-lg bg-amber-50 p-4 text-amber-700">
             <AlertCircle className="h-5 w-5" />
             <div>
-              <p className="font-medium">Configuration Required</p>
-              <p className="mt-1 text-sm">
+              <Heading as="p" size="h6">
+                Configuration Required
+              </Heading>
+              <Body as="p" size="sm" tone="muted" className="mt-1">
                 No GL accounts are configured for escrow tracking. Please configure a GL account
                 with the "deposit" category to track security deposits.
-              </p>
+              </Body>
             </div>
           </div>
         </CardContent>
@@ -159,12 +164,16 @@ export default function EscrowStage({ monthlyLogId }: EscrowStageProps) {
             <div className="rounded-lg bg-blue-50 p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-blue-900">Current Balance</p>
-                  <p className="mt-1 text-xs text-blue-700">Security deposits held</p>
+                  <Label size="sm">Current Balance</Label>
+                  <Body as="p" size="xs" tone="muted" className="mt-1">
+                    Security deposits held
+                  </Body>
                 </div>
                 <div className="flex items-center gap-2">
                   <DollarSign className="h-5 w-5 text-blue-600" />
-                  <p className="text-2xl font-bold text-blue-900">{formatCurrency(data.balance)}</p>
+                  <Heading as="p" size="h4" className="text-blue-900">
+                    {formatCurrency(data.balance)}
+                  </Heading>
                 </div>
               </div>
             </div>
@@ -174,20 +183,24 @@ export default function EscrowStage({ monthlyLogId }: EscrowStageProps) {
               <div className="rounded-lg border border-slate-300 bg-white p-3">
                 <div className="flex items-center gap-2 text-green-600">
                   <TrendingUp className="h-4 w-4" />
-                  <span className="text-xs font-medium tracking-wide uppercase">Deposits</span>
+                  <Label size="xs" className="tracking-wide uppercase text-green-600">
+                    Deposits
+                  </Label>
                 </div>
-                <p className="mt-2 text-lg font-semibold text-slate-900">
+                <Heading as="p" size="h5" className="mt-2">
                   {formatCurrency(data.deposits)}
-                </p>
+                </Heading>
               </div>
               <div className="rounded-lg border border-slate-300 bg-white p-3">
                 <div className="flex items-center gap-2 text-red-600">
                   <TrendingDown className="h-4 w-4" />
-                  <span className="text-xs font-medium tracking-wide uppercase">Withdrawals</span>
+                  <Label size="xs" className="tracking-wide uppercase text-red-600">
+                    Withdrawals
+                  </Label>
                 </div>
-                <p className="mt-2 text-lg font-semibold text-slate-900">
+                <Heading as="p" size="h5" className="mt-2">
                   {formatCurrency(data.withdrawals)}
-                </p>
+                </Heading>
               </div>
             </div>
           </div>
@@ -197,7 +210,11 @@ export default function EscrowStage({ monthlyLogId }: EscrowStageProps) {
       {/* Escrow Movements */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Transaction History</CardTitle>
+          <CardTitle>
+            <Heading as="p" size="h6">
+              Transaction History
+            </Heading>
+          </CardTitle>
         </CardHeader>
         <CardContent>
           {data.movements.length > 0 ? (
@@ -223,21 +240,24 @@ export default function EscrowStage({ monthlyLogId }: EscrowStageProps) {
                       </div>
                     )}
                     <div>
-                      <p className="text-sm font-medium text-slate-900">{movement.memo}</p>
-                      <p className="text-xs text-slate-600">{formatDate(movement.date)}</p>
+                      <Label as="p" size="sm">
+                        {movement.memo}
+                      </Label>
+                      <Body as="p" size="xs" tone="muted">
+                        {formatDate(movement.date)}
+                      </Body>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p
-                      className={cn(
-                        'font-semibold',
-                        movement.type === 'deposit' ? 'text-green-600' : 'text-red-600',
-                      )}
-                    >
-                      {movement.type === 'deposit' ? '+' : '-'}
-                      {formatCurrency(movement.amount)}
-                    </p>
-                  </div>
+                  <Heading
+                    as="div"
+                    size="h6"
+                    className={cn(
+                      movement.type === 'deposit' ? 'text-green-600' : 'text-red-600',
+                    )}
+                  >
+                    {movement.type === 'deposit' ? '+' : '-'}
+                    {formatCurrency(movement.amount)}
+                  </Heading>
                 </div>
               ))}
             </div>
@@ -246,8 +266,12 @@ export default function EscrowStage({ monthlyLogId }: EscrowStageProps) {
               <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100">
                 <Shield className="h-6 w-6 text-slate-400" />
               </div>
-              <h3 className="mt-4 text-sm font-medium text-slate-900">No movements found</h3>
-              <p className="mt-2 text-sm text-slate-600">No escrow transactions for this period.</p>
+              <Heading as="h3" size="h6" className="mt-4">
+                No movements found
+              </Heading>
+              <Body as="p" size="sm" tone="muted" className="mt-2">
+                No escrow transactions for this period.
+              </Body>
             </div>
           )}
         </CardContent>

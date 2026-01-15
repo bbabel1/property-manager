@@ -6,7 +6,6 @@ import useSWR from 'swr';
 import { toast } from 'sonner';
 
 import { Dialog, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -31,6 +30,7 @@ import {
 } from '@/types/monthly-log';
 import { parseCurrencyInput } from '@/lib/journal-entries';
 import TransactionModalContent from '@/components/transactions/TransactionModalContent';
+import { Body, Heading, Label } from '@/ui/typography';
 
 export type TransactionMode =
   | 'payment'
@@ -568,13 +568,13 @@ export default function MonthlyLogTransactionOverlay({
   const renderForm = () => {
     if (LEASE_MODE_VALUES.includes(mode) && !leaseOptionsReady) {
       return (
-        <div className="flex h-40 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-100 text-sm text-slate-600">
-          <div className="flex flex-col items-center gap-2">
-            <span>
+        <div className="flex h-40 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-100">
+          <div className="flex flex-col items-center gap-2 text-center">
+            <Body as="span" size="sm" tone="muted">
               {loadingFinancialOptions
                 ? 'Loading lease accounts…'
                 : 'Unable to load lease accounts for this lease.'}
-            </span>
+            </Body>
             {!loadingFinancialOptions && financialOptionsError ? (
               <Button
                 size="sm"
@@ -591,11 +591,11 @@ export default function MonthlyLogTransactionOverlay({
 
     if (mode === 'bill' && !billOptionsReady) {
       return (
-        <div className="flex h-40 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-100 text-sm text-slate-600">
-          <div className="flex flex-col items-center gap-2">
-            <span>
+        <div className="flex h-40 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-100">
+          <div className="flex flex-col items-center gap-2 text-center">
+            <Body as="span" size="sm" tone="muted">
               {loadingBillOptions ? 'Loading bill settings…' : 'Unable to load bill configuration.'}
-            </span>
+            </Body>
             {!loadingBillOptions && billOptionsError ? (
               <Button size="sm" variant="outline" onClick={() => void reloadBillOptions()}>
                 Retry
@@ -608,8 +608,10 @@ export default function MonthlyLogTransactionOverlay({
 
     if (mode === 'ownerDraw' && loadingOwnerDrawOptions) {
       return (
-        <div className="flex h-40 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-100 text-sm text-slate-600">
-          Loading owner draw options…
+        <div className="flex h-40 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-100">
+          <Body as="span" size="sm" tone="muted">
+            Loading owner draw options…
+          </Body>
         </div>
       );
     }
@@ -618,16 +620,18 @@ export default function MonthlyLogTransactionOverlay({
 
     if (modeRequiresAccounts && leaseOptionsReady && leaseAccountOptions.length === 0) {
       return (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-          <p>No mapped general ledger accounts are available for this lease.</p>
-          <p className="mt-1">
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+          <Body as="p" size="sm">
+            No mapped general ledger accounts are available for this lease.
+          </Body>
+          <Body as="p" size="xs" tone="muted" className="mt-1">
             Update the GL account mapping in Settings before recording this transaction.
-          </p>
+          </Body>
           {financialOptionsWarning ? (
-            <p className="mt-1 text-xs text-amber-800">
+            <Body as="p" size="xs" tone="muted" className="mt-1">
               {financialOptionsWarning} account
               {financialOptionsWarning === 1 ? '' : 's'} were hidden because a Buildium account mapping is missing.
-            </p>
+            </Body>
           ) : null}
         </div>
       );
@@ -636,26 +640,34 @@ export default function MonthlyLogTransactionOverlay({
     switch (mode) {
       case 'payment':
         return (
-          <div className="flex h-40 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-100 text-sm text-slate-600">
-            Redirecting to payment form…
+          <div className="flex h-40 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-100">
+            <Body as="span" size="sm" tone="muted">
+              Redirecting to payment form…
+            </Body>
           </div>
         );
       case 'charge':
         return (
-          <div className="flex h-40 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-100 text-sm text-slate-600">
-            Redirecting to charge form…
+          <div className="flex h-40 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-100">
+            <Body as="span" size="sm" tone="muted">
+              Redirecting to charge form…
+            </Body>
           </div>
         );
       case 'credit':
         return (
-          <div className="flex h-40 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-100 text-sm text-slate-600">
-            Redirecting to credit form…
+          <div className="flex h-40 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-100">
+            <Body as="span" size="sm" tone="muted">
+              Redirecting to credit form…
+            </Body>
           </div>
         );
       case 'refund':
         return (
-          <div className="flex h-40 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-100 text-sm text-slate-600">
-            Redirecting to refund form…
+          <div className="flex h-40 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-100">
+            <Body as="span" size="sm" tone="muted">
+              Redirecting to refund form…
+            </Body>
           </div>
         );
       case 'deposit':
@@ -731,18 +743,20 @@ export default function MonthlyLogTransactionOverlay({
         <div className="space-y-4 p-4 sm:p-5">
           <div className="flex flex-wrap items-start gap-3">
             <DialogHeader className="items-start space-y-1 text-left">
-              <p className="text-muted-foreground text-sm">
+              <Body as="p" size="sm" tone="muted">
                 {leaseSummary.propertyUnit || 'Lease'}
                 {leaseSummary.tenants ? ` • ${leaseSummary.tenants}` : ''}
-              </p>
-              <DialogTitle className="text-foreground text-2xl font-semibold">
-                Add transaction
+              </Body>
+              <DialogTitle>
+                <Heading as="p" size="h4">
+                  Add transaction
+                </Heading>
               </DialogTitle>
             </DialogHeader>
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-muted-foreground text-xs font-semibold uppercase">
+            <Label size="xs" tone="muted" className="uppercase">
               Transaction type
             </Label>
             <Select value={mode} onValueChange={(value) => onModeChange(value as TransactionMode)}>
@@ -755,7 +769,9 @@ export default function MonthlyLogTransactionOverlay({
                     <span className="flex flex-col">
                       <span>{option.label}</span>
                       {option.reason ? (
-                        <span className="text-muted-foreground text-xs">{option.reason}</span>
+                        <Body as="span" size="xs" tone="muted">
+                          {option.reason}
+                        </Body>
                       ) : null}
                     </span>
                   </SelectItem>

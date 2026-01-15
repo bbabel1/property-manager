@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { DateInput } from '@/components/ui/date-input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dropdown } from '@/components/ui/Dropdown';
+import { Body, Heading, Label } from '@/ui/typography';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import AddTenantModal from '@/components/leases/AddTenantModal';
 import LeaseFileUploadDialog, {
@@ -1133,22 +1134,24 @@ export default function AddLeaseForm({
       {/* Header with back button and actions */}
       <div className="border-border flex items-center justify-between border-b pb-4">
         <div className="flex items-center gap-4">
-          <h1 className="text-foreground text-2xl font-semibold">Add Lease</h1>
+          <Heading as="h1" size="h3">
+            Add Lease
+          </Heading>
           {pendingCosigners.length > 0 && (
-            <div className="text-muted-foreground text-xs">
+            <Body size="xs" tone="muted">
               {pendingCosigners.length} cosigner{pendingCosigners.length > 1 ? 's' : ''} added
-            </div>
+            </Body>
           )}
         </div>
         <div className="flex items-center gap-2">
-          <label className="text-foreground mr-2 flex items-center gap-2 text-xs select-none">
+          <Label as="label" className="mr-2 flex items-center gap-2 select-none">
             <Checkbox
               id="syncBuildiumOnSave"
               checked={syncToBuildium}
               onCheckedChange={(v) => setSyncToBuildium(Boolean(v))}
             />
             <span>Sync to Buildium on save</span>
-          </label>
+          </Label>
           <Button variant="outline" onClick={onCancel} disabled={saving}>
             Cancel
           </Button>
@@ -1163,19 +1166,25 @@ export default function AddLeaseForm({
 
       <div className="space-y-6">
         {error && (
-          <div className="bg-destructive/10 text-destructive border-destructive/20 rounded-md border p-4 text-sm">
-            {error}
+          <div className="bg-destructive/10 text-destructive border-destructive/20 rounded-md border p-4">
+            <Body size="sm" className="text-destructive">
+              {error}
+            </Body>
           </div>
         )}
 
         {/* Lease details */}
         <div>
-          <h3 className="text-foreground mb-4 text-sm font-semibold">Lease details</h3>
+          <Heading as="h3" size="h6" className="mb-4">
+            Lease details
+          </Heading>
           <div className="w-full">
             {/* Property + Unit */}
             <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-[minmax(20rem,40rem)_max-content]">
               <div className="w-full sm:justify-self-start">
-                <label className="mb-1 block text-xs">Property *</label>
+                <Label className="mb-1 block" size="xs">
+                  Property *
+                </Label>
                 <Dropdown
                   value={propertyId}
                   onChange={(v) => {
@@ -1189,14 +1198,20 @@ export default function AddLeaseForm({
                   className="max-w-full sm:w-[40rem]"
                 />
                 {propertyError && (
-                  <p className="text-destructive mt-1 text-xs">{propertyError}</p>
+                  <Body size="xs" className="text-destructive mt-1">
+                    {propertyError}
+                  </Body>
                 )}
                 {propertiesLoading && !properties.length && (
-                  <p className="text-muted-foreground mt-1 text-xs">Loading properties…</p>
+                  <Body size="xs" tone="muted" className="mt-1">
+                    Loading properties…
+                  </Body>
                 )}
                 {propertiesLoadError && (
-                  <div className="text-destructive mt-1 flex items-center gap-2 text-xs">
-                    <span>{propertiesLoadError}</span>
+                  <div className="text-destructive mt-1 flex items-center gap-2">
+                    <Body size="xs" className="text-destructive">
+                      {propertiesLoadError}
+                    </Body>
                     <Button
                       type="button"
                       variant="link"
@@ -1210,7 +1225,9 @@ export default function AddLeaseForm({
                 )}
               </div>
               <div className="w-full sm:w-auto sm:justify-self-start">
-                <label className="mb-1 block text-xs">Unit *</label>
+                <Label className="mb-1 block" size="xs">
+                  Unit *
+                </Label>
                 <Dropdown
                   value={unitId}
                   onChange={(v) => {
@@ -1224,13 +1241,21 @@ export default function AddLeaseForm({
                   placeholder="Select unit"
                   className="sm:w-32"
                 />
-                {unitError && <p className="text-destructive mt-1 text-xs">{unitError}</p>}
+                {unitError && (
+                  <Body size="xs" className="text-destructive mt-1">
+                    {unitError}
+                  </Body>
+                )}
                 {propertyId && unitsLoading && !units.length && (
-                  <p className="text-muted-foreground mt-1 text-xs">Loading units…</p>
+                  <Body size="xs" tone="muted" className="mt-1">
+                    Loading units…
+                  </Body>
                 )}
                 {unitsLoadError && (
-                  <div className="text-destructive mt-1 flex items-center gap-2 text-xs">
-                    <span>{unitsLoadError}</span>
+                  <div className="text-destructive mt-1 flex items-center gap-2">
+                    <Body size="xs" className="text-destructive">
+                      {unitsLoadError}
+                    </Body>
                     <Button
                       type="button"
                       variant="link"
@@ -1247,7 +1272,9 @@ export default function AddLeaseForm({
             {/* Lease Type + Dates */}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-[max-content_max-content_max-content]">
               <div className="w-full sm:w-64">
-                <label className="mb-1 block text-xs">Lease Type *</label>
+                <Label className="mb-1 block" size="xs">
+                  Lease Type *
+                </Label>
                 <Dropdown
                   value={leaseType}
                   onChange={setLeaseType}
@@ -1260,7 +1287,9 @@ export default function AddLeaseForm({
                 />
               </div>
               <div className="w-full sm:w-fit sm:justify-self-start">
-                <label className="mb-1 block text-xs">Start date *</label>
+                <Label className="mb-1 block" size="xs">
+                  Start date *
+                </Label>
                 <DateInput
                   value={from}
                   onChange={(nextValue) => {
@@ -1277,7 +1306,9 @@ export default function AddLeaseForm({
                 />
               </div>
               <div className="w-full sm:w-fit sm:justify-self-start">
-                <label className="mb-1 block text-xs">End date</label>
+                <Label className="mb-1 block" size="xs">
+                  End date
+                </Label>
                 <DateInput
                   value={to}
                   onChange={setTo}
@@ -1290,10 +1321,12 @@ export default function AddLeaseForm({
 
         {/* Lease contacts */}
         <div className="border-border bg-muted/30 rounded-md border p-4">
-          <h3 className="text-foreground mb-3 text-sm font-semibold">Lease Contacts</h3>
+          <Heading as="h3" size="h6" className="mb-3">
+            Lease Contacts
+          </Heading>
           <button
             type="button"
-            className="text-primary inline-flex items-center gap-2 text-sm underline"
+            className="text-primary inline-flex items-center gap-2 underline"
             onClick={() => setShowAddTenant(true)}
           >
             <Plus className="text-muted-foreground h-4 w-4" />
@@ -1307,24 +1340,34 @@ export default function AddLeaseForm({
                   className="flex items-center justify-between rounded-md border px-4 py-3"
                 >
                   <div className="flex items-center gap-6">
-                    <div className="text-primary bg-muted flex h-8 w-8 items-center justify-center rounded-full border text-xs font-semibold">
+                    <Label
+                      as="div"
+                      size="xs"
+                      className="text-primary bg-muted flex h-8 w-8 items-center justify-center rounded-full border"
+                    >
                       {(t.first_name?.[0] || '').toUpperCase()}
                       {(t.last_name?.[0] || '').toUpperCase()}
-                    </div>
-                    <div className="grid grid-cols-3 gap-6 text-sm">
+                    </Label>
+                    <div className="grid grid-cols-3 gap-6">
                       <div>
-                        <div className="text-muted-foreground text-xs uppercase">Tenant</div>
-                        <div className="text-foreground">
+                        <Body as="div" size="xs" tone="muted" className="uppercase">
+                          Tenant
+                        </Body>
+                        <Label as="div">
                           {t.first_name} {t.last_name}
-                        </div>
+                        </Label>
                       </div>
                       <div>
-                        <div className="text-muted-foreground text-xs uppercase">Email address</div>
-                        <div className="text-foreground">{t.email || '—'}</div>
+                        <Body as="div" size="xs" tone="muted" className="uppercase">
+                          Email address
+                        </Body>
+                        <Body as="div">{t.email || '—'}</Body>
                       </div>
                       <div>
-                        <div className="text-muted-foreground text-xs uppercase">Mobile phone</div>
-                        <div className="text-foreground">{t.phone || '—'}</div>
+                        <Body as="div" size="xs" tone="muted" className="uppercase">
+                          Mobile phone
+                        </Body>
+                        <Body as="div">{t.phone || '—'}</Body>
                       </div>
                     </div>
                   </div>
@@ -1342,24 +1385,34 @@ export default function AddLeaseForm({
                   className="flex items-center justify-between rounded-md border px-4 py-3"
                 >
                   <div className="flex items-center gap-6">
-                    <div className="text-primary bg-muted flex h-8 w-8 items-center justify-center rounded-full border text-xs font-semibold">
+                    <Label
+                      as="div"
+                      size="xs"
+                      className="text-primary bg-muted flex h-8 w-8 items-center justify-center rounded-full border"
+                    >
                       {(t.first_name?.[0] || '').toUpperCase()}
                       {(t.last_name?.[0] || '').toUpperCase()}
-                    </div>
-                    <div className="grid grid-cols-3 gap-6 text-sm">
+                    </Label>
+                    <div className="grid grid-cols-3 gap-6">
                       <div>
-                        <div className="text-muted-foreground text-xs uppercase">Cosigner</div>
-                        <div className="text-foreground">
+                        <Body as="div" size="xs" tone="muted" className="uppercase">
+                          Cosigner
+                        </Body>
+                        <Label as="div">
                           {t.first_name} {t.last_name}
-                        </div>
+                        </Label>
                       </div>
                       <div>
-                        <div className="text-muted-foreground text-xs uppercase">Email address</div>
-                        <div className="text-foreground">{t.email || '—'}</div>
+                        <Body as="div" size="xs" tone="muted" className="uppercase">
+                          Email address
+                        </Body>
+                        <Body as="div">{t.email || '—'}</Body>
                       </div>
                       <div>
-                        <div className="text-muted-foreground text-xs uppercase">Mobile phone</div>
-                        <div className="text-foreground">{t.phone || '—'}</div>
+                        <Body as="div" size="xs" tone="muted" className="uppercase">
+                          Mobile phone
+                        </Body>
+                        <Body as="div">{t.phone || '—'}</Body>
                       </div>
                     </div>
                   </div>
@@ -1377,16 +1430,18 @@ export default function AddLeaseForm({
 
         {/* Rent */}
         <div>
-          <h3 className="text-foreground mb-3 text-sm font-semibold">
-            Rent <span className="text-muted-foreground font-normal">(optional)</span>
-          </h3>
+          <Heading as="h3" size="h6" className="mb-3">
+            Rent <Body as="span" size="sm" tone="muted" className="ml-1">(optional)</Body>
+          </Heading>
           {glAccountsError ? (
-            <p className="text-destructive mb-2 text-xs">
+            <Body size="xs" className="text-destructive mb-2">
               Failed to load GL accounts: {glAccountsError}
-            </p>
+            </Body>
           ) : null}
           <div className="mb-4 sm:w-64">
-            <label className="mb-1 block text-xs">Rent cycle</label>
+            <Label className="mb-1 block" size="xs">
+              Rent cycle
+            </Label>
             <Dropdown
               value={rentCycle}
               onChange={(value) => setRentCycle(value as RentFrequency)}
@@ -1403,7 +1458,9 @@ export default function AddLeaseForm({
             <div className="border-l-4 border-l-blue-500 px-4 py-3">
               <div className={rentGridClass}>
                 <div>
-                  <label className="mb-1 block text-xs">Amount</label>
+                  <Label className="mb-1 block" size="xs">
+                    Amount
+                  </Label>
                   <Input
                     inputMode="decimal"
                     placeholder="$0.00"
@@ -1419,9 +1476,9 @@ export default function AddLeaseForm({
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs">
+                  <Label className="mb-1 block" size="xs">
                     {requiresRentAccount ? 'Account *' : 'Account (optional)'}
-                  </label>
+                  </Label>
                   <Dropdown
                     value={rentGlAccountId}
                     onChange={setRentGlAccountId}
@@ -1430,13 +1487,15 @@ export default function AddLeaseForm({
                     className="sm:w-[12rem]"
                   />
                   {showRentAccountEmptyState ? (
-                    <p className="text-muted-foreground mt-1 text-xs">
+                    <Body size="xs" tone="muted" className="mt-1">
                       No income GL accounts available. Rent will be saved without linking an account.
-                    </p>
+                    </Body>
                   ) : null}
                 </div>
                 <div className="w-full sm:w-fit sm:justify-self-start">
-                  <label className="mb-1 block text-xs">Next due date *</label>
+                  <Label className="mb-1 block" size="xs">
+                    Next due date *
+                  </Label>
                   <DateInput
                     value={nextDueDate}
                     onChange={setNextDueDate}
@@ -1445,7 +1504,9 @@ export default function AddLeaseForm({
                   />
                 </div>
                 <div className="w-full sm:w-fit sm:justify-self-start">
-                  <label className="mb-1 block text-xs">Due day *</label>
+                  <Label className="mb-1 block" size="xs">
+                    Due day *
+                  </Label>
                   <Dropdown
                     value={paymentDueDay}
                     onChange={(value) => setPaymentDueDay(String(value))}
@@ -1455,7 +1516,9 @@ export default function AddLeaseForm({
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs">Memo</label>
+                  <Label className="mb-1 block" size="xs">
+                    Memo
+                  </Label>
                   <Input
                     placeholder={'If left blank, will show "Rent"'}
                     value={rentMemo}
@@ -1470,22 +1533,24 @@ export default function AddLeaseForm({
         {/* Rent proration */}
         {showProration && (
           <div className="border-border bg-muted/30 rounded-md border p-4">
-            <h3 className="text-foreground mb-3 text-sm font-semibold">Rent proration</h3>
+            <Heading as="h3" size="h6" className="mb-3">
+              Rent proration
+            </Heading>
             <div className="flex items-start gap-10">
               {showFirst && (
                 <div>
-                  <label className="flex items-center gap-2 text-sm">
+                  <Label as="label" className="flex items-center gap-2">
                     <Checkbox
                       checked={prorateFirstMonth}
                       onCheckedChange={(v) => setProrateFirstMonth(Boolean(v))}
                     />
                     Prorate first month's rent
-                  </label>
+                  </Label>
                   {prorateFirstMonth && (
                     <div className="mt-3 sm:w-64">
-                      <label className="mb-1 block text-xs">
+                      <Label className="mb-1 block" size="xs">
                         First month's rent ({firstProrationDays} days)
-                      </label>
+                      </Label>
                       <Input
                         readOnly
                         value={firstProrationAmount != null ? fmtUsd(firstProrationAmount) : ''}
@@ -1496,18 +1561,18 @@ export default function AddLeaseForm({
               )}
               {showLast && (
                 <div>
-                  <label className="flex items-center gap-2 text-sm">
+                  <Label as="label" className="flex items-center gap-2">
                     <Checkbox
                       checked={prorateLastMonth}
                       onCheckedChange={(v) => setProrateLastMonth(Boolean(v))}
                     />
                     Prorate last month's rent
-                  </label>
+                  </Label>
                   {prorateLastMonth && (
                     <div className="mt-3 sm:w-64">
-                      <label className="mb-1 block text-xs">
+                      <Label className="mb-1 block" size="xs">
                         Last month's rent ({lastProrationDays} days)
-                      </label>
+                      </Label>
                       <Input
                         readOnly
                         value={lastProrationAmount != null ? fmtUsd(lastProrationAmount) : ''}
@@ -1522,14 +1587,19 @@ export default function AddLeaseForm({
 
         {/* Security deposit */}
         <div>
-          <h3 className="text-foreground mb-3 text-sm font-semibold">
-            Security deposit <span className="text-muted-foreground font-normal">(optional)</span>
-          </h3>
+          <Heading as="h3" size="h6" className="mb-3">
+            Security deposit{' '}
+            <Body as="span" size="sm" tone="muted">
+              (optional)
+            </Body>
+          </Heading>
           <div className="overflow-hidden rounded-lg border border-blue-200 bg-blue-50/30">
             <div className="border-l-4 border-l-blue-500 px-4 py-3">
               <div className={depositGridClass}>
                 <div>
-                  <label className="mb-1 block text-xs">Amount</label>
+                  <Label className="mb-1 block" size="xs">
+                    Amount
+                  </Label>
                   <Input
                     inputMode="decimal"
                     placeholder="$0.00"
@@ -1542,7 +1612,9 @@ export default function AddLeaseForm({
                   />
                 </div>
                 <div className="w-full sm:w-fit sm:justify-self-start">
-                  <label className="mb-1 block text-xs">Next due date *</label>
+                  <Label className="mb-1 block" size="xs">
+                    Next due date *
+                  </Label>
                   <DateInput
                     value={depositDate}
                     onChange={setDepositDate}
@@ -1553,25 +1625,30 @@ export default function AddLeaseForm({
               </div>
             </div>
           </div>
-          <p className="text-muted-foreground mt-2 text-xs">
+          <Body size="xs" tone="muted" className="mt-2">
             Don't forget to record the payment once you have collected the deposit.
-          </p>
+          </Body>
         </div>
 
         {/* Charges */}
         <div className="border-border bg-muted/30 rounded-md border p-4">
-          <h3 className="text-foreground mb-3 text-sm font-semibold">
-            Charges <span className="text-muted-foreground font-normal">(optional)</span>
-          </h3>
-          <p className="text-muted-foreground mb-4 text-sm">
+          <Heading as="h3" size="h6" className="mb-3">
+            Charges{' '}
+            <Body as="span" size="sm" tone="muted">
+              (optional)
+            </Body>
+          </Heading>
+          <Body tone="muted" className="mb-4">
             Create charges for tenants that are part of this lease
-          </p>
+          </Body>
           <div className="mt-4">
-            <label className="mb-1 block text-xs">Lease Charges</label>
+            <Label className="mb-1 block" size="xs">
+              Lease Charges
+            </Label>
             <textarea
               value={leaseCharges}
               onChange={(e) => setLeaseCharges(e.target.value)}
-              className="border-border bg-background text-foreground placeholder:text-muted-foreground focus-visible:ring-primary/40 min-h-[100px] w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:outline-none"
+              className="border-border bg-background text-foreground placeholder:text-muted-foreground focus-visible:ring-primary/40 min-h-[100px] w-full rounded-md border px-3 py-2 focus-visible:ring-2 focus-visible:outline-none"
               placeholder="Describe recurring or one-time charges beyond base rent…"
             />
           </div>
@@ -1581,13 +1658,16 @@ export default function AddLeaseForm({
         <div className="border-border bg-muted/30 rounded-md border p-4">
           <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <h3 className="text-foreground text-sm font-medium">
-                Lease documents <span className="text-muted-foreground font-normal">(optional)</span>
-              </h3>
-              <p className="text-muted-foreground text-xs">
+              <Heading as="h3" size="h6">
+                Lease documents{' '}
+                <Body as="span" size="sm" tone="muted">
+                  (optional)
+                </Body>
+              </Heading>
+              <Body size="xs" tone="muted">
                 Use the upload dialog (same flow as property files) to add documents. If the lease is
                 not saved yet, attach files and we&apos;ll upload them right after save.
-              </p>
+              </Body>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <Button
@@ -1619,10 +1699,10 @@ export default function AddLeaseForm({
           </div>
 
           {!createdLeaseId ? (
-            <p className="text-muted-foreground text-xs">
+            <Body size="xs" tone="muted">
               Save the lease to upload immediately. You can still attach files now and they&apos;ll
               upload right after save.
-            </p>
+            </Body>
           ) : null}
 
           <input
@@ -1637,34 +1717,36 @@ export default function AddLeaseForm({
           {pendingLeaseFiles.length ? (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <p className="text-foreground text-xs font-semibold uppercase tracking-wide">
+                <Label as="p" size="xs" className="uppercase tracking-wide">
                   Pending uploads ({pendingLeaseFiles.length})
-                </p>
-                <p className="text-muted-foreground text-xs">
+                </Label>
+                <Body size="xs" tone="muted">
                   {pendingLeaseFiles.length} file
                   {pendingLeaseFiles.length === 1 ? '' : 's'} will upload after save.
-                </p>
+                </Body>
               </div>
               {uploadingPendingFiles && uploadProgress ? (
-                <p className="text-muted-foreground text-xs">
+                <Body size="xs" tone="muted">
                   Uploading file {uploadProgress.current} of {uploadProgress.total}…
-                </p>
+                </Body>
               ) : null}
               {pendingLeaseFiles.map((file) => (
                 <div
                   key={file.id}
-                  className="border-border bg-background flex items-start justify-between rounded-md border px-3 py-2 text-sm"
+                  className="border-border bg-background flex items-start justify-between rounded-md border px-3 py-2"
                 >
                   <div className="flex flex-col">
-                    <span className="text-foreground font-medium break-all">{file.name}</span>
-                    <span className="text-muted-foreground text-xs">
+                    <Label as="span" className="break-all">
+                      {file.name}
+                    </Label>
+                    <Body as="span" size="xs" tone="muted">
                       {file.status === 'pending' && 'Pending'}
                       {file.status === 'uploading' && 'Uploading…'}
                       {file.status === 'uploaded' && 'Uploaded'}
                       {file.status === 'error' && (
                         <span className="text-destructive">{file.error || 'Upload failed'}</span>
                       )}
-                    </span>
+                    </Body>
                   </div>
                   <div className="flex items-center gap-2">
                     {file.status === 'error' && createdLeaseId ? (
@@ -1695,8 +1777,10 @@ export default function AddLeaseForm({
                 </div>
               ))}
               {pendingLeaseFiles.some((f) => f.status === 'error') && createdLeaseId ? (
-                <div className="flex items-center justify-between rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                  <span>Some files failed to sync to Buildium. Retry?</span>
+                <div className="flex items-center justify-between rounded-md bg-amber-50 px-3 py-2 text-amber-900">
+                  <Body as="span" size="xs">
+                    Some files failed to sync to Buildium. Retry?
+                  </Body>
                   <Button
                     type="button"
                     size="sm"
@@ -1716,39 +1800,47 @@ export default function AddLeaseForm({
               ) : null}
             </div>
           ) : (
-            <p className="text-muted-foreground text-xs">
+            <Body size="xs" tone="muted">
               Supported formats include PDF and common image types. Maximum size 25 MB per document.
-            </p>
+            </Body>
           )}
 
           {uploadedLeaseFiles.length ? (
             <div className="mt-4 space-y-2">
-              <p className="text-foreground text-xs font-semibold uppercase tracking-wide">
+              <Label as="p" size="xs" className="uppercase tracking-wide">
                 Uploaded files ({uploadedLeaseFiles.length})
-              </p>
+              </Label>
               {uploadedLeaseFiles.map((file) => (
                 <div
                   key={file.id}
-                  className="border-border bg-background flex items-start justify-between rounded-md border px-3 py-2 text-sm"
+                  className="border-border bg-background flex items-start justify-between rounded-md border px-3 py-2"
                 >
                   <div className="flex flex-col">
-                    <span className="text-foreground font-medium break-all">{file.title}</span>
-                    <span className="text-muted-foreground text-xs">
+                    <Label as="span" className="break-all">
+                      {file.title}
+                    </Label>
+                    <Body as="span" size="xs" tone="muted">
                       {file.category || 'Lease Documents'}
-                    </span>
+                    </Body>
                     {file.description ? (
-                      <span className="text-muted-foreground text-xs">{file.description}</span>
+                      <Body as="span" size="xs" tone="muted">
+                        {file.description}
+                      </Body>
                     ) : null}
                     {file.buildiumSyncError ? (
-                      <span className="text-destructive text-xs">
+                      <Body as="span" size="xs" className="text-destructive">
                         Buildium sync failed: {file.buildiumSyncError}
-                      </span>
+                      </Body>
                     ) : null}
                   </div>
-                  <div className="text-right text-xs text-muted-foreground">
-                    <div>{file.uploadedAt.toLocaleDateString()}</div>
+                  <div className="text-right text-muted-foreground">
+                    <Body as="div" size="xs" tone="muted">
+                      {file.uploadedAt.toLocaleDateString()}
+                    </Body>
                     {file.buildiumFileId ? (
-                      <div className="text-foreground">Buildium ID: {file.buildiumFileId}</div>
+                      <Body as="div" size="xs">
+                        Buildium ID: {file.buildiumFileId}
+                      </Body>
                     ) : null}
                   </div>
                 </div>
@@ -1757,9 +1849,9 @@ export default function AddLeaseForm({
           ) : null}
 
           {!createdLeaseId ? (
-            <p className="text-muted-foreground mt-3 text-xs">
+            <Body size="xs" tone="muted" className="mt-3">
               Save the lease to upload immediately or keep files pending to upload after save.
-            </p>
+            </Body>
           ) : null}
         </div>
       </div>

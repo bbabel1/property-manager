@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { Label as FormLabel } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
@@ -19,6 +19,7 @@ import { useAuth } from '@/components/providers'
 import type { AppRole } from '@/lib/auth/roles'
 import { RoleRank } from '@/lib/auth/roles'
 import { cn } from '@/lib/utils'
+import { Body, Heading, Label } from '@/ui/typography'
 
 type CompletionStep = { key: string; label: string; done: boolean }
 type NotificationPrefs = { critical?: boolean; financial?: boolean; compliance?: boolean }
@@ -317,11 +318,19 @@ export default function ProfilePage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="space-y-1">
-          <h1 className="text-2xl font-bold text-foreground">My Profile</h1>
-          <p className="text-sm text-muted-foreground">Keep the essentials tidy and let Ora handle the rest.</p>
+          <Heading as="h1" size="h3">
+            My Profile
+          </Heading>
+          <Body tone="muted" size="sm">
+            Keep the essentials tidy and let Ora handle the rest.
+          </Body>
         </div>
-        <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-          <Badge variant="outline">Personal profile</Badge>
+        <div className="flex flex-wrap items-center gap-3">
+          <Badge variant="outline">
+            <Label as="span" size="sm" tone="muted">
+              Personal profile
+            </Label>
+          </Badge>
           <div className="flex items-center gap-2">
             <span
               className={cn(
@@ -333,7 +342,7 @@ export default function ProfilePage() {
                     : 'bg-emerald-500',
               )}
             />
-            <span>
+            <Body as="span" size="sm" tone="muted">
               {syncState === 'saving'
                 ? 'Saving…'
                 : syncState === 'error'
@@ -341,7 +350,7 @@ export default function ProfilePage() {
                   : lastSyncedAt
                     ? `Synced ${new Date(lastSyncedAt).toLocaleString()}`
                     : 'Synced to your account'}
-            </span>
+            </Body>
           </div>
         </div>
       </div>
@@ -352,8 +361,10 @@ export default function ProfilePage() {
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="text-lg">Profile snapshot</CardTitle>
-                  <p className="text-sm text-muted-foreground">A quick read on how others see you.</p>
+                  <CardTitle headingSize="h5">Profile snapshot</CardTitle>
+                  <Body tone="muted" size="sm">
+                    A quick read on how others see you.
+                  </Body>
                 </div>
                 <Badge variant="secondary">Personal</Badge>
               </div>
@@ -366,17 +377,19 @@ export default function ProfilePage() {
                     <AvatarFallback className="bg-primary/10 text-primary">{initials}</AvatarFallback>
                   </Avatar>
                   <div className="space-y-1">
-                    <div className="flex flex-wrap items-center gap-2 text-base font-semibold">
-                      <span>{displayName || fullName || displayNameFromMeta}</span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Heading as="span" size="h6" className="leading-tight">
+                        {displayName || fullName || displayNameFromMeta}
+                      </Heading>
                       <Badge variant="outline">{roleLabel(primaryWorkRole)}</Badge>
                     </div>
-                    <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                    <Body as="div" size="sm" tone="muted" className="flex flex-wrap items-center gap-2">
                       <span>{user?.email}</span>
                       {phone ? <span>• {phone}</span> : null}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
+                    </Body>
+                    <Body as="div" size="xs" tone="muted">
                       {timezone} • {locale} • {currency}
-                    </div>
+                    </Body>
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -404,16 +417,18 @@ export default function ProfilePage() {
               </div>
 
               <div className="rounded-lg border border-border/70 p-3">
-                <div className="flex items-center justify-between text-xs font-medium text-foreground">
-                  <span>
+                <div className="flex items-center justify-between">
+                  <Label as="span" size="xs">
                     {completed} of {completionSteps.length} complete
-                  </span>
-                  <span>{completionPercent}%</span>
+                  </Label>
+                  <Label as="span" size="xs">
+                    {completionPercent}%
+                  </Label>
                 </div>
                 <Progress value={completionPercent} className="mt-2" />
                 <div className="mt-3 space-y-2">
                   {completionSteps.map((step) => (
-                    <div key={step.key} className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <div key={step.key} className="flex items-center gap-2">
                       <span
                         className={cn(
                           'inline-flex h-4 w-4 items-center justify-center rounded-full border text-[10px]',
@@ -422,7 +437,9 @@ export default function ProfilePage() {
                       >
                         {step.done ? '✓' : ''}
                       </span>
-                      <span>{step.label}</span>
+                      <Label as="span" size="xs" tone="muted">
+                        {step.label}
+                      </Label>
                     </div>
                   ))}
                 </div>
@@ -440,19 +457,21 @@ export default function ProfilePage() {
 
             <TabsContent value="essentials" className="space-y-6">
               <Card className="shadow-sm">
-                <CardHeader className="pb-3">
-                  <CardTitle>Identity &amp; contact</CardTitle>
-                  <p className="text-sm text-muted-foreground">Lighten up your public details and region defaults.</p>
-                </CardHeader>
+              <CardHeader className="pb-3">
+                <CardTitle>Identity &amp; contact</CardTitle>
+                <Body tone="muted" size="sm">
+                  Lighten up your public details and region defaults.
+                </Body>
+              </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="grid gap-4 lg:grid-cols-[1.15fr,0.85fr]">
                     <div className="space-y-4">
                       <div className="space-y-2">
-                        <Label htmlFor="fullName">Full name</Label>
+                        <FormLabel htmlFor="fullName">Full name</FormLabel>
                         <Input id="fullName" value={fullName} onChange={(e) => setFullName(e.target.value)} />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="displayName">Display name</Label>
+                        <FormLabel htmlFor="displayName">Display name</FormLabel>
                         <Input
                           id="displayName"
                           placeholder="Shown in comments and messages"
@@ -464,15 +483,21 @@ export default function ProfilePage() {
                     <div className="space-y-3 rounded-lg border border-border/70 bg-muted/40 p-3">
                       <div className="flex items-center justify-between">
                         <div className="space-y-0.5">
-                          <div className="text-sm font-semibold">Login email</div>
-                          <div className="text-sm text-muted-foreground">{user?.email}</div>
+                          <Label as="div" size="sm">
+                            Login email
+                          </Label>
+                          <Body as="div" size="sm" tone="muted">
+                            {user?.email}
+                          </Body>
                         </div>
                         <Badge variant={user?.email_confirmed_at ? 'default' : 'destructive'} className="capitalize">
                           {user?.email_confirmed_at ? 'Verified' : 'Not verified'}
                         </Badge>
                       </div>
-                      <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-                        <span>Primary login; changes trigger verification.</span>
+                      <div className="flex items-center justify-between gap-2">
+                        <Body as="span" size="xs" tone="muted">
+                          Primary login; changes trigger verification.
+                        </Body>
                         <Button
                           size="sm"
                           variant="outline"
@@ -489,17 +514,19 @@ export default function ProfilePage() {
 
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <div className="space-y-2">
-                      <Label htmlFor="phone">Mobile number</Label>
+                      <FormLabel htmlFor="phone">Mobile number</FormLabel>
                       <Input
                         id="phone"
                         placeholder="+1 (555) 123-4567"
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
                       />
-                      <p className="text-xs text-muted-foreground">Used for SMS alerts and two-factor.</p>
+                      <Body as="p" size="xs" tone="muted">
+                        Used for SMS alerts and two-factor.
+                      </Body>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="timezone">Timezone</Label>
+                      <FormLabel htmlFor="timezone">Timezone</FormLabel>
                       <Select value={timezone} onValueChange={setTimezone}>
                         <SelectTrigger id="timezone">
                           <SelectValue placeholder="Select timezone" />
@@ -512,13 +539,15 @@ export default function ProfilePage() {
                           ))}
                         </SelectContent>
                       </Select>
-                      <p className="text-xs text-muted-foreground">Controls reminders and due dates.</p>
+                      <Body as="p" size="xs" tone="muted">
+                        Controls reminders and due dates.
+                      </Body>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                     <div className="space-y-2">
-                      <Label htmlFor="locale">Locale</Label>
+                      <FormLabel htmlFor="locale">Locale</FormLabel>
                       <Select value={locale} onValueChange={setLocale}>
                         <SelectTrigger id="locale">
                           <SelectValue placeholder="Select locale" />
@@ -533,7 +562,7 @@ export default function ProfilePage() {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="dateFormat">Date format</Label>
+                      <FormLabel htmlFor="dateFormat">Date format</FormLabel>
                       <Select value={dateFormat} onValueChange={setDateFormat}>
                         <SelectTrigger id="dateFormat">
                           <SelectValue />
@@ -548,7 +577,7 @@ export default function ProfilePage() {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="currency">Currency</Label>
+                      <FormLabel htmlFor="currency">Currency</FormLabel>
                       <Select value={currency} onValueChange={setCurrency}>
                         <SelectTrigger id="currency">
                           <SelectValue />
@@ -566,7 +595,7 @@ export default function ProfilePage() {
 
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-[2fr,1fr]">
                     <div className="space-y-2">
-                      <Label htmlFor="numberFormat">Number formatting</Label>
+                      <FormLabel htmlFor="numberFormat">Number formatting</FormLabel>
                       <Select value={numberFormat} onValueChange={setNumberFormat}>
                         <SelectTrigger id="numberFormat">
                           <SelectValue />
@@ -582,10 +611,12 @@ export default function ProfilePage() {
                     </div>
                     <div className="flex items-center justify-between rounded-lg border border-dashed border-border/80 px-3 py-3">
                       <div className="space-y-0.5">
-                        <div className="text-sm font-medium text-foreground">Two-factor sign-in</div>
-                        <p className="text-xs text-muted-foreground">
+                        <Label as="div" size="sm">
+                          Two-factor sign-in
+                        </Label>
+                        <Body as="p" size="xs" tone="muted">
                           Extra verification for logins and sensitive actions.
-                        </p>
+                        </Body>
                       </div>
                       <Switch checked={twoFactorEnabled} onCheckedChange={setTwoFactorEnabled} />
                     </div>
@@ -593,31 +624,37 @@ export default function ProfilePage() {
 
                   <Accordion type="single" collapsible className="rounded-lg border border-border/70">
                     <AccordionItem value="orgs" className="border-none">
-                      <AccordionTrigger className="px-3 py-2 text-sm font-semibold">
-                        Access &amp; memberships
+                      <AccordionTrigger className="px-3 py-2">
+                        <Label as="span" size="sm">Access &amp; memberships</Label>
                       </AccordionTrigger>
-                      <AccordionContent className="px-3 pb-3 text-sm">
+                      <AccordionContent className="px-3 pb-3">
                         <div className="space-y-3">
                           <div className="flex flex-wrap items-center gap-2">
                             <Badge variant="outline">{roleLabel(primaryWorkRole)}</Badge>
-                            <span className="text-muted-foreground">Driven by your RBAC assignment.</span>
+                            <Body as="span" size="sm" tone="muted">
+                              Driven by your RBAC assignment.
+                            </Body>
                           </div>
                           {orgSummaries.length ? (
-                            <div className="space-y-2 rounded-md border border-border/70 bg-muted/30 p-3 text-sm">
+                            <div className="space-y-2 rounded-md border border-border/70 bg-muted/30 p-3">
                               {orgSummaries.map((org) => (
                                 <div key={org.orgId} className="flex items-center justify-between gap-2">
                                   <div>
-                                    <div className="font-medium text-foreground">{org.orgId}</div>
-                                    <div className="text-xs text-muted-foreground">Roles: {org.roles.join(', ')}</div>
+                                    <Label as="div" size="sm">
+                                      {org.orgId}
+                                    </Label>
+                                    <Body as="div" size="xs" tone="muted">
+                                      Roles: {org.roles.join(', ')}
+                                    </Body>
                                   </div>
                                   <Badge variant="outline">Org</Badge>
                                 </div>
                               ))}
                             </div>
                           ) : (
-                            <p className="text-xs text-muted-foreground">
+                            <Body as="p" size="xs" tone="muted">
                               Your organization memberships will appear here from your role assignments.
-                            </p>
+                            </Body>
                           )}
                         </div>
                       </AccordionContent>
@@ -652,12 +689,14 @@ export default function ProfilePage() {
               <Card className="shadow-sm">
                 <CardHeader className="pb-3">
                   <CardTitle>Work defaults</CardTitle>
-                  <p className="text-sm text-muted-foreground">Tune where you land and what you see first.</p>
+                  <Body tone="muted" size="sm">
+                    Tune where you land and what you see first.
+                  </Body>
                 </CardHeader>
                 <CardContent className="space-y-5">
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <div className="space-y-2">
-                      <Label htmlFor="workRole">Primary work role</Label>
+                      <FormLabel htmlFor="workRole">Primary work role</FormLabel>
                       <Select value={primaryWorkRole} onValueChange={(value) => setPrimaryWorkRole(value as AppRole)}>
                         <SelectTrigger id="workRole">
                           <SelectValue />
@@ -672,7 +711,7 @@ export default function ProfilePage() {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="landingPage">Default landing page</Label>
+                      <FormLabel htmlFor="landingPage">Default landing page</FormLabel>
                       <Select value={landingPage} onValueChange={setLandingPage}>
                         <SelectTrigger id="landingPage">
                           <SelectValue />
@@ -685,9 +724,9 @@ export default function ProfilePage() {
                           ))}
                         </SelectContent>
                       </Select>
-                      <p className="text-xs text-muted-foreground">
+                      <Body as="p" size="xs" tone="muted">
                         Personalizes dashboards and filters when you sign in.
-                      </p>
+                      </Body>
                     </div>
                   </div>
 
@@ -710,7 +749,9 @@ export default function ProfilePage() {
               <Card className="shadow-sm">
                 <CardHeader className="pb-3">
                   <CardTitle>Notifications &amp; automations</CardTitle>
-                  <p className="text-sm text-muted-foreground">Keep the noise low and the signals strong.</p>
+                  <Body tone="muted" size="sm">
+                    Keep the noise low and the signals strong.
+                  </Body>
                 </CardHeader>
                 <CardContent className="space-y-5">
                   <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -724,8 +765,12 @@ export default function ProfilePage() {
                         className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/30 px-3 py-3"
                       >
                         <div className="space-y-0.5">
-                          <div className="text-sm font-medium text-foreground">{row.label}</div>
-                          <div className="text-xs text-muted-foreground">{row.helper}</div>
+                          <Label as="div" size="sm">
+                            {row.label}
+                          </Label>
+                          <Body as="div" size="xs" tone="muted">
+                            {row.helper}
+                          </Body>
                           <div className="flex flex-wrap gap-2">
                             <Badge variant="outline">Email</Badge>
                             <Badge variant="outline">SMS</Badge>
@@ -742,10 +787,10 @@ export default function ProfilePage() {
                     ))}
                   </div>
 
-                  <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
-                    <Link href="/settings/notifications" className="text-primary underline">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <Label as={Link} href="/settings/notifications" size="sm" className="text-primary underline">
                       Open advanced notification matrix →
-                    </Link>
+                    </Label>
                     <Button
                       onClick={() =>
                         saveProfile('Preferences & automations', {

@@ -23,6 +23,7 @@ import {
   type LeaseFormSuccessPayload,
 } from '@/components/leases/types';
 import { formatCurrency } from '@/lib/transactions/formatting';
+import { Body, Heading, Label } from '@/ui/typography';
 
 const WithholdDepositSchema = z.object({
   date: z.string().min(1, 'Date required'),
@@ -215,10 +216,10 @@ export default function WithholdDepositForm({
   return (
     <div className="mx-auto w-full max-w-5xl space-y-8">
       <div className="space-y-1">
-        <h1 className="text-foreground text-2xl font-semibold">
+        <Heading as="h1" size="h3">
           Withhold deposit{leaseSummary?.propertyUnit ? ` for ${leaseSummary.propertyUnit}` : ''}
           {leaseSummary?.tenants ? ` • ${leaseSummary.tenants}` : ''}
-        </h1>
+        </Heading>
       </div>
 
       <Card className="border-border/70 border shadow-sm">
@@ -226,20 +227,24 @@ export default function WithholdDepositForm({
           <form className="space-y-10" onSubmit={handleSubmit}>
             <section className="grid gap-6 lg:grid-cols-2">
               <label className="space-y-2">
-                <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                <Label size="xs" tone="muted" className="tracking-wide uppercase">
                   Date *
-                </span>
+                </Label>
                 <DatePicker
                   value={form.date}
                   onChange={(value) => updateField('date', value)}
                   placeholder="mm/dd/yyyy"
                 />
-                {errors.date ? <p className="text-destructive text-xs">{errors.date}</p> : null}
+                {errors.date ? (
+                  <Body as="p" size="sm" className="text-destructive text-xs">
+                    {errors.date}
+                  </Body>
+                ) : null}
               </label>
               <label className="space-y-2">
-                <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                <Label size="xs" tone="muted" className="tracking-wide uppercase">
                   Deposit *
-                </span>
+                </Label>
                 <Dropdown
                   value={form.deposit_account_id}
                   onChange={(value) => updateField('deposit_account_id', value)}
@@ -250,41 +255,50 @@ export default function WithholdDepositForm({
                   placeholder="Select account"
                 />
                 {errors.deposit_account_id ? (
-                  <p className="text-destructive text-xs">{errors.deposit_account_id}</p>
+                  <Body as="p" size="sm" className="text-destructive text-xs">
+                    {errors.deposit_account_id}
+                  </Body>
                 ) : null}
               </label>
               <label className="space-y-2 lg:col-span-2">
-                <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                <Label size="xs" tone="muted" className="tracking-wide uppercase">
                   Memo
-                </span>
+                </Label>
                 <Textarea
                   rows={3}
                   value={form.memo}
                   onChange={(event) => updateField('memo', event.target.value)}
                   maxLength={200}
                 />
-                <div className="text-muted-foreground text-right text-xs">
+                <Body as="div" tone="muted" size="sm" className="text-right text-xs">
                   {form.memo.length}/200
-                </div>
+                </Body>
               </label>
             </section>
 
             <div className="space-y-4">
               <div>
-                <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                <Label size="xs" tone="muted" className="tracking-wide uppercase">
                   Attachment
-                </span>
-                <div className="border-border text-muted-foreground mt-2 rounded-md border border-dashed px-6 py-10 text-center text-sm">
+                </Label>
+                <Body
+                  as="div"
+                  size="sm"
+                  tone="muted"
+                  className="border-border mt-2 rounded-md border border-dashed px-6 py-10 text-center"
+                >
                   Drag & drop file here or{' '}
                   <button type="button" className="text-primary underline">
                     browse
                   </button>
-                </div>
+                </Body>
               </div>
             </div>
 
             <section className="space-y-4">
-              <h2 className="text-foreground text-sm font-semibold">Apply deposit to balances</h2>
+              <Label as="h2" className="text-foreground" size="sm">
+                Apply deposit to balances
+              </Label>
               <div className="border-border overflow-hidden rounded-lg border">
                 <Table className="min-w-full">
                   <TableHeader>
@@ -353,14 +367,20 @@ export default function WithholdDepositForm({
                 <Plus className="h-4 w-4" /> Add row
               </Button>
               {errors.allocations ? (
-                <p className="text-destructive text-xs">{errors.allocations}</p>
+                <Body as="p" size="sm" className="text-destructive text-xs">
+                  {errors.allocations}
+                </Body>
               ) : null}
             </section>
 
             {formError ? (
-              <div className="border-destructive/40 bg-destructive/10 text-destructive rounded-md border px-4 py-3 text-sm">
+              <Body
+                as="div"
+                size="sm"
+                className="border-destructive/40 bg-destructive/10 text-destructive rounded-md border px-4 py-3"
+              >
                 {formError}
-              </div>
+              </Body>
             ) : null}
 
             <div className="flex flex-wrap items-center gap-3">

@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
+import { Body, Heading, Label } from '@/ui/typography';
 
 type AuditEntry = {
   id?: string;
@@ -141,7 +142,7 @@ export function BillApprovalWorkflow({
   return (
     <Card className="border-border/70 shadow-sm">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-        <CardTitle className="text-base font-semibold">Approval workflow</CardTitle>
+        <CardTitle headingSize="h6">Approval workflow</CardTitle>
         <Badge variant={approvalVariant(normalized)} className="capitalize">
           {normalized.replace(/_/g, ' ')}
         </Badge>
@@ -193,31 +194,39 @@ export function BillApprovalWorkflow({
           ) : null}
         </div>
         {permissionError ? (
-          <div className="text-xs text-destructive">{permissionError}</div>
+          <Body as="div" size="xs" className="text-destructive">
+            {permissionError}
+          </Body>
         ) : null}
 
         <div className="space-y-2">
-          <div className="text-xs font-semibold uppercase text-muted-foreground">Approval history</div>
+          <Label as="div" size="xs" tone="muted" className="uppercase">
+            Approval history
+          </Label>
           {audit.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No approval history yet.</p>
+            <Body as="p" size="sm" tone="muted">
+              No approval history yet.
+            </Body>
           ) : (
             <div className="flex flex-col gap-2">
               {audit
                 .slice()
                 .sort((a, b) => (a.created_at || '').localeCompare(b.created_at || ''))
                 .map((entry, idx) => (
-                  <div key={entry.id ?? idx} className="rounded-md border bg-muted/40 p-2 text-sm">
+                  <div key={entry.id ?? idx} className="rounded-md border bg-muted/40 p-2">
                     <div className="flex items-center justify-between">
-                      <span className="capitalize font-medium">{entry.action || 'change'}</span>
-                      <span className="text-xs text-muted-foreground">
+                      <Label as="span" className="capitalize">
+                        {entry.action || 'change'}
+                      </Label>
+                      <Body as="span" size="xs" tone="muted">
                         {formatDate(entry.created_at) || '—'}
-                      </span>
+                      </Body>
                     </div>
-                    <div className="text-xs text-muted-foreground">
+                    <Body as="div" size="xs" tone="muted">
                       {entry.from_state ? entry.from_state.replace(/_/g, ' ') : '—'} →{' '}
                       {entry.to_state ? entry.to_state.replace(/_/g, ' ') : '—'}
-                    </div>
-                    {entry.notes ? <div className="text-sm">{entry.notes}</div> : null}
+                    </Body>
+                    {entry.notes ? <Body as="div" size="sm">{entry.notes}</Body> : null}
                   </div>
                 ))}
             </div>

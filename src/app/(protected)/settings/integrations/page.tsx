@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Loader2, Building2, Database } from 'lucide-react'
 import { BuildiumCredentialsForm } from '@/components/integrations/buildium-credentials-form'
 import { NYCGeoserviceForm } from '@/components/integrations/nyc-geoservice-form'
+import { Body, Heading } from '@/ui/typography'
 
 type Integration = {
   key: string
@@ -169,8 +170,12 @@ export default function WorkspaceIntegrationsPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-2">
-        <h1 className="text-2xl font-bold text-foreground">Workspace Integrations</h1>
-        <p className="text-sm text-muted-foreground">Org-wide connections like Buildium. Personal integrations live under Personal.</p>
+        <Heading as="h1" size="h2">
+          Workspace Integrations
+        </Heading>
+        <Body as="p" tone="muted" size="sm">
+          Org-wide connections like Buildium. Personal integrations live under Personal.
+        </Body>
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -184,30 +189,28 @@ export default function WorkspaceIntegrationsPage() {
                   {integration.key === 'nyc_geoservice' && <Database className="h-5 w-5 text-muted-foreground" />}
                   <CardTitle>{integration.name}</CardTitle>
                 </div>
-                <p className="text-sm text-muted-foreground mt-1">{integration.description}</p>
+                <Body as="p" tone="muted" size="sm" className="mt-1">
+                  {integration.description}
+                </Body>
                 {integration.key === 'buildium' && integration.isEnabled !== undefined && (
                   <div className="mt-1 space-y-0.5">
-                    <p className="text-xs text-muted-foreground">
+                    <Body as="p" tone="muted" size="xs">
                       Status: {integration.isEnabled ? 'Enabled' : 'Disabled'}
-                    </p>
+                    </Body>
                   </div>
                 )}
               </div>
               <div className="flex flex-col items-end gap-1">
                 <Badge
-                  variant="outline"
-                  className={
-                    integration.status === 'connected'
-                      ? 'status-pill border-[var(--color-success-500)] bg-[var(--color-success-50)] text-[var(--color-success-700)]'
-                      : 'status-pill'
-                  }
+                  variant={integration.status === 'connected' ? 'success' : 'destructive'}
+                  className="status-pill"
                 >
                   {integration.status === 'connected' ? 'Connected' : 'Not connected'}
                 </Badge>
               </div>
             </CardHeader>
             <CardContent className="flex items-center justify-between gap-3">
-              <div className="text-xs text-muted-foreground">
+              <Body as="div" tone="muted" size="xs">
                 {integration.key === 'nyc_data'
                   ? 'Used for Compliance sync (DOB, HPD, FDNY). Configure API keys in Settings → Environment.'
                   : integration.key === 'nyc_geoservice'
@@ -215,7 +218,7 @@ export default function WorkspaceIntegrationsPage() {
                   : integration.lastTestedAt
                   ? `Last tested: ${new Date(integration.lastTestedAt).toLocaleString()}`
                   : 'No connection test yet'}
-              </div>
+              </Body>
               <div className="flex gap-2">
                 {integration.loading ? (
                   <Button size="sm" variant="outline" disabled>

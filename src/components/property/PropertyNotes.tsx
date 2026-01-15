@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { fetchWithSupabaseAuth } from '@/lib/supabase/fetch';
+import { Checkbox } from '@/ui/checkbox';
+import { Body, Heading, Label } from '@/ui/typography';
 
 type Note = {
   id: string;
@@ -75,10 +77,12 @@ export function PropertyNotes({ propertyId }: { propertyId: string }) {
 
   return (
     <div className="bg-card rounded-lg border-0 shadow-none">
-      <div className="flex items-center justify-between border-b border-[var(--color-border-subtle)] px-6 py-4">
+      <div className="flex items-center justify-between border-b border-border-subtle px-6 py-4">
         <div className="flex items-center gap-2">
           <StickyNote className="text-primary h-5 w-5" />
-          <h2 className="text-foreground text-lg font-semibold">Notes</h2>
+          <Heading as="h2" size="h5" className="text-foreground">
+            Notes
+          </Heading>
         </div>
         <div>
           {loading ? (
@@ -96,7 +100,9 @@ export function PropertyNotes({ propertyId }: { propertyId: string }) {
         <div className="space-y-3">
           <div className="grid grid-cols-1 gap-3">
             <div>
-              <label className="text-foreground mb-1 block text-sm font-medium">Subject</label>
+              <Label as="label" size="sm" className="mb-1 block text-foreground font-medium">
+                Subject
+              </Label>
               <Input
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
@@ -104,7 +110,9 @@ export function PropertyNotes({ propertyId }: { propertyId: string }) {
               />
             </div>
             <div>
-              <label className="text-foreground mb-1 block text-sm font-medium">Body</label>
+              <Label as="label" size="sm" className="mb-1 block text-foreground font-medium">
+                Body
+              </Label>
               <Textarea
                 value={body}
                 onChange={(e) => setBody(e.target.value)}
@@ -112,14 +120,10 @@ export function PropertyNotes({ propertyId }: { propertyId: string }) {
                 placeholder="Write a note..."
               />
             </div>
-            <label className="text-muted-foreground inline-flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={isPrivate}
-                onChange={(e) => setIsPrivate(e.target.checked)}
-              />
+            <Label as="label" size="sm" tone="muted" className="inline-flex items-center gap-2">
+              <Checkbox checked={isPrivate} onChange={(e) => setIsPrivate(e.target.checked)} />
               Private
-            </label>
+            </Label>
           </div>
           <div className="flex justify-end">
             <Button
@@ -148,7 +152,7 @@ export function PropertyNotes({ propertyId }: { propertyId: string }) {
             return (
               <div
                 key={n.id}
-                className="bg-background rounded-md border border-[var(--color-border-subtle)] p-4"
+                className="bg-background rounded-md border border-border-subtle p-4"
               >
                 <div className="mb-1 flex items-center justify-between">
                   <div className="text-foreground font-medium">{n.subject || 'Note'}</div>

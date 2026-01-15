@@ -18,6 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { Select } from '@/ui/select';
 
 type LeaseListItem = {
   id: number;
@@ -75,18 +76,18 @@ const formatDateRange = (from: string | null | undefined, to: string | null | un
 const statusBadgeClass = (status: string | null | undefined) => {
   const normalized = normalizeStatusLabel(status).toLowerCase();
   if (normalized === 'active') {
-    return 'status-pill border-[var(--color-success-500)] bg-[var(--color-success-50)] text-[var(--color-success-700)]';
+    return 'status-pill status-pill-success';
   }
   if (normalized === 'future' || normalized === 'renewal') {
-    return 'status-pill border-sky-200 bg-sky-50 text-sky-700';
+    return 'status-pill status-pill-info';
   }
   if (normalized === 'past' || normalized === 'expired') {
-    return 'status-pill border-slate-300 bg-slate-100 text-slate-700';
+    return 'status-pill status-pill-warning';
   }
   if (normalized === 'cancelled' || normalized === 'terminated') {
-    return 'status-pill border-rose-200 bg-rose-50 text-rose-700';
+    return 'status-pill status-pill-danger';
   }
-  return 'status-pill border-amber-200 bg-amber-50 text-amber-700';
+  return 'status-pill status-pill-warning';
 };
 
 const normalizeStatusLabel = (status: string | null | undefined) => {
@@ -203,17 +204,17 @@ export default function LeasesPage() {
                   <label className="sr-only" htmlFor="leases-status-filter">
                     Filter leases by status
                   </label>
-                  <select
+                  <Select
                     id="leases-status-filter"
                     value={statusFilter}
                     onChange={(event) => setStatusFilter(event.target.value)}
-                    className="border-input bg-background focus:ring-ring w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 sm:w-48"
+                    className="w-full sm:w-48"
                   >
                     <option>All statuses</option>
                     {statusOptions.map((option) => (
                       <option key={option}>{option}</option>
                     ))}
-                  </select>
+                  </Select>
                 </Cluster>
               </Stack>
             </Stack>

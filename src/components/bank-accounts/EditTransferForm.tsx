@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import GlAccountSelectItems from '@/components/gl-accounts/GlAccountSelectItems';
+import { Heading, Label as TextLabel } from '@/ui/typography';
 
 export type TransferBankAccountOption = { id: string; label: string; balance?: number | null };
 export type TransferPropertyOption = { id: string; label: string };
@@ -239,7 +240,9 @@ export default function EditTransferForm(props: {
   return (
     <div className="w-full space-y-8 pb-10">
       <div className="flex items-center justify-between gap-3">
-        <div className="text-lg font-semibold">Record other transaction</div>
+        <Heading as="div" size="h5">
+          Record other transaction
+        </Heading>
         <Button
           type="button"
           variant="ghost"
@@ -261,7 +264,9 @@ export default function EditTransferForm(props: {
 
         <div className="space-y-8">
           <div className="space-y-3">
-            <div className="text-sm font-semibold">What kind of transaction are you recording?</div>
+            <TextLabel as="div" size="sm">
+              What kind of transaction are you recording?
+            </TextLabel>
             <RadioGroup
               value={mode}
               onValueChange={(value) => {
@@ -293,7 +298,9 @@ export default function EditTransferForm(props: {
           </div>
 
           <div className="space-y-4">
-            <div className="text-sm font-semibold">Transaction details</div>
+            <TextLabel as="div" size="sm">
+              Transaction details
+            </TextLabel>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>

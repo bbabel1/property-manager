@@ -54,6 +54,7 @@ type GoogleGlobal = {
 };
 
 interface GooglePlacesAutocompleteProps {
+  id?: string;
   value: string;
   onChange: (value: string) => void;
   onPlaceSelect?: (place: {
@@ -81,6 +82,7 @@ declare global {
 }
 
 export default function GooglePlacesAutocomplete({
+  id,
   value,
   onChange,
   onPlaceSelect,
@@ -615,6 +617,7 @@ export default function GooglePlacesAutocomplete({
   return (
     <div className="relative" ref={containerRef}>
       <input
+        id={id}
         ref={inputRef}
         type="text"
         value={value}

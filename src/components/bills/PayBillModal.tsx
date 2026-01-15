@@ -38,7 +38,7 @@ export default function PayBillModal({
     >
       <DialogContent className="bg-card border-border/80 max-h-[90vh] w-[680px] max-w-[680px] overflow-y-auto rounded-none border p-0 shadow-2xl sm:rounded-2xl">
         <DialogHeader className="border-border space-y-1 border-b px-6 pt-5 pb-4 text-left">
-          <DialogTitle className="text-foreground text-xl font-semibold">Pay bill</DialogTitle>
+          <DialogTitle headingSize="h4">Pay bill</DialogTitle>
         </DialogHeader>
 
         <div className="px-6 py-6">

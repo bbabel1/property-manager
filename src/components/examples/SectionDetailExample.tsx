@@ -2,6 +2,7 @@
 
 import React from 'react'
 import { SectionDetail, ContactInfoSection } from '@/components/ui/section-detail'
+import { Body, Heading } from '@/ui/typography'
 
 // Example usage of the new SectionDetail component
 export function SectionDetailExample() {
@@ -9,7 +10,9 @@ export function SectionDetailExample() {
 
   return (
     <div className="space-y-6 p-6">
-      <h1 className="text-2xl font-bold">Section Detail Component Examples</h1>
+      <Heading as="h1" size="h2">
+        Section Detail Component Examples
+      </Heading>
       
       {/* Example 1: Contact Information (using the convenience component) */}
       <ContactInfoSection
@@ -89,14 +92,17 @@ export function SectionDetailExample() {
         onEdit={handleEdit}
       >
         <div className="text-center py-4">
-          <p className="text-muted-foreground">This section uses custom children instead of fields.</p>
-          <p className="text-sm mt-2">You can put any React content here.</p>
+          <Body as="p" tone="muted">
+            This section uses custom children instead of fields.
+          </Body>
+          <Body as="p" size="sm" className="mt-2">
+            You can put any React content here.
+          </Body>
         </div>
       </SectionDetail>
     </div>
   )
 }
-
 
 
 

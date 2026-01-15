@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import type { KeyboardEvent } from 'react';
 import { useRouter } from 'next/navigation';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Table,
@@ -20,6 +21,7 @@ import {
   type BedroomEnum,
   type BathroomEnum,
 } from '@/types/units';
+import { Body, Heading, Label } from '@/ui/typography';
 
 type Unit = {
   id: string;
@@ -90,18 +92,9 @@ export default function UnitsTable({
   const statusBadge = (status?: string | null) => {
     const s = String(status || '').toLowerCase();
     if (!s) return null;
-    const cls =
-      s === 'occupied'
-        ? 'bg-[var(--color-action-50)] text-[var(--color-action-600)]'
-        : 'bg-amber-100 text-amber-700';
+    const variant = s === 'occupied' ? 'success' : 'warning';
     const label = s.charAt(0).toUpperCase() + s.slice(1);
-    return (
-      <span
-        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${cls}`}
-      >
-        {label}
-      </span>
-    );
+    return <Badge variant={variant} className="status-pill px-2.5 py-0.5">{label}</Badge>;
   };
 
   const tenantLabel = (u: Unit) => {
@@ -181,7 +174,7 @@ export default function UnitsTable({
         </div>
       )}
       {!open && (
-        <Table className="min-w-full divide-y divide-[var(--color-border-subtle)]">
+        <Table className="min-w-full divide-y divide-border-subtle">
           <TableHeader>
             <TableRow>
               <TableHead>Unit</TableHead>
@@ -190,7 +183,7 @@ export default function UnitsTable({
               <TableHead>Most Recent Event</TableHead>
             </TableRow>
           </TableHeader>
-          <TableBody className="bg-card divide-y divide-[var(--color-border-subtle)]">
+          <TableBody className="bg-card divide-y divide-border-subtle">
             {units.map((u) => {
               const unitHref = `/properties/${propertyId}/units/${u.id}`;
               const unitLabel = u.unit_number || '—';
@@ -238,11 +231,17 @@ export default function UnitsTable({
 
       {open && (
         <div className="bg-card rounded-md border p-4">
-          <h3 className="mb-2 text-lg font-semibold">Add unit to {property?.name || 'property'}</h3>
-          <div className="text-muted-foreground mb-4 text-sm">What is the unit information?</div>
+          <Heading as="h3" size="h5" className="mb-2">
+            Add unit to {property?.name || 'property'}
+          </Heading>
+          <Body tone="muted" size="sm" className="mb-4">
+            What is the unit information?
+          </Body>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
             <div>
-              <label className="mb-1 block text-xs">Unit number</label>
+              <Label size="xs" className="mb-1 block">
+                Unit number
+              </Label>
               <Input
                 value={unitNumber}
                 onChange={(e) => setUnitNumber(e.target.value)}
@@ -250,7 +249,9 @@ export default function UnitsTable({
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs">Market rent (optional)</label>
+              <Label size="xs" className="mb-1 block">
+                Market rent (optional)
+              </Label>
               <Input
                 inputMode="decimal"
                 value={marketRent}
@@ -259,7 +260,9 @@ export default function UnitsTable({
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs">Size (optional)</label>
+              <Label size="xs" className="mb-1 block">
+                Size (optional)
+              </Label>
               <Input
                 inputMode="numeric"
                 value={unitSize}
@@ -271,7 +274,9 @@ export default function UnitsTable({
 
           <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
             <div>
-              <label className="mb-1 block text-xs">Bedrooms</label>
+              <Label size="xs" className="mb-1 block">
+                Bedrooms
+              </Label>
               <Dropdown
                 value={bedrooms}
                 onChange={(value) => setBedrooms(value as BedroomEnum | '')}
@@ -280,7 +285,9 @@ export default function UnitsTable({
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs">Bathrooms</label>
+              <Label size="xs" className="mb-1 block">
+                Bathrooms
+              </Label>
               <Dropdown
                 value={bathrooms}
                 onChange={(value) => setBathrooms(value as BathroomEnum | '')}
@@ -291,32 +298,46 @@ export default function UnitsTable({
           </div>
 
           <hr className="my-4" />
-          <div className="text-muted-foreground mb-2 text-sm">What is the street address?</div>
+          <Body tone="muted" size="sm" className="mb-2">
+            What is the street address?
+          </Body>
           <div className="space-y-3">
             <div>
-              <label className="mb-1 block text-xs">Street address</label>
+              <Label size="xs" className="mb-1 block">
+                Street address
+              </Label>
               <Input value={address1} onChange={(e) => setAddress1(e.target.value)} />
             </div>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
               <div>
-                <label className="mb-1 block text-xs">City</label>
+                <Label size="xs" className="mb-1 block">
+                  City
+                </Label>
                 <Input value={city} onChange={(e) => setCity(e.target.value)} />
               </div>
               <div>
-                <label className="mb-1 block text-xs">State</label>
+                <Label size="xs" className="mb-1 block">
+                  State
+                </Label>
                 <Input value={state} onChange={(e) => setState(e.target.value)} />
               </div>
               <div>
-                <label className="mb-1 block text-xs">ZIP</label>
+                <Label size="xs" className="mb-1 block">
+                  ZIP
+                </Label>
                 <Input value={postal} onChange={(e) => setPostal(e.target.value)} />
               </div>
             </div>
             <div>
-              <label className="mb-1 block text-xs">Country</label>
+              <Label size="xs" className="mb-1 block">
+                Country
+              </Label>
               <Input value={country} onChange={(e) => setCountry(e.target.value)} />
             </div>
             <div>
-              <label className="mb-1 block text-xs">Description</label>
+              <Label size="xs" className="mb-1 block">
+                Description
+              </Label>
               <Input
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}

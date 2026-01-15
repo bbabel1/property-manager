@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ExternalLink, FileText, RefreshCcw } from 'lucide-react'
+import { Body, Heading, Label } from '@/ui/typography'
 
 interface VendorFinancialsProps {
   spend: VendorSpendInsight[]
@@ -70,6 +71,9 @@ export function VendorFinancials({ spend, quotePipeline, summary }: VendorFinanc
       color: 'hsl(47.9 95.8% 53.1%)',
     },
   }
+  const ytdColor = chartConfig.ytd.color || 'hsl(222.2 47.4% 11.2%)'
+  const monthlyColor = chartConfig.monthly.color || 'hsl(221.2 83.2% 53.3%)'
+  const openColor = chartConfig.open.color || 'hsl(47.9 95.8% 53.1%)'
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
@@ -77,7 +81,7 @@ export function VendorFinancials({ spend, quotePipeline, summary }: VendorFinanc
         <CardHeader className="flex flex-col gap-2">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <CardTitle className="text-lg">Spend by vendor</CardTitle>
+              <CardTitle headingSize="h5">Spend by vendor</CardTitle>
               <CardDescription>Live Buildium transactions with automation-ready insights.</CardDescription>
             </div>
             <Button size="sm" variant="outline" className="gap-2">
@@ -86,16 +90,28 @@ export function VendorFinancials({ spend, quotePipeline, summary }: VendorFinanc
           </div>
           <div className="grid gap-2 sm:grid-cols-3">
             <div className="rounded-lg border border-border/60 bg-muted/40 p-3">
-              <p className="text-xs text-muted-foreground">Monthly spend</p>
-              <p className="text-lg font-semibold text-foreground">{formatCurrency(summary.monthlySpend)}</p>
+              <Label as="p" size="xs" tone="muted">
+                Monthly spend
+              </Label>
+              <Heading as="p" size="h5" className="text-foreground">
+                {formatCurrency(summary.monthlySpend)}
+              </Heading>
             </div>
             <div className="rounded-lg border border-border/60 bg-muted/40 p-3">
-              <p className="text-xs text-muted-foreground">YTD spend</p>
-              <p className="text-lg font-semibold text-foreground">{formatCurrency(summary.ytdSpend)}</p>
+              <Label as="p" size="xs" tone="muted">
+                YTD spend
+              </Label>
+              <Heading as="p" size="h5" className="text-foreground">
+                {formatCurrency(summary.ytdSpend)}
+              </Heading>
             </div>
             <div className="rounded-lg border border-border/60 bg-muted/40 p-3">
-              <p className="text-xs text-muted-foreground">Outstanding quotes</p>
-              <p className="text-lg font-semibold text-foreground">{formatCurrency(outstanding)}</p>
+              <Label as="p" size="xs" tone="muted">
+                Outstanding quotes
+              </Label>
+              <Heading as="p" size="h5" className="text-foreground">
+                {formatCurrency(outstanding)}
+              </Heading>
             </div>
           </div>
         </CardHeader>
@@ -108,15 +124,20 @@ export function VendorFinancials({ spend, quotePipeline, summary }: VendorFinanc
                 <YAxis tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} width={60} />
                 <Tooltip cursor={{ fill: 'rgba(0,0,0,0.04)' }} content={<ChartTooltipContent />} />
                 <Legend />
-                <Bar dataKey="ytd" fill="var(--color-ytd)" radius={4} />
-                <Bar dataKey="monthly" fill="var(--color-monthly)" radius={4} />
-                <Bar dataKey="open" fill="var(--color-open)" radius={4} />
+                <Bar dataKey="ytd" fill={ytdColor} radius={4} />
+                <Bar dataKey="monthly" fill={monthlyColor} radius={4} />
+                <Bar dataKey="open" fill={openColor} radius={4} />
               </BarChart>
             </ChartContainer>
           ) : (
-            <div className="flex h-[300px] items-center justify-center rounded-md border border-dashed border-border/70 text-sm text-muted-foreground">
+            <Body
+              as="div"
+              size="sm"
+              tone="muted"
+              className="flex h-[300px] items-center justify-center rounded-md border border-dashed border-border/70 text-center"
+            >
               No vendor spend data available yet.
-            </div>
+            </Body>
           )}
         </CardContent>
       </Card>
@@ -124,7 +145,7 @@ export function VendorFinancials({ spend, quotePipeline, summary }: VendorFinanc
         <CardHeader className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="text-lg">Quotes & approvals</CardTitle>
+              <CardTitle headingSize="h5">Quotes & approvals</CardTitle>
               <CardDescription>Auto-organized by status with full approval audit trail.</CardDescription>
             </div>
             <Button size="sm" variant="outline" className="gap-2">
@@ -133,19 +154,44 @@ export function VendorFinancials({ spend, quotePipeline, summary }: VendorFinanc
           </div>
         </CardHeader>
         <CardContent className="flex-1 overflow-hidden">
-          <div className="mb-3 flex items-center justify-between text-xs text-muted-foreground">
+          <Body
+            as="div"
+            size="xs"
+            tone="muted"
+            className="mb-3 flex items-center justify-between"
+          >
             <span>{quotePipeline.length} open quotes</span>
             <span>Last sync {new Date().toLocaleString()}</span>
-          </div>
+          </Body>
           <div className="rounded-lg border">
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/60">
-                  <TableHead className="w-[32%]">Vendor</TableHead>
-                  <TableHead className="w-[18%]">Amount</TableHead>
-                  <TableHead className="w-[18%]">Due date</TableHead>
-                  <TableHead className="w-[18%]">Status</TableHead>
-                  <TableHead className="w-[14%] text-right">Actions</TableHead>
+                  <TableHead className="w-[32%]">
+                    <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                      Vendor
+                    </Label>
+                  </TableHead>
+                  <TableHead className="w-[18%]">
+                    <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                      Amount
+                    </Label>
+                  </TableHead>
+                  <TableHead className="w-[18%]">
+                    <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                      Due date
+                    </Label>
+                  </TableHead>
+                  <TableHead className="w-[18%]">
+                    <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                      Status
+                    </Label>
+                  </TableHead>
+                  <TableHead className="w-[14%] text-right">
+                    <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                      Actions
+                    </Label>
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -153,8 +199,12 @@ export function VendorFinancials({ spend, quotePipeline, summary }: VendorFinanc
                   <TableRow key={quote.transactionId} className="align-top">
                     <TableCell>
                       <div className="flex flex-col">
-                        <span className="font-medium text-foreground">{quote.vendorName}</span>
-                        {quote.memo ? <span className="text-xs text-muted-foreground">{quote.memo}</span> : null}
+                        <Label as="span">{quote.vendorName}</Label>
+                        {quote.memo ? (
+                          <Body as="span" size="xs" tone="muted">
+                            {quote.memo}
+                          </Body>
+                        ) : null}
                       </div>
                     </TableCell>
                     <TableCell>{formatCurrency(quote.amount)}</TableCell>
@@ -169,8 +219,10 @@ export function VendorFinancials({ spend, quotePipeline, summary }: VendorFinanc
                 ))}
                 {quotePipeline.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="py-12 text-center text-sm text-muted-foreground">
-                      All caught up—no quotes pending approval right now.
+                    <TableCell colSpan={5} className="py-12 text-center">
+                      <Body as="div" size="sm" tone="muted">
+                        All caught up—no quotes pending approval right now.
+                      </Body>
                     </TableCell>
                   </TableRow>
                 ) : null}

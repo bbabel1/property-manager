@@ -18,6 +18,7 @@ import {
 import TableRowLink from '@/components/ui/table-row-link';
 import { fetchWithSupabaseAuth } from '@/lib/supabase/fetch';
 import type { RecordDepositPrefill } from '@/types/record-deposit';
+import { Heading, Label } from '@/ui/typography';
 
 type BankAccountTableRow = {
   id: string;
@@ -141,7 +142,7 @@ export default function BankAccountsTable({ rows }: { rows: BankAccountTableRow[
       <div className="overflow-x-auto">
         <Table className="min-w-[960px]">
           <TableHeader>
-            <TableRow className="border-border/70 bg-muted/40 text-muted-foreground border-b text-xs font-semibold uppercase tracking-widest">
+            <TableRow className="border-border/70 bg-muted/40 text-muted-foreground border-b text-xs font-[var(--font-weight-semibold)] uppercase tracking-widest">
               <TableHead className="text-muted-foreground w-[18rem]">Name</TableHead>
               <TableHead className="text-muted-foreground w-[10rem]">Account number</TableHead>
               <TableHead className="text-muted-foreground w-[10rem]">EPay enabled</TableHead>
@@ -167,7 +168,9 @@ export default function BankAccountsTable({ rows }: { rows: BankAccountTableRow[
                 >
                   <TableCell className="align-top">
                     <div className="space-y-0.5">
-                      <div className="text-sm font-semibold text-primary">{row.name}</div>
+                      <Label as="div" size="sm" className="text-primary">
+                        {row.name}
+                      </Label>
                       <div className="text-xs text-muted-foreground">
                         {row.description || 'Bank account'}
                       </div>
@@ -217,7 +220,9 @@ export default function BankAccountsTable({ rows }: { rows: BankAccountTableRow[
           <div className="flex flex-col gap-0">
             <div className="border-border flex items-center justify-between border-b px-6 py-4">
               <div>
-                <div className="text-xl font-semibold">Record deposit</div>
+                <Heading as="p" size="h4">
+                  Record deposit
+                </Heading>
                 <div className="text-muted-foreground text-sm">{currentBankName}</div>
               </div>
             </div>

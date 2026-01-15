@@ -25,6 +25,8 @@ import {
   type LeaseTenantOption,
 } from '@/components/leases/types';
 import { formatCurrency } from '@/lib/transactions/formatting';
+import { Checkbox } from '@/ui/checkbox';
+import { Body, Heading, Label } from '@/ui/typography';
 
 const IssueRefundSchema = z.object({
   date: z.string().min(1, 'Date required'),
@@ -324,10 +326,10 @@ export default function IssueRefundForm({
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 lg:flex-row">
       <div className="flex-1 space-y-8">
         <div className="space-y-1">
-          <h1 className="text-foreground text-2xl font-semibold">
+          <Heading as="h1" size="h3">
             Issue refund{leaseSummary?.propertyUnit ? ` for ${leaseSummary.propertyUnit}` : ''}
             {leaseSummary?.tenants ? ` • ${leaseSummary.tenants}` : ''}
-          </h1>
+          </Heading>
         </div>
 
         <Card className="border-border/70 border shadow-sm">
@@ -335,42 +337,50 @@ export default function IssueRefundForm({
             <form className="space-y-10" onSubmit={handleSubmit}>
               <section className="grid gap-6 lg:grid-cols-2">
                 <label className="space-y-2">
-                  <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                  <Label size="xs" tone="muted" className="tracking-wide uppercase">
                     Date *
-                  </span>
+                  </Label>
                   <DatePicker
                     value={form.date}
                     onChange={(value) => updateField('date', value)}
                     placeholder="mm/dd/yyyy"
                   />
-                  {errors.date ? <p className="text-destructive text-xs">{errors.date}</p> : null}
+                  {errors.date ? (
+                    <Body as="p" size="sm" className="text-destructive text-xs">
+                      {errors.date}
+                    </Body>
+                  ) : null}
                 </label>
                 <label className="space-y-2">
-                  <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
-                  Bank account *
-                </span>
-                <Dropdown
-                  value={form.bank_gl_account_id}
-                  onChange={(value) => updateField('bank_gl_account_id', value)}
-                  options={(bankAccounts ?? []).map((account) => ({
-                    value: account.id,
-                    label: account.name,
-                  }))}
-                  placeholder="Select bank account"
-                />
-                {errors.bank_gl_account_id ? (
-                  <p className="text-destructive text-xs">{errors.bank_gl_account_id}</p>
-                ) : null}
-              </label>
+                  <Label size="xs" tone="muted" className="tracking-wide uppercase">
+                    Bank account *
+                  </Label>
+                  <Dropdown
+                    value={form.bank_gl_account_id}
+                    onChange={(value) => updateField('bank_gl_account_id', value)}
+                    options={(bankAccounts ?? []).map((account) => ({
+                      value: account.id,
+                      label: account.name,
+                    }))}
+                    placeholder="Select bank account"
+                  />
+                  {errors.bank_gl_account_id ? (
+                    <Body as="p" size="sm" className="text-destructive text-xs">
+                      {errors.bank_gl_account_id}
+                    </Body>
+                  ) : null}
+                </label>
                 <div className="space-y-2">
-                  <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                  <Label size="xs" tone="muted" className="tracking-wide uppercase">
                     Refund method *
-                  </span>
+                  </Label>
                   <div className="flex flex-col gap-2">
                     {['check', 'eft'].map((value) => (
-                      <label
+                      <Label
                         key={value}
-                        className="text-foreground flex items-center gap-2 text-sm"
+                        as="label"
+                        size="sm"
+                        className="text-foreground flex items-center gap-2"
                       >
                         <input
                           type="radio"
@@ -383,14 +393,14 @@ export default function IssueRefundForm({
                           className="h-4 w-4"
                         />
                         {value === 'check' ? 'Check' : 'EFT (learn more)'}
-                      </label>
+                      </Label>
                     ))}
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                  <Label size="xs" tone="muted" className="tracking-wide uppercase">
                     Refund amount *
-                  </span>
+                  </Label>
                   <Input
                     type="number"
                     inputMode="decimal"
@@ -401,27 +411,26 @@ export default function IssueRefundForm({
                   />
                 </div>
                 <label className="space-y-2">
-                  <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                  <Label size="xs" tone="muted" className="tracking-wide uppercase">
                     Check number
-                  </span>
+                  </Label>
                   <Input
                     value={form.check_number}
                     onChange={(event) => updateField('check_number', event.target.value)}
                   />
                 </label>
-                <label className="text-foreground flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
+                <Label as="label" size="sm" className="text-foreground flex items-center gap-2">
+                  <Checkbox
                     checked={form.queue_print}
                     onChange={(event) => updateField('queue_print', event.target.checked)}
                     className="h-4 w-4"
                   />
                   Queue for printing
-                </label>
+                </Label>
                 <label className="space-y-2 lg:col-span-2">
-                  <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                  <Label size="xs" tone="muted" className="tracking-wide uppercase">
                     Memo
-                  </span>
+                  </Label>
                   <Textarea
                     rows={3}
                     value={form.memo}
@@ -432,7 +441,9 @@ export default function IssueRefundForm({
               </section>
 
               <section className="space-y-4">
-                <h2 className="text-foreground text-sm font-semibold">Refunding accounts</h2>
+                <Label as="h2" className="text-foreground" size="sm">
+                  Refunding accounts
+                </Label>
                 <div className="border-border overflow-hidden rounded-lg border">
                   <Table className="min-w-full">
                     <TableHeader>
@@ -494,17 +505,23 @@ export default function IssueRefundForm({
                   <Plus className="h-4 w-4" /> Add row
                 </Button>
                 {errors.allocations ? (
-                  <p className="text-destructive text-xs">{errors.allocations}</p>
+                  <Body as="p" size="sm" className="text-destructive text-xs">
+                    {errors.allocations}
+                  </Body>
                 ) : null}
               </section>
 
               <section className="space-y-4">
-                <h2 className="text-foreground text-sm font-semibold">Refund check address</h2>
+                <Label as="h2" className="text-foreground" size="sm">
+                  Refund check address
+                </Label>
                 <div className="space-y-2">
                   {AddressOptions.map((option) => (
-                    <label
+                    <Label
                       key={option.value}
-                      className="text-foreground flex items-start gap-2 text-sm"
+                      as="label"
+                      size="sm"
+                      className="text-foreground flex items-start gap-2"
                     >
                       <input
                         type="radio"
@@ -517,7 +534,7 @@ export default function IssueRefundForm({
                         className="mt-1 h-4 w-4"
                       />
                       <span>{option.label}</span>
-                    </label>
+                    </Label>
                   ))}
                 </div>
                 {form.address_option === 'custom' ? (
@@ -528,16 +545,25 @@ export default function IssueRefundForm({
                     placeholder="Enter custom address"
                   />
                 ) : party ? (
-                  <div className="border-border text-muted-foreground rounded-md border border-dashed px-4 py-3 text-sm">
+                  <Body
+                    as="div"
+                    size="sm"
+                    tone="muted"
+                    className="border-border rounded-md border border-dashed px-4 py-3"
+                  >
                     {party.name}
-                  </div>
+                  </Body>
                 ) : null}
               </section>
 
               {formError ? (
-                <div className="border-destructive/40 bg-destructive/10 text-destructive rounded-md border px-4 py-3 text-sm">
+                <Body
+                  as="div"
+                  size="sm"
+                  className="border-destructive/40 bg-destructive/10 text-destructive rounded-md border px-4 py-3"
+                >
                   {formError}
-                </div>
+                </Body>
               ) : null}
 
               <div className="flex flex-wrap items-center gap-3">
@@ -563,18 +589,26 @@ export default function IssueRefundForm({
 
       <aside className="border-border bg-muted/30 text-muted-foreground w-full max-w-sm space-y-4 rounded-lg border p-5 text-sm">
         <div className="space-y-2">
-          <h2 className="text-foreground text-sm font-semibold">Refund summary</h2>
+          <Label as="h2" className="text-foreground" size="sm">
+            Refund summary
+          </Label>
           <div className="flex items-center justify-between">
             <span>Available refund amount</span>
-            <span className="text-foreground font-semibold">$0.00</span>
+            <Body as="span" size="sm" className="text-foreground font-semibold">
+              $0.00
+            </Body>
           </div>
           <div className="flex items-center justify-between">
             <span>Refunded</span>
-            <span className="text-destructive">$0.00</span>
+            <Body as="span" size="sm" className="text-destructive">
+              $0.00
+            </Body>
           </div>
           <div className="flex items-center justify-between">
             <span>Remaining balance</span>
-            <span className="text-foreground font-semibold">$0.00</span>
+            <Body as="span" size="sm" className="text-foreground font-semibold">
+              $0.00
+            </Body>
           </div>
         </div>
       </aside>

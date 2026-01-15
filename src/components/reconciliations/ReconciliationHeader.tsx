@@ -1,3 +1,6 @@
+import { Badge } from '@/components/ui/badge'
+import { Body, Heading } from '@/ui/typography'
+
 export default function ReconciliationHeader({
   bankName,
   maskedNumber,
@@ -15,20 +18,31 @@ export default function ReconciliationHeader({
   return (
     <div className="flex items-center justify-between">
       <div>
-        <h1 className="text-xl font-semibold text-foreground">
+        <Heading as="h1" size="h3" className="text-foreground">
           {bankName || 'Bank Account'} {maskedNumber ? `• ${maskedNumber}` : ''}
-        </h1>
-        <p className="text-sm text-muted-foreground">Statement ending {dateText}</p>
+        </Heading>
+        <Body as="p" size="sm" tone="muted">
+          Statement ending {dateText}
+        </Body>
       </div>
       <div className="flex items-center gap-3">
         {propertyId && (
-          <a href={`/properties/${propertyId}/financials`} className="text-sm text-primary underline">Back to Financials</a>
+          <Body
+            as="a"
+            href={`/properties/${propertyId}/financials`}
+            size="sm"
+            className="text-primary underline"
+          >
+            Back to Financials
+          </Body>
         )}
-        <span className={`text-xs px-2 py-1 rounded border ${status === 'Finished' ? 'bg-[var(--color-action-50)] border-[var(--color-action-200)] text-[var(--color-action-600)]' : 'bg-amber-50 border-amber-200 text-amber-700'}`}>
+        <Badge
+          variant={status === 'Finished' ? 'success' : 'warning'}
+          className="status-pill px-2 py-1 text-xs"
+        >
           {status || 'Pending'}
-        </span>
+        </Badge>
       </div>
     </div>
   )
 }
-

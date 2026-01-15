@@ -6,9 +6,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { fetchWithSupabaseAuth } from '@/lib/supabase/fetch';
+import { Label } from '@/ui/typography';
 
 type PropertyNotePayload = {
   subject: string;
@@ -101,7 +101,7 @@ export default function PropertyAddNoteModal({
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="top-[35%] w-[680px] max-w-[680px] translate-y-[-35%]">
         <DialogHeader>
-          <DialogTitle className="text-foreground text-lg font-semibold">
+          <DialogTitle headingAs="h2" headingSize="h4">
             Add property note
           </DialogTitle>
         </DialogHeader>
@@ -109,8 +109,11 @@ export default function PropertyAddNoteModal({
         <div className="space-y-4">
           <div>
             <Label
+              as="label"
               htmlFor="property-note-subject"
-              className="text-muted-foreground text-xs font-medium tracking-wide uppercase"
+              size="xs"
+              tone="muted"
+              className="font-medium tracking-wide uppercase"
             >
               Subject
             </Label>
@@ -125,8 +128,11 @@ export default function PropertyAddNoteModal({
           </div>
           <div>
             <Label
+              as="label"
               htmlFor="property-note-body"
-              className="text-muted-foreground text-xs font-medium tracking-wide uppercase"
+              size="xs"
+              tone="muted"
+              className="font-medium tracking-wide uppercase"
             >
               Note
             </Label>
@@ -146,7 +152,7 @@ export default function PropertyAddNoteModal({
               onCheckedChange={setIsPrivate}
               disabled={saving}
             />
-            <Label htmlFor="property-note-private" className="text-muted-foreground text-sm">
+            <Label as="label" htmlFor="property-note-private" size="sm" tone="muted">
               Mark as private
             </Label>
           </div>

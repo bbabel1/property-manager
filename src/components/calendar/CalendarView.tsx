@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react'
 import { CalendarEvent } from '@/types/calendar'
+import { Label } from '@/ui/typography'
 import {
   addDays,
   differenceInCalendarDays,
@@ -147,11 +148,11 @@ export function CalendarView({
 
   return (
     <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:bg-slate-950/80">
-      <div className="grid grid-cols-7 gap-px bg-white px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:bg-slate-900/80">
+      <div className="grid grid-cols-7 gap-px bg-white px-3 py-2.5 uppercase tracking-wide text-muted-foreground dark:bg-slate-900/80">
         {dayNames.map((name) => (
-          <div key={name} className="text-center text-[12px] font-semibold text-slate-600">
+          <Label key={name} as="div" size="xs" tone="muted" className="text-center">
             {name}
-          </div>
+          </Label>
         ))}
       </div>
       <div className="divide-y divide-slate-200">
@@ -182,19 +183,25 @@ export function CalendarView({
                     ].join(' ')}
                   >
                     <div className="flex items-start justify-between">
-                      <span
+                      <Label
                         className={[
-                          'flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold transition-colors',
+                          'flex h-7 w-7 items-center justify-center rounded-full transition-colors',
                           isToday ? 'bg-primary text-primary-foreground shadow-sm' : 'text-slate-800',
                           !isCurrentMonth ? 'opacity-60' : '',
                         ].join(' ')}
+                        size="sm"
                       >
                         {format(day, 'd')}
-                      </span>
+                      </Label>
                       {eventsByDate.get(dateKey)?.length && eventsByDate.get(dateKey)!.length > 3 ? (
-                        <span className="rounded-full bg-slate-100 px-2 text-[11px] font-semibold text-slate-600">
+                        <Label
+                          as="span"
+                          size="xs"
+                          tone="muted"
+                          className="rounded-full bg-slate-100 px-2"
+                        >
                           {eventsByDate.get(dateKey)!.length} more
-                        </span>
+                        </Label>
                       ) : null}
                     </div>
                   </button>
@@ -212,7 +219,7 @@ export function CalendarView({
                       <button
                         key={`seg-${weekIdx}-${rowIdx}-${segmentIdx}-${segment.event.id}`}
                         type="button"
-                        className="pointer-events-auto flex min-w-0 flex-col gap-1 rounded-md border text-left text-[12px] font-semibold shadow-sm transition-all hover:-translate-y-[1px] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                        className="pointer-events-auto flex min-w-0 flex-col gap-1 rounded-md border text-left shadow-sm transition-all hover:-translate-y-[1px] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
                         style={{
                           gridColumn: `${segment.startIdx + 1} / span ${segment.span}`,
                           backgroundColor: toRgba(segment.event.color, 0.12),
@@ -227,21 +234,28 @@ export function CalendarView({
                             className="mt-0.5 h-3 w-1 rounded-sm"
                             style={{ backgroundColor: toRgba(segment.event.color, 0.9) }}
                           />
-                        <span
-                          className="leading-tight"
-                          style={{
-                            display: '-webkit-box',
-                            WebkitLineClamp: 2,
-                            WebkitBoxOrient: 'vertical',
-                            overflow: 'hidden',
-                          }}
-                        >
-                          {segment.event.title}
-                        </span>
+                          <Label
+                            as="span"
+                            size="xs"
+                            className="leading-tight"
+                            style={{
+                              display: '-webkit-box',
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: 'vertical',
+                              overflow: 'hidden',
+                            }}
+                          >
+                            {segment.event.title}
+                          </Label>
                         </div>
-                        <span className="shrink-0 text-[11px] font-medium text-slate-700 leading-tight">
+                        <Label
+                          as="span"
+                          size="xs"
+                          tone="muted"
+                          className="shrink-0 leading-tight"
+                        >
                           {segment.event.allDay ? 'All day' : format(parseISO(segment.event.start), 'h:mm a')}
-                        </span>
+                        </Label>
                       </button>
                     ))}
                   </div>

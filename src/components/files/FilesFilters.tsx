@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { DateInput } from '@/components/ui/date-input';
 import { Search, X } from 'lucide-react';
 import { cn } from '@/components/ui/utils';
+import { Label } from '@/ui/typography';
 
 interface FilesFiltersProps {
   search: string;
@@ -89,9 +90,7 @@ export default function FilesFilters({
       <div className="flex flex-wrap items-center gap-3 sm:gap-4">
         {/* Search Input */}
         <div className="relative w-full min-w-[200px] flex-1 sm:w-auto">
-          <label htmlFor="file-search" className="text-sm font-medium text-foreground">
-            Search
-          </label>
+          <Label htmlFor="file-search">Search</Label>
           <Search className="text-muted-foreground pointer-events-none absolute top-[2.75rem] left-3 h-4 w-4 -translate-y-1/2" aria-hidden="true" />
           <Input
             id="file-search"
@@ -106,9 +105,7 @@ export default function FilesFilters({
 
         {/* Category Filter */}
         <div className="w-full min-w-[180px] sm:w-auto">
-          <label htmlFor="category-filter" className="text-sm font-medium text-foreground">
-            Category
-          </label>
+          <Label htmlFor="category-filter">Category</Label>
           <Select
             value={categoryId || ALL_CATEGORY_OPTION_VALUE}
             onValueChange={(value) => onCategoryChange(value === ALL_CATEGORY_OPTION_VALUE ? '' : value)}
@@ -135,9 +132,7 @@ export default function FilesFilters({
         {(onDateFromChange || onDateToChange) && (
           <>
             <div className="min-w-[150px]">
-              <label htmlFor="file-date-from" className="text-sm font-medium text-foreground">
-                Uploaded From
-              </label>
+              <Label htmlFor="file-date-from">Uploaded From</Label>
               <div className="mt-1">
                 <DateInput
                   id="file-date-from"
@@ -147,9 +142,7 @@ export default function FilesFilters({
               </div>
             </div>
             <div className="min-w-[150px]">
-              <label htmlFor="file-date-to" className="text-sm font-medium text-foreground">
-                Uploaded To
-              </label>
+              <Label htmlFor="file-date-to">Uploaded To</Label>
               <div className="mt-1">
                 <DateInput
                   id="file-date-to"

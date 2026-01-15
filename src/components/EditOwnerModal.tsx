@@ -8,6 +8,9 @@ import AddressAutocomplete from './HybridAddressAutocomplete';
 import DatePicker from './ui/date-picker';
 import { mapGoogleCountryToEnum } from '@/lib/utils';
 import type { Database } from '@/types/database';
+import { Checkbox } from '@/ui/checkbox';
+import { Select } from '@/ui/select';
+import { Heading } from '@/ui/typography';
 
 const COUNTRIES = [
   'United States',
@@ -261,7 +264,7 @@ export default function EditOwnerModal({
       <DialogContent className="bg-card border-border/80 max-h-[90vh] w-[680px] max-w-[680px] overflow-y-auto rounded-none border p-0 shadow-2xl sm:rounded-2xl">
         {/* Header */}
         <DialogHeader className="border-border border-b p-6">
-          <DialogTitle className="text-foreground text-xl font-semibold">Edit Owner</DialogTitle>
+          <DialogTitle className="text-foreground text-xl font-[var(--font-weight-semibold)]">Edit Owner</DialogTitle>
         </DialogHeader>
 
         {/* Error Message */}
@@ -282,7 +285,7 @@ export default function EditOwnerModal({
                   onClick={() =>
                     setActiveTab(tab.id as 'basic' | 'contact' | 'address' | 'tax' | 'owner')
                   }
-                  className={`flex items-center gap-2 border-b-2 px-1 py-4 text-sm font-medium ${
+                  className={`flex items-center gap-2 border-b-2 px-1 py-4 text-sm font-[var(--font-weight-medium)] ${
                     activeTab === tab.id
                       ? 'border-primary text-primary'
                       : 'text-muted-foreground hover:text-foreground hover:border-border border-transparent'
@@ -301,11 +304,13 @@ export default function EditOwnerModal({
           {/* Basic Information Tab */}
           {activeTab === 'basic' && (
             <div className="space-y-6">
-              <h3 className="text-foreground text-lg font-medium">Basic Information</h3>
+              <Heading as="h3" size="h5">
+                Basic Information
+              </Heading>
 
               {/* Owner Type */}
               <div>
-                <label className="text-foreground mb-3 block text-sm font-medium">Owner Type</label>
+                <label className="text-foreground mb-3 block text-sm font-[var(--font-weight-medium)]">Owner Type</label>
                 <div className="flex items-center space-x-6">
                   <label className="flex items-center">
                     <input
@@ -345,7 +350,7 @@ export default function EditOwnerModal({
               {/* Company Name - Only shown when company is selected */}
               {formData.isCompany && (
                 <div>
-                  <label className="text-foreground mb-1 block text-sm font-medium">
+                  <label className="text-foreground mb-1 block text-sm font-[var(--font-weight-medium)]">
                     Company Name *
                   </label>
                   <input
@@ -364,7 +369,7 @@ export default function EditOwnerModal({
               {/* Name Fields - Always shown, required when individual is selected */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-foreground mb-1 block text-sm font-medium">
+                  <label className="text-foreground mb-1 block text-sm font-[var(--font-weight-medium)]">
                     First Name {!formData.isCompany && '*'}
                   </label>
                   <input
@@ -379,7 +384,7 @@ export default function EditOwnerModal({
                   />
                 </div>
                 <div>
-                  <label className="text-foreground mb-1 block text-sm font-medium">
+                  <label className="text-foreground mb-1 block text-sm font-[var(--font-weight-medium)]">
                     Last Name {!formData.isCompany && '*'}
                   </label>
                   <input
@@ -395,7 +400,7 @@ export default function EditOwnerModal({
 
               {/* Date of Birth - Always shown, never required */}
               <div>
-                <label className="text-foreground mb-1 block text-sm font-medium">
+                <label className="text-foreground mb-1 block text-sm font-[var(--font-weight-medium)]">
                   Date of Birth
                 </label>
                 <DatePicker
@@ -407,7 +412,7 @@ export default function EditOwnerModal({
               {/* Management Agreement Dates */}
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div>
-                  <label className="text-foreground mb-1 block text-sm font-medium">
+                  <label className="text-foreground mb-1 block text-sm font-[var(--font-weight-medium)]">
                     Management Agreement Start Date
                   </label>
                   <DatePicker
@@ -418,7 +423,7 @@ export default function EditOwnerModal({
                   />
                 </div>
                 <div>
-                  <label className="text-foreground mb-1 block text-sm font-medium">
+                  <label className="text-foreground mb-1 block text-sm font-[var(--font-weight-medium)]">
                     Management Agreement End Date
                   </label>
                   <DatePicker
@@ -432,7 +437,7 @@ export default function EditOwnerModal({
 
               {/* Comments */}
               <div>
-                <label className="text-foreground mb-1 block text-sm font-medium">Comments</label>
+                <label className="text-foreground mb-1 block text-sm font-[var(--font-weight-medium)]">Comments</label>
                 <textarea
                   value={formData.comment}
                   onChange={(e) => setFormData((prev) => ({ ...prev, comment: e.target.value }))}
@@ -447,12 +452,14 @@ export default function EditOwnerModal({
           {/* Contact Information Tab */}
           {activeTab === 'contact' && (
             <div className="space-y-6">
-              <h3 className="text-foreground text-lg font-medium">Contact Information</h3>
+              <Heading as="h3" size="h5">
+                Contact Information
+              </Heading>
 
               {/* Email Addresses */}
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div>
-                  <label className="text-foreground mb-1 block text-sm font-medium">
+                  <label className="text-foreground mb-1 block text-sm font-[var(--font-weight-medium)]">
                     Primary Email *
                   </label>
                   <input
@@ -467,7 +474,7 @@ export default function EditOwnerModal({
                   />
                 </div>
                 <div>
-                  <label className="text-foreground mb-1 block text-sm font-medium">
+                  <label className="text-foreground mb-1 block text-sm font-[var(--font-weight-medium)]">
                     Alternative Email
                   </label>
                   <input
@@ -483,7 +490,7 @@ export default function EditOwnerModal({
               {/* Phone Numbers */}
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div>
-                  <label className="text-foreground mb-1 block text-sm font-medium">
+                  <label className="text-foreground mb-1 block text-sm font-[var(--font-weight-medium)]">
                     Primary Phone
                   </label>
                   <input
@@ -497,7 +504,7 @@ export default function EditOwnerModal({
                   />
                 </div>
                 <div>
-                  <label className="text-foreground mb-1 block text-sm font-medium">
+                  <label className="text-foreground mb-1 block text-sm font-[var(--font-weight-medium)]">
                     Alternative Phone
                   </label>
                   <input
@@ -515,16 +522,18 @@ export default function EditOwnerModal({
           {/* Address Information Tab */}
           {activeTab === 'address' && (
             <div className="space-y-8">
-              <h3 className="text-foreground text-lg font-medium">Address Information</h3>
+              <Heading as="h3" size="h5">
+                Address Information
+              </Heading>
 
               {/* Primary Address */}
               <div className="space-y-4">
-                <h4 className="text-foreground flex items-center gap-2 font-medium">
+                <Heading as="h4" size="h6" className="flex items-center gap-2">
                   <MapPin className="h-4 w-4" />
                   Primary Address *
-                </h4>
+                </Heading>
                 <div>
-                  <label className="text-foreground mb-1 block text-sm font-medium">
+                  <label className="text-foreground mb-1 block text-sm font-[var(--font-weight-medium)]">
                     Street Address *
                   </label>
                   <AddressAutocomplete
@@ -548,7 +557,7 @@ export default function EditOwnerModal({
                   />
                 </div>
                 <div>
-                  <label className="text-foreground mb-1 block text-sm font-medium">
+                  <label className="text-foreground mb-1 block text-sm font-[var(--font-weight-medium)]">
                     Address Line 2
                   </label>
                   <input
@@ -564,7 +573,7 @@ export default function EditOwnerModal({
 
                 <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
                   <div>
-                    <label className="text-foreground mb-1 block text-sm font-medium">City</label>
+                    <label className="text-foreground mb-1 block text-sm font-[var(--font-weight-medium)]">City</label>
                     <input
                       type="text"
                       value={formData.primaryCity}
@@ -576,7 +585,7 @@ export default function EditOwnerModal({
                     />
                   </div>
                   <div>
-                    <label className="text-foreground mb-1 block text-sm font-medium">State</label>
+                    <label className="text-foreground mb-1 block text-sm font-[var(--font-weight-medium)]">State</label>
                     <input
                       type="text"
                       value={formData.primaryState}
@@ -588,7 +597,7 @@ export default function EditOwnerModal({
                     />
                   </div>
                   <div>
-                    <label className="text-foreground mb-1 block text-sm font-medium">
+                    <label className="text-foreground mb-1 block text-sm font-[var(--font-weight-medium)]">
                       ZIP Code *
                     </label>
                     <input
@@ -605,24 +614,23 @@ export default function EditOwnerModal({
                   <div>
                     <label
                       htmlFor="edit-owner-primary-country"
-                      className="mb-1 block text-sm font-medium text-gray-700"
+                      className="mb-1 block text-sm font-[var(--font-weight-medium)] text-gray-700"
                     >
                       Country
                     </label>
-                    <select
+                    <Select
                       id="edit-owner-primary-country"
                       value={formData.primaryCountry}
                       onChange={(e) =>
                         setFormData((prev) => ({ ...prev, primaryCountry: e.target.value }))
                       }
-                      className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                     >
                       {COUNTRIES.map((country) => (
                         <option key={country} value={country}>
                           {country}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                   </div>
                 </div>
               </div>
@@ -631,33 +639,32 @@ export default function EditOwnerModal({
               <div>
                 <label
                   htmlFor="edit-owner-mailing-preference"
-                  className="mb-1 block text-sm font-medium text-gray-700"
+                  className="mb-1 block text-sm font-[var(--font-weight-medium)] text-gray-700"
                 >
                   Mailing Preference
                 </label>
-                <select
+                <Select
                   id="edit-owner-mailing-preference"
                   value={formData.mailingPreference}
                   onChange={(e) => handleMailingPreferenceChange(e.target.value)}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                 >
                   {MAILING_PREFERENCES.map((pref) => (
                     <option key={pref} value={pref}>
                       {pref.charAt(0).toUpperCase() + pref.slice(1)} Address
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
 
               {/* Alternate Address */}
               {showAlternateAddress && (
                 <div className="space-y-4">
-                  <h4 className="flex items-center gap-2 font-medium text-gray-900">
+                  <Heading as="h4" size="h6" className="flex items-center gap-2">
                     <MapPin className="h-4 w-4" />
                     Alternate Address
-                  </h4>
+                  </Heading>
                   <div>
-                    <label className="mb-1 block text-sm font-medium text-gray-700">
+                    <label className="mb-1 block text-sm font-[var(--font-weight-medium)] text-gray-700">
                       Street Address
                     </label>
                     <AddressAutocomplete
@@ -680,7 +687,7 @@ export default function EditOwnerModal({
                     />
                   </div>
                   <div>
-                    <label className="mb-1 block text-sm font-medium text-gray-700">
+                    <label className="mb-1 block text-sm font-[var(--font-weight-medium)] text-gray-700">
                       Address Line 2
                     </label>
                     <input
@@ -696,7 +703,7 @@ export default function EditOwnerModal({
 
                   <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
                     <div>
-                      <label className="mb-1 block text-sm font-medium text-gray-700">City</label>
+                      <label className="mb-1 block text-sm font-[var(--font-weight-medium)] text-gray-700">City</label>
                       <input
                         type="text"
                         value={formData.altCity}
@@ -708,7 +715,7 @@ export default function EditOwnerModal({
                       />
                     </div>
                     <div>
-                      <label className="mb-1 block text-sm font-medium text-gray-700">State</label>
+                      <label className="mb-1 block text-sm font-[var(--font-weight-medium)] text-gray-700">State</label>
                       <input
                         type="text"
                         value={formData.altState}
@@ -720,7 +727,7 @@ export default function EditOwnerModal({
                       />
                     </div>
                     <div>
-                      <label className="mb-1 block text-sm font-medium text-gray-700">
+                      <label className="mb-1 block text-sm font-[var(--font-weight-medium)] text-gray-700">
                         ZIP Code
                       </label>
                       <input
@@ -736,17 +743,16 @@ export default function EditOwnerModal({
                     <div>
                       <label
                         htmlFor="edit-owner-alt-country"
-                        className="mb-1 block text-sm font-medium text-gray-700"
+                        className="mb-1 block text-sm font-[var(--font-weight-medium)] text-gray-700"
                       >
                         Country
                       </label>
-                      <select
+                      <Select
                         id="edit-owner-alt-country"
                         value={formData.altCountry}
                         onChange={(e) =>
                           setFormData((prev) => ({ ...prev, altCountry: e.target.value }))
                         }
-                        className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                       >
                         <option value="">Select country</option>
                         {COUNTRIES.map((country) => (
@@ -754,7 +760,7 @@ export default function EditOwnerModal({
                             {country}
                           </option>
                         ))}
-                      </select>
+                      </Select>
                     </div>
                   </div>
                 </div>
@@ -765,12 +771,14 @@ export default function EditOwnerModal({
           {/* Tax Information Tab */}
           {activeTab === 'tax' && (
             <div className="space-y-6">
-              <h3 className="text-lg font-medium text-gray-900">Tax Information</h3>
+              <Heading as="h3" size="h5">
+                Tax Information
+              </Heading>
 
               {/* Tax Payer Information */}
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700">
+                  <label className="mb-1 block text-sm font-[var(--font-weight-medium)] text-gray-700">
                     Tax Payer ID
                   </label>
                   <input
@@ -786,17 +794,16 @@ export default function EditOwnerModal({
                 <div>
                   <label
                     htmlFor="edit-owner-taxpayer-type"
-                    className="mb-1 block text-sm font-medium text-gray-700"
+                    className="mb-1 block text-sm font-[var(--font-weight-medium)] text-gray-700"
                   >
                     Tax Payer Type
                   </label>
-                  <select
+                  <Select
                     id="edit-owner-taxpayer-type"
                     value={formData.taxPayerType}
                     onChange={(e) =>
                       setFormData((prev) => ({ ...prev, taxPayerType: e.target.value }))
                     }
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   >
                     <option value="">Select type</option>
                     {TAX_PAYER_TYPES.map((type) => (
@@ -804,13 +811,13 @@ export default function EditOwnerModal({
                         {type}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </div>
               </div>
 
               {/* Tax Payer Name */}
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">
+                <label className="mb-1 block text-sm font-[var(--font-weight-medium)] text-gray-700">
                   Tax Payer Name
                 </label>
                 <input
@@ -826,15 +833,14 @@ export default function EditOwnerModal({
 
               {/* Tax Address */}
               <div className="space-y-4">
-                <h4 className="flex items-center gap-2 font-medium text-gray-900">
+                <Heading as="h4" size="h6" className="flex items-center gap-2">
                   <MapPin className="h-4 w-4" />
                   Tax Address
-                </h4>
+                </Heading>
 
                 {/* Tax Address Checkbox */}
                 <div className="flex items-center">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     id="taxSameAsPrimary"
                     checked={formData.taxSameAsPrimary}
                     onChange={(e) =>
@@ -864,7 +870,7 @@ export default function EditOwnerModal({
                 {!formData.taxSameAsPrimary && (
                   <>
                     <div>
-                      <label className="mb-1 block text-sm font-medium text-gray-700">
+                      <label className="mb-1 block text-sm font-[var(--font-weight-medium)] text-gray-700">
                         Street Address
                       </label>
                       <AddressAutocomplete
@@ -887,7 +893,7 @@ export default function EditOwnerModal({
                       />
                     </div>
                     <div>
-                      <label className="mb-1 block text-sm font-medium text-gray-700">
+                      <label className="mb-1 block text-sm font-[var(--font-weight-medium)] text-gray-700">
                         Address Line 2
                       </label>
                       <input
@@ -901,7 +907,7 @@ export default function EditOwnerModal({
                       />
                     </div>
                     <div>
-                      <label className="mb-1 block text-sm font-medium text-gray-700">
+                      <label className="mb-1 block text-sm font-[var(--font-weight-medium)] text-gray-700">
                         Address Line 3
                       </label>
                       <input
@@ -917,7 +923,7 @@ export default function EditOwnerModal({
 
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
                       <div>
-                        <label className="mb-1 block text-sm font-medium text-gray-700">City</label>
+                        <label className="mb-1 block text-sm font-[var(--font-weight-medium)] text-gray-700">City</label>
                         <input
                           type="text"
                           value={formData.taxCity}
@@ -929,7 +935,7 @@ export default function EditOwnerModal({
                         />
                       </div>
                       <div>
-                        <label className="mb-1 block text-sm font-medium text-gray-700">
+                        <label className="mb-1 block text-sm font-[var(--font-weight-medium)] text-gray-700">
                           State
                         </label>
                         <input
@@ -943,7 +949,7 @@ export default function EditOwnerModal({
                         />
                       </div>
                       <div>
-                        <label className="mb-1 block text-sm font-medium text-gray-700">
+                        <label className="mb-1 block text-sm font-[var(--font-weight-medium)] text-gray-700">
                           ZIP Code
                         </label>
                         <input
@@ -959,17 +965,16 @@ export default function EditOwnerModal({
                       <div>
                         <label
                           htmlFor="edit-owner-tax-country"
-                          className="mb-1 block text-sm font-medium text-gray-700"
+                          className="mb-1 block text-sm font-[var(--font-weight-medium)] text-gray-700"
                         >
                           Country
                         </label>
-                        <select
+                        <Select
                           id="edit-owner-tax-country"
                           value={formData.taxCountry}
                           onChange={(e) =>
                             setFormData((prev) => ({ ...prev, taxCountry: e.target.value }))
                           }
-                          className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                         >
                           <option value="">Select country</option>
                           {COUNTRIES.map((country) => (
@@ -977,7 +982,7 @@ export default function EditOwnerModal({
                               {country}
                             </option>
                           ))}
-                        </select>
+                        </Select>
                       </div>
                     </div>
                   </>
@@ -989,15 +994,19 @@ export default function EditOwnerModal({
           {/* Banking Details Tab */}
           {activeTab === 'owner' && (
             <div className="space-y-6">
-              <h3 className="text-lg font-medium text-gray-900">Banking Details</h3>
+              <Heading as="h3" size="h5">
+                Banking Details
+              </Heading>
 
               {/* ETF Account Information */}
               <div className="space-y-4">
-                <h4 className="font-medium text-gray-900">ETF Account Information</h4>
+                <Heading as="h4" size="h6">
+                  ETF Account Information
+                </Heading>
 
                 {/* Account Type Selection */}
                 <div>
-                  <label className="mb-3 block text-sm font-medium text-gray-700">
+                  <label className="mb-3 block text-sm font-[var(--font-weight-medium)] text-gray-700">
                     Account Type
                   </label>
                   <div className="flex items-center space-x-6">
@@ -1040,7 +1049,7 @@ export default function EditOwnerModal({
                 {(formData.etfCheckingAccount || formData.etfSavingAccount) && (
                   <>
                     <div>
-                      <label className="mb-1 block text-sm font-medium text-gray-700">
+                      <label className="mb-1 block text-sm font-[var(--font-weight-medium)] text-gray-700">
                         Account Number
                       </label>
                       <input
@@ -1054,7 +1063,7 @@ export default function EditOwnerModal({
                       />
                     </div>
                     <div>
-                      <label className="mb-1 block text-sm font-medium text-gray-700">
+                      <label className="mb-1 block text-sm font-[var(--font-weight-medium)] text-gray-700">
                         Routing Number
                       </label>
                       <input

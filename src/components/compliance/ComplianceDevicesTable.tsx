@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import ActionButton from '@/components/ui/ActionButton';
+import { Body, Heading, Label } from '@/ui/typography';
 import {
   Dialog,
   DialogContent,
@@ -74,14 +75,13 @@ function OpenViolationsCell({
   );
 }
 
-const statusLabels: Record<string, { label: string; className: string }> = {
-  active: { label: 'Active', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-  out_of_service: {
-    label: 'Out of service',
-    className: 'bg-amber-50 text-amber-700 border-amber-200',
-  },
-  retired: { label: 'Retired', className: 'bg-slate-100 text-slate-700 border-slate-200' },
-  removed: { label: 'Retired', className: 'bg-slate-100 text-slate-700 border-slate-200' },
+type StatusBadgeVariant = 'success' | 'warning' | 'danger' | 'info';
+
+const statusLabels: Record<string, { label: string; variant: StatusBadgeVariant }> = {
+  active: { label: 'Active', variant: 'success' },
+  out_of_service: { label: 'Out of service', variant: 'warning' },
+  retired: { label: 'Retired', variant: 'danger' },
+  removed: { label: 'Retired', variant: 'danger' },
 };
 
 function StatusPill({ value }: { value?: string | null }) {
@@ -89,10 +89,10 @@ function StatusPill({ value }: { value?: string | null }) {
   const key = value.toLowerCase();
   const info = statusLabels[key] || {
     label: value,
-    className: 'bg-muted text-foreground border-muted-foreground/20',
+    variant: 'info',
   };
   return (
-    <Badge variant="outline" className={info.className + ' text-xs'}>
+    <Badge variant={info.variant} className="text-xs">
       {info.label}
     </Badge>
   );
@@ -260,7 +260,9 @@ export function ComplianceDevicesTable({ devices, propertyId, onViewViolations }
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold">Devices</h3>
+        <Heading as="h3" size="h5">
+          Devices
+        </Heading>
       </div>
       <div className="space-y-3">
         <Tabs value={activeType} onValueChange={setActiveType}>
@@ -494,10 +496,12 @@ function DeviceInfoDialog({
 
   const DetailRow = ({ label, value }: { label: string; value: any }) => (
     <div className="rounded-md p-3">
-      <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+      <Label as="div" size="xs" tone="muted" className="tracking-wide uppercase">
         {label}
-      </div>
-      <div className="mt-1 text-sm break-words whitespace-pre-wrap">{formatVal(value)}</div>
+      </Label>
+      <Body as="div" size="sm" className="mt-1 break-words whitespace-pre-wrap">
+        {formatVal(value)}
+      </Body>
     </div>
   );
 
@@ -546,7 +550,9 @@ function DeviceInfoDialog({
         <div className="grid space-y-6">
           {baseDetails.length > 0 && (
             <div className="grid gap-y-3">
-              <div className="text-muted-foreground text-sm font-semibold">Overview</div>
+              <Label as="div" size="sm" tone="muted">
+                Overview
+              </Label>
               <div
                 className="grid grid-cols-2 gap-3"
                 style={{
@@ -565,7 +571,9 @@ function DeviceInfoDialog({
             <div className="space-y-5">
               {sortedSections.map((section) => (
                 <div key={section} className="grid gap-y-3">
-                  <div className="text-muted-foreground text-sm font-semibold">{section}</div>
+                  <Label as="div" size="sm" tone="muted">
+                    {section}
+                  </Label>
                   <div
                     className="grid grid-cols-2 gap-3"
                     style={{

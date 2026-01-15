@@ -14,6 +14,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DateInput } from "@/components/ui/date-input";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Checkbox } from "@/ui/checkbox";
+import { Body, Heading } from "@/ui/typography";
 
 export type PreparePaymentBill = {
   id: string;
@@ -191,23 +193,25 @@ export default function PreparePaymentForm({
     <Dialog open>
       <DialogContent className="bg-card border-border/80 max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-none border p-0 shadow-2xl sm:rounded-2xl">
         <DialogHeader className="border-border space-y-1 border-b px-6 pt-5 pb-4 text-left">
-          <DialogTitle className="text-foreground text-xl font-semibold">
-            Prepare payment
+          <DialogTitle asChild>
+            <Heading as="h1" size="h4">
+              Prepare payment
+            </Heading>
           </DialogTitle>
         </DialogHeader>
 
         <form className="space-y-6 px-6 py-6" onSubmit={handleSubmit}>
           <div className="space-y-1">
-            <p className="text-foreground text-2xl font-semibold">
+            <Heading as="p" size="h5">
               {totalAmount.toLocaleString("en-US", {
                 style: "currency",
                 currency: "USD",
               })}
-            </p>
-            <p className="text-muted-foreground text-sm">
+            </Heading>
+            <Body as="p" tone="muted" size="sm">
               View and confirm the amounts on each check. This form will submit a
               normalized payload in the next phase.
-            </p>
+            </Body>
           </div>
 
           {error ? (
@@ -255,7 +259,7 @@ export default function PreparePaymentForm({
                 <CardContent className="space-y-4 px-4 py-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="space-y-1">
-                      <p className="text-foreground text-base font-semibold">
+                      <Heading as="p" size="h6">
                         {group.bankLabel}{" "}
                         <span className="font-normal">
                           –{" "}
@@ -264,17 +268,16 @@ export default function PreparePaymentForm({
                             currency: "USD",
                           })}
                         </span>
-                      </p>
-                      <p className="text-muted-foreground text-xs">
+                      </Heading>
+                      <Body as="p" tone="muted" size="xs">
                         {group.bills.length} vendor
                         {group.bills.length === 1 ? "" : "s"} will receive check(s)
-                      </p>
+                      </Body>
                     </div>
                     <div className="flex items-center gap-2 text-sm">
-                      <input
+                      <Checkbox
                         id={`queue-printing-${key}`}
-                        type="checkbox"
-                        className="accent-primary h-4 w-4"
+                        className="h-4 w-4"
                         checked={meta.queueForPrinting}
                         onChange={(event) =>
                           setGroupState((prev) => ({

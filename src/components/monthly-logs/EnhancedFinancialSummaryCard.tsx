@@ -4,6 +4,7 @@ import { ArrowUpRight, ArrowDownRight, Minus } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/components/ui/utils';
 import type { MonthlyLogFinancialSummary } from '@/types/monthly-log';
+import { Body, Heading, Label } from '@/ui/typography';
 
 interface FinancialSummaryCardProps {
   summary: MonthlyLogFinancialSummary | null;
@@ -74,14 +75,16 @@ export default function EnhancedFinancialSummaryCard({
         <CardHeader>
           <CardTitle>Financial Summary</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="py-4 text-center text-slate-600">
-            <p>Unable to load financial summary</p>
-            <p className="mt-1 text-sm">Please check your connection and try again</p>
-          </div>
-        </CardContent>
-      </Card>
-    );
+      <CardContent>
+        <div className="py-4 text-center text-slate-600">
+          <Body as="p">Unable to load financial summary</Body>
+          <Body as="p" size="sm" tone="muted" className="mt-1">
+            Please check your connection and try again
+          </Body>
+        </div>
+      </CardContent>
+    </Card>
+  );
   }
 
   const {
@@ -149,9 +152,9 @@ export default function EnhancedFinancialSummaryCard({
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-1">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">
+          <Label as="p" size="xs" tone="muted" className="uppercase tracking-wide">
             Lease Ledger
-          </p>
+          </Label>
           <div className="border-b border-slate-300" />
         </div>
 
@@ -160,27 +163,30 @@ export default function EnhancedFinancialSummaryCard({
           {ledgerMetrics.slice(0, 3).map((metric) => (
             <div key={metric.label} className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="text-sm text-slate-600">{metric.label}</span>
+                <Body as="span" size="sm" tone="muted">
+                  {metric.label}
+                </Body>
                 {metric.trend && getTrendIcon(metric.trend)}
               </div>
-              <span
+              <Heading
+                as="span"
+                size="h6"
                 className={cn(
-                  'text-sm font-semibold',
-                  metric.valueClassName ?? (metric.isNegative ? 'text-red-600' : 'text-slate-900'),
+                  metric.valueClassName ?? (metric.isNegative ? 'text-red-600' : 'text-foreground'),
                 )}
               >
                 {metric.format
                   ? metric.format(metric.value)
                   : `${metric.isNegative ? '-' : ''}${formatCurrency(Math.abs(metric.value))}`}
-              </span>
+              </Heading>
             </div>
           ))}
         </div>
 
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">
+          <Label as="p" size="xs" tone="muted" className="uppercase tracking-wide">
             Unit Transactions
-          </p>
+          </Label>
           <div className="border-b border-slate-300" />
         </div>
 
@@ -188,51 +194,60 @@ export default function EnhancedFinancialSummaryCard({
           {ledgerMetrics.slice(3).map((metric) => (
             <div key={metric.label} className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="text-sm text-slate-600">{metric.label}</span>
+                <Body as="span" size="sm" tone="muted">
+                  {metric.label}
+                </Body>
                 {metric.trend && getTrendIcon(metric.trend)}
               </div>
-              <span
+              <Heading
+                as="span"
+                size="h6"
                 className={cn(
-                  'text-sm font-semibold',
-                  metric.valueClassName ?? (metric.isNegative ? 'text-red-600' : 'text-slate-900'),
+                  metric.valueClassName ?? (metric.isNegative ? 'text-red-600' : 'text-foreground'),
                 )}
               >
                 {metric.format
                   ? metric.format(metric.value)
                   : `${metric.isNegative ? '-' : ''}${formatCurrency(Math.abs(metric.value))}`}
-              </span>
+              </Heading>
             </div>
           ))}
         </div>
 
         {/* Previous Balance */}
-        <div className="flex items-center justify-between text-sm text-slate-600 border-t border-slate-300 pt-4">
-          <span>Previous Net to Owner</span>
-          <span
+        <div className="flex items-center justify-between border-t border-slate-300 pt-4">
+          <Body as="span" size="sm" tone="muted">
+            Previous Net to Owner
+          </Body>
+          <Heading
+            as="span"
+            size="h6"
             className={cn(
-              'font-semibold',
-              previousBalance >= 0 ? 'text-slate-900' : 'text-red-600',
+              previousBalance >= 0 ? 'text-foreground' : 'text-red-600',
             )}
           >
             {formatCurrency(previousBalance)}
-          </span>
+          </Heading>
         </div>
 
         {/* Net to Owner - Highlighted */}
         <div>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="font-semibold text-slate-900">Net to Owner</span>
+              <Heading as="span" size="h6">
+                Net to Owner
+              </Heading>
               {netToOwnerTrend && getTrendIcon(netToOwnerTrend)}
             </div>
-            <span
+            <Heading
+              as="span"
+              size="h5"
               className={cn(
-                'text-lg font-semibold',
-                netToOwner >= 0 ? 'text-slate-900' : 'text-red-600',
+                netToOwner >= 0 ? 'text-foreground' : 'text-red-600',
               )}
             >
               {formatCurrency(netToOwner)}
-            </span>
+            </Heading>
           </div>
           {/* Remove previous month comparison for now */}
         </div>

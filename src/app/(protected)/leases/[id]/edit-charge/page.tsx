@@ -4,6 +4,7 @@ import { X } from 'lucide-react';
 import EnterChargeFormShell from '../add-charge/EnterChargeFormShell';
 import { loadChargeEditData } from '@/server/leases/load-charge-edit-data';
 import { Button } from '@/components/ui/button';
+import { Body, Heading } from '@/ui/typography';
 
 function formatSummary(propertyUnit?: string | null, tenants?: string | null) {
   if (propertyUnit && tenants) return `${propertyUnit} • ${tenants}`;
@@ -16,17 +17,23 @@ function ErrorState({ message, backHref }: { message: string; backHref: string }
   return (
     <div className="bg-background text-foreground min-h-screen w-full">
       <div className="border-b px-6 py-4">
-        <h1 className="text-xl font-semibold">Edit charge</h1>
+        <Heading as="h1" size="h3">
+          Edit charge
+        </Heading>
       </div>
       <div className="px-6 py-6">
-        <div className="border-destructive/30 bg-destructive/10 text-destructive max-w-3xl rounded-md border px-4 py-3 text-sm">
+        <Body
+          as="div"
+          size="sm"
+          className="border-destructive/30 bg-destructive/10 text-destructive max-w-3xl rounded-md border px-4 py-3"
+        >
           {message}
-        </div>
-        <div className="mt-4">
+        </Body>
+        <Body as="div" size="sm" className="mt-4">
           <Link href={backHref} className="text-primary hover:underline">
             Back to lease
           </Link>
-        </div>
+        </Body>
       </div>
     </div>
   );
@@ -60,8 +67,14 @@ export default async function EditChargePage({
       <div className="border-b px-6 py-4">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <div className="text-xl font-semibold">Edit charge</div>
-            {summary ? <div className="text-muted-foreground text-sm">{summary}</div> : null}
+            <Heading as="h1" size="h3">
+              Edit charge
+            </Heading>
+            {summary ? (
+              <Body tone="muted" size="sm">
+                {summary}
+              </Body>
+            ) : null}
           </div>
           <Link href={returnTo} aria-label="Close">
             <Button type="button" variant="ghost" size="icon" className="h-9 w-9 rounded-md">

@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { DateInput } from '@/components/ui/date-input';
+import { Body, Label } from '@/ui/typography';
 
 type PropertyOption = { id: string; name: string };
 type UnitOption = { id: string; propertyId: string; label: string };
@@ -199,21 +200,14 @@ export default function CreateMonthlyLogDialog({ properties, units, defaultPerio
       </DialogTrigger>
       <DialogContent className="bg-card border-border/80 max-h-[90vh] w-[680px] max-w-[680px] overflow-y-auto rounded-none border p-0 shadow-2xl sm:rounded-2xl">
         <DialogHeader className="border-border border-b p-6">
-          <DialogTitle className="text-foreground text-xl font-semibold">
-            Create Monthly Log
-          </DialogTitle>
-          <DialogDescription className="text-muted-foreground">
+          <DialogTitle headingSize="h4">Create Monthly Log</DialogTitle>
+          <DialogDescription>
             Track a new monthly workflow by selecting a property, unit, and start date.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-6 p-6">
           <div className="space-y-2">
-            <label
-              htmlFor="monthly-log-property"
-              className="block text-sm font-medium text-gray-700"
-            >
-              Property
-            </label>
+            <Label htmlFor="monthly-log-property">Property</Label>
             <Select
               value={selectedPropertyId}
               onValueChange={(value) => {
@@ -235,9 +229,7 @@ export default function CreateMonthlyLogDialog({ properties, units, defaultPerio
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="monthly-log-unit" className="block text-sm font-medium text-gray-700">
-              Unit
-            </label>
+            <Label htmlFor="monthly-log-unit">Unit</Label>
             <Select
               value={selectedUnitId}
               disabled={filteredUnits.length === 0}
@@ -259,26 +251,23 @@ export default function CreateMonthlyLogDialog({ properties, units, defaultPerio
           </div>
 
           <div className="space-y-2">
-            <label
-              htmlFor="monthly-log-start-date"
-              className="block text-sm font-medium text-gray-700"
-            >
-              Start date
-            </label>
+            <Label htmlFor="monthly-log-start-date">Start date</Label>
             <DateInput
               id="monthly-log-start-date"
               value={startDate || ''}
               onChange={setStartDate}
               containerClassName="w-[140px]"
             />
-            <p className="text-muted-foreground text-xs">
+            <Body as="p" size="xs" tone="muted">
               The monthly cycle will use the first day of the selected month.
-            </p>
+            </Body>
           </div>
 
           {error && (
             <div className="rounded-md border border-red-200 bg-red-50 p-4">
-              <p className="text-sm text-red-600">{error}</p>
+              <Body as="p" size="sm" className="text-red-600">
+                {error}
+              </Body>
             </div>
           )}
 

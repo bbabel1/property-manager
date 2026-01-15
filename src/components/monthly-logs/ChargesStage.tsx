@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/components/ui/utils';
 import { toast } from 'sonner';
+import { Body, Heading, Label } from '@/ui/typography';
 
 interface Transaction {
   id: string;
@@ -198,12 +199,12 @@ export default function ChargesStage({ monthlyLogId }: ChargesStageProps) {
               Charges
             </div>
             <div className="text-right">
-              <div className="text-2xl font-bold text-slate-900">
+              <Heading as="div" size="h3">
                 {formatCurrency(totalCharges)}
-              </div>
-              <div className="text-sm text-slate-600">
+              </Heading>
+              <Body as="div" size="sm" tone="muted">
                 {assignedTransactions.length} transaction(s)
-              </div>
+              </Body>
             </div>
           </CardTitle>
         </CardHeader>
@@ -232,21 +233,24 @@ export default function ChargesStage({ monthlyLogId }: ChargesStageProps) {
                         ) : (
                           <Circle className="h-4 w-4 text-green-500" />
                         )}
-                        <span className="font-medium text-slate-900">{transaction.memo}</span>
+                        <Label as="span" size="sm">
+                          {transaction.memo}
+                        </Label>
                       </div>
-                      <Badge variant="outline" className="text-xs">
+                      <Badge variant="outline">
                         {transaction.reference_number || 'No Ref'}
                       </Badge>
                     </div>
-                    <div className="mt-1 text-sm text-slate-600">
+                    <Body as="div" size="sm" tone="muted" className="mt-1">
                       {formatDate(transaction.date)}
-                    </div>
+                    </Body>
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="text-right">
-                      <div
+                      <Heading
+                        as="div"
+                        size="h6"
                         className={cn(
-                          'font-semibold',
                           transaction.transaction_type === 'Charge'
                             ? 'text-red-600'
                             : 'text-green-600',
@@ -254,7 +258,7 @@ export default function ChargesStage({ monthlyLogId }: ChargesStageProps) {
                       >
                         {transaction.transaction_type === 'Charge' ? '+' : '-'}
                         {formatCurrency(Math.abs(transaction.total_amount))}
-                      </div>
+                      </Heading>
                     </div>
                     <Button
                       variant="ghost"
@@ -269,9 +273,9 @@ export default function ChargesStage({ monthlyLogId }: ChargesStageProps) {
               ))}
             </div>
           ) : (
-            <div className="py-8 text-center text-slate-600">
+            <Body as="div" size="sm" tone="muted" className="py-8 text-center">
               No charges assigned to this monthly log yet.
-            </div>
+            </Body>
           )}
         </CardContent>
       </Card>
@@ -279,7 +283,9 @@ export default function ChargesStage({ monthlyLogId }: ChargesStageProps) {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
-            <span>Unassigned Transactions</span>
+            <Heading as="span" size="h6">
+              Unassigned Transactions
+            </Heading>
             {selectedUnassigned.size > 0 && (
               <Button onClick={handleAssignTransactions} size="sm" className="gap-2">
                 Assign {selectedUnassigned.size} Selected
@@ -315,13 +321,18 @@ export default function ChargesStage({ monthlyLogId }: ChargesStageProps) {
                       )}
                     </div>
                     <div>
-                      <div className="font-medium text-slate-900">{transaction.memo}</div>
-                      <div className="text-sm text-slate-600">{formatDate(transaction.date)}</div>
+                      <Label as="div" size="sm">
+                        {transaction.memo}
+                      </Label>
+                      <Body as="div" size="sm" tone="muted">
+                        {formatDate(transaction.date)}
+                      </Body>
                     </div>
                   </div>
-                  <div
+                  <Heading
+                    as="span"
+                    size="h6"
                     className={cn(
-                      'font-semibold',
                       transaction.transaction_type === 'Charge'
                         ? 'text-slate-900'
                         : 'text-green-600',
@@ -329,12 +340,14 @@ export default function ChargesStage({ monthlyLogId }: ChargesStageProps) {
                   >
                     {transaction.transaction_type === 'Charge' ? '+' : '-'}
                     {formatCurrency(Math.abs(transaction.total_amount))}
-                  </div>
+                  </Heading>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="py-8 text-center text-slate-600">No unassigned transactions found.</div>
+            <Body as="div" size="sm" tone="muted" className="py-8 text-center">
+              No unassigned transactions found.
+            </Body>
           )}
         </CardContent>
       </Card>

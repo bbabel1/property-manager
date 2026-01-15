@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { CheckCircle, AlertCircle, Clock, Calendar } from 'lucide-react'
 import type { ComplianceEvent, ComplianceItem } from '@/types/compliance'
+import { Body } from '@/ui/typography'
 
 interface ComplianceTimelineProps {
   items: ComplianceItem[]
@@ -58,15 +59,21 @@ export function ComplianceTimeline({ items, events }: ComplianceTimelineProps) {
       <CardContent>
         <div className="space-y-4">
           {timelineItems.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">No compliance activity</p>
+            <Body as="p" size="sm" tone="muted" className="py-4 text-center">
+              No compliance activity
+            </Body>
           ) : (
             timelineItems.map((item, index) => (
               <div key={index} className="flex items-start gap-3">
                 <div className="mt-1">{getStatusIcon(item.status || '')}</div>
                 <div className="flex-1">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">{item.label}</span>
-                    <span className="text-xs text-muted-foreground">{formatDate(item.date)}</span>
+                    <Body as="span" size="sm" className="font-medium">
+                      {item.label}
+                    </Body>
+                    <Body as="span" size="xs" tone="muted">
+                      {formatDate(item.date)}
+                    </Body>
                   </div>
                   {item.status && (
                     <Badge variant="outline" className="mt-1 text-xs">
@@ -82,4 +89,3 @@ export function ComplianceTimeline({ items, events }: ComplianceTimelineProps) {
     </Card>
   )
 }
-

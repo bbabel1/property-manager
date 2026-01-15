@@ -4,6 +4,7 @@ import * as React from "react";
 import * as ContextMenuPrimitive from "@radix-ui/react-context-menu";
 import { CheckIcon, ChevronRightIcon, CircleIcon } from "lucide-react";
 
+import { Body } from "@/ui/typography";
 import { cn } from "./utils";
 
 function ContextMenu({
@@ -192,13 +193,15 @@ function ContextMenuLabel({
   inset?: boolean;
 }) {
   return (
-    <ContextMenuPrimitive.Label
-      data-slot="context-menu-label"
-      data-inset={inset}
+    <Body
+      as={ContextMenuPrimitive.Label}
+      size="sm"
       className={cn(
-        "text-foreground px-2 py-1.5 text-sm font-medium data-[inset]:pl-8",
+        "text-foreground px-2 py-1.5 font-medium data-[inset]:pl-8",
         className,
       )}
+      data-slot="context-menu-label"
+      data-inset={inset}
       {...props}
     />
   );

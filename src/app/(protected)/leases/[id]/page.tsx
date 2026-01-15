@@ -18,6 +18,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import TenantMoveInEditor from '@/components/leases/TenantMoveInEditor';
 import AddTenantButton from '@/components/leases/AddTenantButton';
 import RemoveLeaseContactButton from '@/components/leases/RemoveLeaseContactButton';
+import { Body, Heading, Label } from '@/ui/typography';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import LeaseHeaderMeta from '@/components/leases/LeaseHeaderMeta';
 import InfoCard from '@/components/layout/InfoCard';
@@ -164,7 +165,11 @@ export default async function LeaseDetailsPage({
     return (
       <div className="p-6">
         <Card>
-          <CardContent className="text-muted-foreground p-6 text-sm">Lease not found.</CardContent>
+          <CardContent className="p-6">
+            <Body as="div" size="sm" tone="muted">
+              Lease not found.
+            </Body>
+          </CardContent>
         </Card>
       </div>
     );
@@ -1607,37 +1612,37 @@ export default async function LeaseDetailsPage({
           <TabsList className="text-muted-foreground flex h-auto items-center space-x-8 rounded-none bg-transparent p-0">
             <TabsTrigger
               value="summary"
-              className="data-[state=active]:border-primary data-[state=active]:text-primary hover:border-muted-foreground hover:text-foreground flex-none rounded-none border-0 border-b-2 border-transparent bg-transparent px-1 pt-2 pb-3 text-sm font-medium transition-colors data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+              className="data-[state=active]:border-primary data-[state=active]:text-primary hover:border-muted-foreground hover:text-foreground flex-none rounded-none border-0 border-b-2 border-transparent bg-transparent px-1 pt-2 pb-3 transition-colors data-[state=active]:bg-transparent data-[state=active]:shadow-none"
             >
               Summary
             </TabsTrigger>
             <TabsTrigger
               value="financials"
-              className="data-[state=active]:border-primary data-[state=active]:text-primary hover:border-muted-foreground hover:text-foreground flex-none rounded-none border-0 border-b-2 border-transparent bg-transparent px-1 pt-2 pb-3 text-sm font-medium transition-colors data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+              className="data-[state=active]:border-primary data-[state=active]:text-primary hover:border-muted-foreground hover:text-foreground flex-none rounded-none border-0 border-b-2 border-transparent bg-transparent px-1 pt-2 pb-3 transition-colors data-[state=active]:bg-transparent data-[state=active]:shadow-none"
             >
               Financials
             </TabsTrigger>
             <TabsTrigger
               value="tenants"
-              className="data-[state=active]:border-primary data-[state=active]:text-primary hover:border-muted-foreground hover:text-foreground flex-none rounded-none border-0 border-b-2 border-transparent bg-transparent px-1 pt-2 pb-3 text-sm font-medium transition-colors data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+              className="data-[state=active]:border-primary data-[state=active]:text-primary hover:border-muted-foreground hover:text-foreground flex-none rounded-none border-0 border-b-2 border-transparent bg-transparent px-1 pt-2 pb-3 transition-colors data-[state=active]:bg-transparent data-[state=active]:shadow-none"
             >
               Tenants
             </TabsTrigger>
             <TabsTrigger
               value="communications"
-              className="data-[state=active]:border-primary data-[state=active]:text-primary hover:border-muted-foreground hover:text-foreground flex-none rounded-none border-0 border-b-2 border-transparent bg-transparent px-1 pt-2 pb-3 text-sm font-medium transition-colors data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+              className="data-[state=active]:border-primary data-[state=active]:text-primary hover:border-muted-foreground hover:text-foreground flex-none rounded-none border-0 border-b-2 border-transparent bg-transparent px-1 pt-2 pb-3 transition-colors data-[state=active]:bg-transparent data-[state=active]:shadow-none"
             >
               Communications
             </TabsTrigger>
             <TabsTrigger
               value="tasks"
-              className="data-[state=active]:border-primary data-[state=active]:text-primary hover:border-muted-foreground hover:text-foreground flex-none rounded-none border-0 border-b-2 border-transparent bg-transparent px-1 pt-2 pb-3 text-sm font-medium transition-colors data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+              className="data-[state=active]:border-primary data-[state=active]:text-primary hover:border-muted-foreground hover:text-foreground flex-none rounded-none border-0 border-b-2 border-transparent bg-transparent px-1 pt-2 pb-3 transition-colors data-[state=active]:bg-transparent data-[state=active]:shadow-none"
             >
               Tasks
             </TabsTrigger>
             <TabsTrigger
               value="files"
-              className="data-[state=active]:border-primary data-[state=active]:text-primary hover:border-muted-foreground hover:text-foreground flex-none rounded-none border-0 border-b-2 border-transparent bg-transparent px-1 pt-2 pb-3 text-sm font-medium transition-colors data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+              className="data-[state=active]:border-primary data-[state=active]:text-primary hover:border-muted-foreground hover:text-foreground flex-none rounded-none border-0 border-b-2 border-transparent bg-transparent px-1 pt-2 pb-3 transition-colors data-[state=active]:bg-transparent data-[state=active]:shadow-none"
             >
               Files
             </TabsTrigger>
@@ -1663,9 +1668,11 @@ export default async function LeaseDetailsPage({
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <div className="space-y-6 lg:col-span-2">
             <InfoCard title="Lease details">
-              <div className="grid grid-cols-1 gap-6 text-sm sm:grid-cols-3">
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
                 <div>
-                  <div className="text-muted-foreground mb-1 text-xs font-medium">UNIT</div>
+                  <Label as="div" size="xs" tone="muted" className="mb-1 tracking-wide">
+                    UNIT
+                  </Label>
                   <Link
                     href={`/properties/${property?.id ?? ''}/units/${unit?.id ?? ''}`}
                     className="text-primary hover:underline"
@@ -1678,7 +1685,9 @@ export default async function LeaseDetailsPage({
                   </Link>
                 </div>
                 <div>
-                  <div className="text-muted-foreground mb-1 text-xs font-medium">RENTAL OWNER</div>
+                  <Label as="div" size="xs" tone="muted" className="mb-1 tracking-wide">
+                    RENTAL OWNER
+                  </Label>
                   {primaryOwner?.name ? (
                     primaryOwner?.id ? (
                       <Link
@@ -1688,14 +1697,20 @@ export default async function LeaseDetailsPage({
                         {primaryOwner.name}
                       </Link>
                     ) : (
-                      <span>{primaryOwner.name}</span>
+                      <Body as="span" size="sm">
+                        {primaryOwner.name}
+                      </Body>
                     )
                   ) : (
-                    <span className="text-muted-foreground">—</span>
+                    <Body as="span" size="sm" tone="muted">
+                      —
+                    </Body>
                   )}
                 </div>
                 <div>
-                  <div className="text-muted-foreground mb-1 text-xs font-medium">TENANT</div>
+                  <Label as="div" size="xs" tone="muted" className="mb-1 tracking-wide">
+                    TENANT
+                  </Label>
                   {tenantNames.length ? (
                     firstTenantId ? (
                       <Link
@@ -1705,19 +1720,29 @@ export default async function LeaseDetailsPage({
                         {tenantNames[0]}
                       </Link>
                     ) : (
-                      <span className="text-foreground">{tenantNames[0]}</span>
+                      <Body as="span" size="sm">
+                        {tenantNames[0]}
+                      </Body>
                     )
                   ) : (
-                    <span className="text-muted-foreground">—</span>
+                    <Body as="span" size="sm" tone="muted">
+                      —
+                    </Body>
                   )}
                 </div>
               </div>
               <div className="sm:col-span-3">
-                <div className="text-muted-foreground mb-1 text-xs font-medium">LEASE CHARGES</div>
+                <Label as="div" size="xs" tone="muted" className="mb-1 tracking-wide">
+                  LEASE CHARGES
+                </Label>
                 {leaseChargesNote ? (
-                  <p className="text-foreground whitespace-pre-wrap">{leaseChargesNote}</p>
+                  <Body as="p" size="sm" className="whitespace-pre-wrap">
+                    {leaseChargesNote}
+                  </Body>
                 ) : (
-                  <span className="text-muted-foreground">No additional charges noted.</span>
+                  <Body as="span" size="sm" tone="muted">
+                    No additional charges noted.
+                  </Body>
                 )}
               </div>
             </InfoCard>
@@ -1729,23 +1754,39 @@ export default async function LeaseDetailsPage({
               categories={fileCategories as LeaseFileCategory[]}
             />
           </div>
-          <div className="surface-card surface-card--muted inline-block h-fit rounded-2xl p-4 text-sm shadow-sm">
-            <div className="space-y-2.5">
-              <div className="text-foreground flex items-center justify-between font-semibold">
-                <span>Balance</span>
-                <span>{fmtUsd(balances.balance)}</span>
+          <div className="inline-block h-fit rounded-2xl border border-primary/30 bg-primary/10 p-4 shadow-sm">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label as="span" size="sm">
+                  Balance
+                </Label>
+                <Heading as="span" size="h5">
+                  {fmtUsd(balances.balance)}
+                </Heading>
               </div>
-              <div className="text-foreground flex items-center justify-between">
-                <span>Prepayments</span>
-                <span className="font-medium">{fmtUsd(balances.prepayments)}</span>
+              <div className="flex items-center justify-between">
+                <Label as="span" size="sm">
+                  Prepayments
+                </Label>
+                <Heading as="span" size="h6">
+                  {fmtUsd(balances.prepayments)}
+                </Heading>
               </div>
-              <div className="text-foreground flex items-center justify-between">
-                <span>Deposits held</span>
-                <span className="font-medium">{fmtUsd(Math.abs(balances.depositsHeld))}</span>
+              <div className="flex items-center justify-between">
+                <Label as="span" size="sm">
+                  Deposits held
+                </Label>
+                <Heading as="span" size="h6">
+                  {fmtUsd(Math.abs(balances.depositsHeld))}
+                </Heading>
               </div>
-              <div className="text-foreground flex items-center justify-between">
-                <span>Rent</span>
-                <span className="font-medium">{fmtUsd(lease.rent_amount)}</span>
+              <div className="flex items-center justify-between">
+                <Label as="span" size="sm">
+                  Rent
+                </Label>
+                <Heading as="span" size="h6">
+                  {fmtUsd(lease.rent_amount)}
+                </Heading>
               </div>
             </div>
           </div>
@@ -1754,27 +1795,27 @@ export default async function LeaseDetailsPage({
 
       <TabsContent value="financials" className="space-y-6 px-6 pb-6">
         <div className="border-border border-b">
-          <Tabs
-            key="financials"
-            defaultValue="ledger"
-            className="relative space-y-4"
-          >
-            <TabsList className="text-muted-foreground flex h-auto w-fit items-center gap-8 rounded-none bg-transparent p-0">
-              {[
-                { value: 'ledger', label: 'Ledger' },
-                { value: 'deposits', label: 'Deposits & Prepayments' },
-                { value: 'rent', label: 'Rent' },
-                { value: 'recurring', label: 'Recurring transactions' },
-              ].map((tab) => (
-                <TabsTrigger
-                  key={tab.value}
-                  value={tab.value}
-                  className="data-[state=active]:border-primary data-[state=active]:text-primary flex-none rounded-none border-0 border-b-2 border-transparent bg-transparent px-1 pt-2 pb-3 text-sm font-medium transition-colors"
-                >
-                  {tab.label}
-                </TabsTrigger>
-              ))}
-            </TabsList>
+            <Tabs
+              key="financials"
+              defaultValue="ledger"
+              className="relative space-y-4"
+            >
+              <TabsList className="text-muted-foreground flex h-auto w-fit items-center gap-8 rounded-none bg-transparent p-0">
+                {[
+                  { value: 'ledger', label: 'Ledger' },
+                  { value: 'deposits', label: 'Deposits & Prepayments' },
+                  { value: 'rent', label: 'Rent' },
+                  { value: 'recurring', label: 'Recurring transactions' },
+                ].map((tab) => (
+                  <TabsTrigger
+                    key={tab.value}
+                    value={tab.value}
+                    className="data-[state=active]:border-primary data-[state=active]:text-primary flex-none rounded-none border-0 border-b-2 border-transparent bg-transparent px-1 pt-2 pb-3 transition-colors"
+                  >
+                    {tab.label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
 
             <TabsContent value="ledger" className="space-y-6">
               <LeaseLedgerPanel
@@ -1796,20 +1837,20 @@ export default async function LeaseDetailsPage({
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div className="grid w-full max-w-xl grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="border-border bg-card rounded-lg border px-5 py-4">
-                    <div className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+                    <Label as="div" size="xs" tone="muted" className="tracking-wide uppercase">
                       Deposits held
-                    </div>
-                    <div className="text-foreground mt-1 text-2xl font-semibold">
+                    </Label>
+                    <Heading as="div" size="h4" className="mt-1">
                       {fmtUsd(depositsHeldTotal)}
-                    </div>
+                    </Heading>
                   </div>
                   <div className="border-border bg-card rounded-lg border px-5 py-4">
-                    <div className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+                    <Label as="div" size="xs" tone="muted" className="tracking-wide uppercase">
                       Prepayments
-                    </div>
-                    <div className="text-foreground mt-1 text-2xl font-semibold">
+                    </Label>
+                    <Heading as="div" size="h4" className="mt-1">
                       {fmtUsd(prepaymentsTotal)}
-                    </div>
+                    </Heading>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -1845,37 +1886,47 @@ export default async function LeaseDetailsPage({
                       <>
                         {depositsTableRows.map((row) => (
                           <TableRow key={row.id}>
-                            <TableCell className="text-foreground text-sm">
-                              {row.date || '—'}
-                            </TableCell>
-                            <TableCell className="text-foreground text-sm">
-                              {row.account || '—'}
+                            <TableCell>
+                              <Body as="span" size="sm">
+                                {row.date || '—'}
+                              </Body>
                             </TableCell>
                             <TableCell>
-                              <div className="text-foreground flex items-center gap-2 text-sm">
+                              <Body as="span" size="sm">
+                                {row.account || '—'}
+                              </Body>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
                                 <ArrowRight className="text-muted-foreground h-4 w-4" />
                                 <div className="flex flex-col">
-                                  <span className="font-medium">{row.type || 'Transaction'}</span>
+                                  <Label as="span" size="sm">
+                                    {row.type || 'Transaction'}
+                                  </Label>
                                   {row.memo ? (
-                                    <span className="text-muted-foreground text-xs">
+                                    <Body as="span" size="xs" tone="muted">
                                       {row.memo}
-                                    </span>
+                                    </Body>
                                   ) : null}
                                 </div>
                               </div>
                             </TableCell>
-                            <TableCell className="text-foreground text-sm">
-                              {fmtUsd(row.amount)}
+                            <TableCell>
+                              <Body as="span" size="sm">
+                                {fmtUsd(row.amount)}
+                              </Body>
                             </TableCell>
-                            <TableCell className="text-foreground text-sm">
-                              {fmtUsd(row.balance)}
+                            <TableCell>
+                              <Body as="span" size="sm">
+                                {fmtUsd(row.balance)}
+                              </Body>
                             </TableCell>
                             <TableCell className="text-right">
                               <ActionButton aria-label="Deposit actions" />
                             </TableCell>
                           </TableRow>
                         ))}
-                        <TableRow className="bg-muted/40 font-medium">
+                        <TableRow className="bg-muted/40">
                           <TableCell colSpan={3}>Total</TableCell>
                           <TableCell>
                             {fmtUsd(depositsTableAmountTotal)}
@@ -1888,8 +1939,10 @@ export default async function LeaseDetailsPage({
                       </>
                     ) : (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-muted-foreground text-sm">
-                          No deposits or prepayments recorded yet.
+                        <TableCell colSpan={6}>
+                          <Body as="span" size="sm" tone="muted">
+                            No deposits or prepayments recorded yet.
+                          </Body>
                         </TableCell>
                       </TableRow>
                     )}
@@ -1943,27 +1996,35 @@ export default async function LeaseDetailsPage({
         <div className="w-full max-w-4xl space-y-8 md:w-[70%]">
           {tenantsByRole.tenants.length ? (
             <section className="space-y-3">
-              <h3 className="text-muted-foreground text-xs font-semibold tracking-wide">TENANTS</h3>
+              <Label as="h3" size="xs" tone="muted" className="tracking-wide uppercase">
+                TENANTS
+              </Label>
               <div className="flex flex-col gap-4">
                 {tenantsByRole.tenants.map((tenant) => (
                   <Card key={tenant.id} className="border-border/60 rounded-xl border shadow-sm">
                     <CardContent className="flex flex-col gap-5 px-6 py-5 sm:flex-row sm:items-start">
                       <div className="flex flex-1 items-start gap-5">
                         <Avatar className="h-12 w-12">
-                          <AvatarFallback className="bg-primary/10 text-primary text-lg font-semibold">
+                          <AvatarFallback className="bg-primary/10 text-primary">
+                            <Heading as="span" size="h5">
                             {tenant.initials}
+                            </Heading>
                           </AvatarFallback>
                         </Avatar>
                         <div>
                           {tenant.tenantId ? (
                             <Link
                               href={`/tenants/${tenant.tenantId}`}
-                              className="text-foreground hover:text-primary text-base font-medium hover:underline"
+                              className="hover:text-primary"
                             >
-                              {tenant.name}
+                              <Heading as="span" size="h6" className="hover:underline">
+                                {tenant.name}
+                              </Heading>
                             </Link>
                           ) : (
-                            <p className="text-foreground text-base font-medium">{tenant.name}</p>
+                            <Heading as="span" size="h6">
+                              {tenant.name}
+                            </Heading>
                           )}
                           <div className="flex items-center gap-2">
                             {tenant.moveOutRaw ? (
@@ -1980,23 +2041,25 @@ export default async function LeaseDetailsPage({
                           <div className="mt-1 space-y-1">
                             <TenantMoveInEditor contactId={tenant.id} value={tenant.moveIn} />
                             {tenant.moveOut ? (
-                              <div className="text-muted-foreground text-xs">
+                              <Body as="div" size="xs" tone="muted">
                                 Move-out: {tenant.moveOut}
-                              </div>
+                              </Body>
                             ) : null}
                             {tenant.notice ? (
-                              <div className="text-muted-foreground text-xs">
+                              <Body as="div" size="xs" tone="muted">
                                 Notice given: {tenant.notice}
-                              </div>
+                              </Body>
                             ) : null}
                           </div>
-                          <div className="text-muted-foreground mt-4 flex flex-col gap-2 text-sm">
+                          <div className="mt-4 flex flex-col gap-2">
                             {tenant.phones.map((phone, idx) => (
                               <div key={idx} className="flex items-center gap-2">
                                 <Phone className="text-muted-foreground h-3.5 w-3.5" />
-                                <span className="text-foreground">{phone.number}</span>
+                                <Body as="span" size="sm">
+                                  {phone.number}
+                                </Body>
                                 {phone.action && (
-                                  <Button variant="link" className="h-auto p-0 text-xs" asChild>
+                                  <Button variant="link" size="sm" className="h-auto p-0" asChild>
                                     <Link href={phone.action.href}>{phone.action.label}</Link>
                                   </Button>
                                 )}
@@ -2005,7 +2068,9 @@ export default async function LeaseDetailsPage({
                             {tenant.email && (
                               <div className="text-foreground flex items-center gap-2">
                                 <Mail className="text-muted-foreground h-3.5 w-3.5" />
-                                <span>{tenant.email}</span>
+                                <Body as="span" size="sm">
+                                  {tenant.email}
+                                </Body>
                               </div>
                             )}
                           </div>
@@ -2039,42 +2104,54 @@ export default async function LeaseDetailsPage({
 
           {tenantsByRole.cosigners.length ? (
             <section className="space-y-3">
-              <h3 className="text-muted-foreground text-xs font-semibold tracking-wide">
+              <Label as="h3" size="xs" tone="muted" className="tracking-wide uppercase">
                 COSIGNERS
-              </h3>
+              </Label>
               <div className="flex flex-col gap-4">
                 {tenantsByRole.cosigners.map((tenant) => (
                   <Card key={tenant.id} className="border-border/60 rounded-xl border shadow-sm">
                     <CardContent className="flex flex-col gap-5 px-6 py-5 sm:flex-row sm:items-start">
                       <div className="flex flex-1 items-start gap-5">
                         <Avatar className="h-12 w-12">
-                          <AvatarFallback className="bg-primary/10 text-primary text-lg font-semibold">
-                            {tenant.initials}
+                          <AvatarFallback className="bg-primary/10 text-primary">
+                            <Heading as="span" size="h5">
+                              {tenant.initials}
+                            </Heading>
                           </AvatarFallback>
                         </Avatar>
                         <div>
                           {tenant.tenantId ? (
                             <Link
                               href={`/tenants/${tenant.tenantId}`}
-                              className="text-foreground hover:text-primary text-base font-medium hover:underline"
+                              className="hover:text-primary"
                             >
-                              {tenant.name}
+                              <Heading as="span" size="h6" className="hover:underline">
+                                {tenant.name}
+                              </Heading>
                             </Link>
                           ) : (
-                            <p className="text-foreground text-base font-medium">{tenant.name}</p>
+                            <Heading as="span" size="h6">
+                              {tenant.name}
+                            </Heading>
                           )}
-                          <p className="text-muted-foreground text-xs">{tenant.roleLabel}</p>
-                          <div className="text-muted-foreground mt-2 flex flex-col gap-1 text-sm">
+                          <Body as="p" size="xs" tone="muted">
+                            {tenant.roleLabel}
+                          </Body>
+                          <div className="mt-2 flex flex-col gap-1">
                             {tenant.phones.map((phone, idx) => (
                               <div key={idx} className="flex items-center gap-2">
                                 <Phone className="text-muted-foreground h-3.5 w-3.5" />
-                                <span className="text-foreground">{phone.number}</span>
+                                <Body as="span" size="sm">
+                                  {phone.number}
+                                </Body>
                               </div>
                             ))}
                             {tenant.email && (
                               <div className="text-foreground flex items-center gap-2">
                                 <Mail className="text-muted-foreground h-3.5 w-3.5" />
-                                <span>{tenant.email}</span>
+                                <Body as="span" size="sm">
+                                  {tenant.email}
+                                </Body>
                               </div>
                             )}
                           </div>
@@ -2101,8 +2178,10 @@ export default async function LeaseDetailsPage({
 
           {!tenantsByRole.tenants.length && !tenantsByRole.cosigners.length ? (
             <Card>
-              <CardContent className="text-muted-foreground py-8 text-sm">
-                No tenants or cosigners on this lease yet.
+              <CardContent className="py-8">
+                <Body as="div" size="sm" tone="muted">
+                  No tenants or cosigners on this lease yet.
+                </Body>
               </CardContent>
             </Card>
           ) : null}
@@ -2111,16 +2190,20 @@ export default async function LeaseDetailsPage({
 
       <TabsContent value="communications" className="space-y-6 px-6 pb-6">
         <Card>
-          <CardContent className="text-muted-foreground py-8 text-sm">
-            Communications timeline coming soon.
+          <CardContent className="py-8">
+            <Body as="div" size="sm" tone="muted">
+              Communications timeline coming soon.
+            </Body>
           </CardContent>
         </Card>
       </TabsContent>
 
       <TabsContent value="tasks" className="space-y-6 px-6 pb-6">
         <Card>
-          <CardContent className="text-muted-foreground py-8 text-sm">
-            Tasks for this lease will appear here.
+          <CardContent className="py-8">
+            <Body as="div" size="sm" tone="muted">
+              Tasks for this lease will appear here.
+            </Body>
           </CardContent>
         </Card>
       </TabsContent>
@@ -2139,8 +2222,10 @@ export default async function LeaseDetailsPage({
 
 function _PlaceholderPanel({ label }: { label: string }) {
   return (
-    <div className="border-border/70 bg-muted/10 text-muted-foreground rounded-lg border border-dashed px-6 py-20 text-center text-sm">
-      {label} coming soon.
+    <div className="border-border/70 bg-muted/10 rounded-lg border border-dashed px-6 py-20 text-center">
+      <Body as="div" size="sm" tone="muted">
+        {label} coming soon.
+      </Body>
     </div>
   );
 }

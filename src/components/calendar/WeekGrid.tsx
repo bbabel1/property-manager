@@ -4,6 +4,7 @@ import React from 'react'
 import { CalendarEvent } from '@/types/calendar'
 import { format, startOfWeek, addDays, isSameDay, parseISO, startOfDay, isWithinInterval } from 'date-fns'
 import { Button } from '@/components/ui/button'
+import { Body, Heading, Label } from '@/ui/typography'
 
 type WeekGridProps = {
   currentDate: Date
@@ -76,7 +77,7 @@ export function WeekGrid({
   }
 
   return (
-    <div className="flex-1 flex flex-col bg-white overflow-hidden">
+    <div className="flex flex-1 flex-col overflow-hidden bg-white">
       {/* Day headers */}
       <div className="grid grid-cols-8 border-b border-gray-200">
         <div className="border-r border-gray-200"></div>
@@ -87,18 +88,12 @@ export function WeekGrid({
               key={i}
               className="text-center py-2 border-r border-gray-200 last:border-r-0"
             >
-              <div className="text-xs font-medium text-gray-500 mb-1">
+              <Label as="div" tone="muted" size="xs" className="mb-1">
                 {daysOfWeekNames[i]}
-              </div>
-              <div
-                className={`text-lg font-medium ${
-                  isToday
-                    ? 'text-[#1a73e8]'
-                    : 'text-gray-700'
-                }`}
-              >
+              </Label>
+              <Heading as="div" size="h6" className={isToday ? 'text-primary' : ''}>
                 {format(day, 'd')}
-              </div>
+              </Heading>
             </div>
           )
         })}
@@ -115,9 +110,11 @@ export function WeekGrid({
               return (
                 <div
                   key={hour}
-                  className="h-[60px] border-b border-gray-100 text-xs text-gray-500 px-2 pt-1"
+                  className="h-[60px] border-b border-gray-100 px-2 pt-1"
                 >
-                  {format(hourDate, 'ha')}
+                  <Body as="span" tone="muted" size="xs">
+                    {format(hourDate, 'ha')}
+                  </Body>
                 </div>
               )
             })}
@@ -157,7 +154,7 @@ export function WeekGrid({
                       onClick={() => onEventClick(event)}
                       variant="ghost"
                       className={`
-                        absolute left-0 right-0 mx-1 text-xs text-white px-2 py-1 rounded
+                        absolute left-0 right-0 mx-1 rounded px-2 py-1 text-left
                         ${getEventColor(event.color)} hover:opacity-90 transition-opacity
                         overflow-hidden
                       `}
@@ -166,11 +163,13 @@ export function WeekGrid({
                         height: `${Math.max(height, 20)}px`,
                       }}
                     >
-                      <div className="truncate">{event.title}</div>
+                      <Body as="div" size="xs" className="truncate text-white">
+                        {event.title}
+                      </Body>
                       {!event.allDay && (
-                        <div className="text-[10px] opacity-90">
+                        <Body as="div" size="xs" className="opacity-90 text-white">
                           {format(parseISO(event.start), 'ha')}
-                        </div>
+                        </Body>
                       )}
                     </Button>
                   )

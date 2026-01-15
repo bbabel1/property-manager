@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import EditLink from '@/components/ui/EditLink'
 import { X } from 'lucide-react'
+import { Body, Heading, Label } from '@/ui/typography'
 
 interface EmergencyContactValues {
   emergency_contact_name?: string | null
@@ -75,7 +76,9 @@ export default function TenantEmergencyContactInlineEditor({ tenantId, initial }
   return (
     <div className="lg:col-span-2">
       <div className="mb-4 flex items-center gap-3 border-b border-border pb-3">
-        <h2 className="text-lg font-semibold text-foreground">Emergency contact</h2>
+        <Heading as="h2" size="h4" className="text-foreground">
+          Emergency contact
+        </Heading>
         {!editing ? <EditLink onClick={() => setEditing(true)} /> : null}
       </div>
       <Card className={editing ? 'relative overflow-hidden border-l-2 border-l-primary shadow-lg bg-white border border-border' : 'bg-white'}>
@@ -84,20 +87,36 @@ export default function TenantEmergencyContactInlineEditor({ tenantId, initial }
           {!editing ? (
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 text-sm">
               <div>
-                <div className="mb-1 text-xs font-medium text-muted-foreground">NAME</div>
-                <div className="text-foreground">{safe(values.emergency_contact_name)}</div>
+                <Label as="div" size="xs" tone="muted" className="mb-1 uppercase tracking-wide">
+                  NAME
+                </Label>
+                <Body as="div" size="sm" className="text-foreground">
+                  {safe(values.emergency_contact_name)}
+                </Body>
               </div>
               <div>
-                <div className="mb-1 text-xs font-medium text-muted-foreground">EMAIL</div>
-                <div className="text-foreground">{safe(values.emergency_contact_email)}</div>
+                <Label as="div" size="xs" tone="muted" className="mb-1 uppercase tracking-wide">
+                  EMAIL
+                </Label>
+                <Body as="div" size="sm" className="text-foreground">
+                  {safe(values.emergency_contact_email)}
+                </Body>
               </div>
               <div>
-                <div className="mb-1 text-xs font-medium text-muted-foreground">PHONE</div>
-                <div className="text-foreground">{safe(values.emergency_contact_phone)}</div>
+                <Label as="div" size="xs" tone="muted" className="mb-1 uppercase tracking-wide">
+                  PHONE
+                </Label>
+                <Body as="div" size="sm" className="text-foreground">
+                  {safe(values.emergency_contact_phone)}
+                </Body>
               </div>
               <div>
-                <div className="mb-1 text-xs font-medium text-muted-foreground">RELATIONSHIP</div>
-                <div className="text-foreground">{safe(values.emergency_contact_relationship)}</div>
+                <Label as="div" size="xs" tone="muted" className="mb-1 uppercase tracking-wide">
+                  RELATIONSHIP
+                </Label>
+                <Body as="div" size="sm" className="text-foreground">
+                  {safe(values.emergency_contact_relationship)}
+                </Body>
               </div>
             </div>
           ) : (
@@ -112,7 +131,9 @@ export default function TenantEmergencyContactInlineEditor({ tenantId, initial }
               </button>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 mt-2">
                 <div>
-                  <div className="text-xs mb-1">Name</div>
+                  <Label as="div" size="xs" className="mb-1">
+                    Name
+                  </Label>
                   <Input
                     value={values.emergency_contact_name ?? ''}
                     onChange={(e) => setValues((prev) => ({ ...prev, emergency_contact_name: e.target.value }))}
@@ -120,7 +141,9 @@ export default function TenantEmergencyContactInlineEditor({ tenantId, initial }
                   />
                 </div>
                 <div>
-                  <div className="text-xs mb-1">Email</div>
+                  <Label as="div" size="xs" className="mb-1">
+                    Email
+                  </Label>
                   <Input
                     type="email"
                     value={values.emergency_contact_email ?? ''}
@@ -129,7 +152,9 @@ export default function TenantEmergencyContactInlineEditor({ tenantId, initial }
                   />
                 </div>
                 <div>
-                  <div className="text-xs mb-1">Phone</div>
+                  <Label as="div" size="xs" className="mb-1">
+                    Phone
+                  </Label>
                   <Input
                     value={values.emergency_contact_phone ?? ''}
                     onChange={(e) => setValues((prev) => ({ ...prev, emergency_contact_phone: e.target.value }))}
@@ -137,7 +162,9 @@ export default function TenantEmergencyContactInlineEditor({ tenantId, initial }
                   />
                 </div>
                 <div>
-                  <div className="text-xs mb-1">Relationship</div>
+                  <Label as="div" size="xs" className="mb-1">
+                    Relationship
+                  </Label>
                   <Input
                     value={values.emergency_contact_relationship ?? ''}
                     onChange={(e) => setValues((prev) => ({ ...prev, emergency_contact_relationship: e.target.value }))}
@@ -145,7 +172,11 @@ export default function TenantEmergencyContactInlineEditor({ tenantId, initial }
                   />
                 </div>
               </div>
-              {error ? <div className="text-sm text-destructive">{error}</div> : null}
+              {error ? (
+                <Body as="div" size="sm" className="text-destructive">
+                  {error}
+                </Body>
+              ) : null}
               <div className="flex items-center gap-3">
                 <Button onClick={handleSave} disabled={saving}>
                   {saving ? 'Saving…' : 'Save'}

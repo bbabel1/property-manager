@@ -4,6 +4,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Info } from 'lucide-react';
 import ManagementServiceCard from '@/components/property/ManagementServiceCard';
+import { Body, Heading, Label } from '@/ui/typography';
 
 interface UnitServicesTabProps {
   propertyId: string;
@@ -36,10 +37,12 @@ export default function UnitServicesTab({
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h2 className="text-foreground text-2xl font-bold">Unit Service Configuration</h2>
-        <p className="text-muted-foreground mt-1 text-sm">
+        <Heading as="h2" size="h3">
+          Unit Service Configuration
+        </Heading>
+        <Body tone="muted" size="sm" className="mt-1">
           Configure service offerings and pricing for {unitLabel}.
-        </p>
+        </Body>
       </div>
 
       {/* Info Banner */}
@@ -48,11 +51,13 @@ export default function UnitServicesTab({
           <CardContent className="flex items-start gap-3 pt-6">
             <Info className="mt-0.5 h-5 w-5 flex-shrink-0 text-blue-600" />
             <div className="text-sm text-blue-900">
-              <p className="mb-1 font-medium">Property-Level Assignment</p>
-              <p>
+              <Label as="p" size="sm" className="mb-1 font-medium text-blue-900">
+                Property-Level Assignment
+              </Label>
+              <Body as="p" size="sm" className="text-blue-900">
                 This property uses property-level service assignment. Services are configured on the
                 property Services page and are view-only here.
-              </p>
+              </Body>
             </div>
           </CardContent>
         </Card>

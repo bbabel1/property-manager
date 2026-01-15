@@ -16,7 +16,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -27,6 +26,8 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/components/ui/utils';
+import { Checkbox } from '@/ui/checkbox';
+import { Body, Heading, Label } from '@/ui/typography';
 
 type PropertyOption = { id: string; name: string };
 type UnitOption = { id: string; propertyId: string; label: string };
@@ -337,7 +338,9 @@ export default function RecurringTaskManagerDialog({
   const renderReminderPills = (values: number[], target: 'create' | 'edit') => (
     <div className="flex flex-wrap gap-2">
       {values.length === 0 ? (
-        <span className="text-muted-foreground text-xs">No reminders added.</span>
+        <Body as="span" size="xs" tone="muted">
+          No reminders added.
+        </Body>
       ) : (
         values.map((value) => (
           <Badge
@@ -393,12 +396,16 @@ export default function RecurringTaskManagerDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="bg-card border-border/80 max-h-[94vh] w-[680px] max-w-[680px] overflow-y-auto rounded-none border p-0 shadow-2xl sm:rounded-2xl">
         <DialogHeader className="border-border/80 border-b px-6 py-4">
-          <DialogTitle className="text-foreground text-xl font-semibold">
-            Recurring Tasks
+          <DialogTitle>
+            <Heading as="div" size="h4">
+              Recurring Tasks
+            </Heading>
           </DialogTitle>
-          <DialogDescription className="text-muted-foreground text-sm">
-            Select a property and unit, then manage the recurring tasks that should generate for
-            that unit’s monthly logs.
+          <DialogDescription>
+            <Body as="p" size="sm" tone="muted">
+              Select a property and unit, then manage the recurring tasks that should generate for
+              that unit’s monthly logs.
+            </Body>
           </DialogDescription>
         </DialogHeader>
 
@@ -407,7 +414,7 @@ export default function RecurringTaskManagerDialog({
             <div className="border-border/80 rounded-xl border bg-white p-4 shadow-sm">
               <div className="space-y-3">
                 <div>
-                  <Label className="text-xs font-semibold tracking-wide text-slate-600 uppercase">
+                  <Label size="xs" tone="muted" className="tracking-wide uppercase">
                     Property
                   </Label>
                   <Select
@@ -431,7 +438,7 @@ export default function RecurringTaskManagerDialog({
                 </div>
 
                 <div>
-                  <Label className="text-xs font-semibold tracking-wide text-slate-600 uppercase">
+                  <Label size="xs" tone="muted" className="tracking-wide uppercase">
                     Unit
                   </Label>
                   <Select
@@ -453,10 +460,10 @@ export default function RecurringTaskManagerDialog({
                 </div>
               </div>
               <div className="mt-4 flex items-center justify-between gap-3">
-                <div className="text-muted-foreground flex items-center gap-2 text-xs">
-                  <ShieldCheck className="h-4 w-4 text-[var(--color-success-600)]" />
+                <Body as="div" size="xs" tone="muted" className="flex items-center gap-2">
+                  <ShieldCheck className="h-4 w-4 text-success-600" />
                   Monthly log only
-                </div>
+                </Body>
                 <Button
                   type="button"
                   className="gap-2"
@@ -472,15 +479,22 @@ export default function RecurringTaskManagerDialog({
         ) : (
           <div className="space-y-5 p-6">
             <div className="border-border/80 flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-white px-4 py-3 shadow-sm">
-              <div className="text-muted-foreground flex flex-wrap items-center gap-3 text-sm">
-                <Badge variant="outline" className="status-pill bg-muted/60 text-foreground">
+              <Body
+                as="div"
+                size="sm"
+                tone="muted"
+                className="flex flex-wrap items-center gap-3"
+              >
+                <Badge variant="secondary" className="status-pill">
                   {selectedPropertyName}
                 </Badge>
-                <Badge variant="outline" className="status-pill bg-muted/60 text-foreground">
+                <Badge variant="secondary" className="status-pill">
                   {selectedUnitLabel}
                 </Badge>
-                <span className="text-muted-foreground text-xs">Recurring tasks for this unit</span>
-              </div>
+                <Body as="span" size="xs" tone="muted">
+                  Recurring tasks for this unit
+                </Body>
+              </Body>
               <div className="flex items-center gap-2">
                 <Button
                   type="button"
@@ -500,21 +514,30 @@ export default function RecurringTaskManagerDialog({
                   <div className="flex items-center gap-2">
                     <CalendarClock className="text-primary h-4 w-4" />
                     <div>
-                      <div className="text-foreground text-sm font-semibold">
+                      <Heading as="div" size="h6">
                         Recurring tasks ({tasks.length})
-                      </div>
-                      <p className="text-muted-foreground text-xs">
+                      </Heading>
+                      <Body as="p" size="xs" tone="muted">
                         Active tasks for this unit. Edit, pause, or remove as needed.
-                      </p>
+                      </Body>
                     </div>
                   </div>
-                  {isLoading ? <div className="text-muted-foreground text-xs">Loading…</div> : null}
+                  {isLoading ? (
+                    <Body as="div" size="xs" tone="muted">
+                      Loading…
+                    </Body>
+                  ) : null}
                 </div>
 
                 {tasks.length === 0 ? (
-                  <div className="border-border/70 bg-muted/40 text-muted-foreground rounded-lg border border-dashed p-6 text-center text-sm">
+                  <Body
+                    as="div"
+                    size="sm"
+                    tone="muted"
+                    className="border-border/70 bg-muted/40 rounded-lg border border-dashed p-6 text-center"
+                  >
                     No recurring tasks for this unit yet.
-                  </div>
+                  </Body>
                 ) : (
                   <div className="space-y-3">
                     {tasks.map((task) => (
@@ -524,17 +547,12 @@ export default function RecurringTaskManagerDialog({
                       >
                         <div className="flex flex-wrap items-center justify-between gap-3">
                           <div className="flex items-center gap-2">
-                            <span className="text-foreground text-sm font-semibold">
+                            <Label as="span" size="sm">
                               {task.title}
-                            </span>
+                            </Label>
                             <Badge
-                              variant="outline"
-                              className={cn(
-                                'status-pill text-[11px]',
-                                task.isActive
-                                  ? 'border-[var(--color-success-500)] bg-[var(--color-success-50)] text-[var(--color-success-700)]'
-                                  : 'border-border bg-muted/80 text-muted-foreground',
-                              )}
+                              variant={task.isActive ? 'success' : 'outline'}
+                              className="status-pill text-[11px]"
                             >
                               {task.isActive ? 'Active' : 'Paused'}
                             </Badge>
@@ -561,19 +579,26 @@ export default function RecurringTaskManagerDialog({
                             </Button>
                           </div>
                         </div>
-                        <div className="text-muted-foreground mt-1 text-xs">
+                        <Body as="div" size="xs" tone="muted" className="mt-1">
                           {task.frequency ? `${task.frequency} • ` : ''}
                           Due {task.dueAnchor.replace('_', ' ')}
                           {task.dueOffsetDays ? ` • Offset ${task.dueOffsetDays}d` : ''}
-                        </div>
+                        </Body>
                         {task.description ? (
-                          <p className="text-foreground/80 mt-2 text-sm">{task.description}</p>
+                          <Body as="p" size="sm" className="mt-2 text-foreground/80">
+                            {task.description}
+                          </Body>
                         ) : null}
                         {task.reminders.length ? (
-                          <div className="text-muted-foreground mt-2 flex items-center gap-2 text-xs">
+                          <Body
+                            as="div"
+                            size="xs"
+                            tone="muted"
+                            className="mt-2 flex items-center gap-2"
+                          >
                             <Bell className="h-3.5 w-3.5" />
                             Reminders: {task.reminders.map((r) => `${r}d before`).join(', ')}
-                          </div>
+                          </Body>
                         ) : null}
                       </div>
                     ))}
@@ -585,18 +610,18 @@ export default function RecurringTaskManagerDialog({
                 <div className="flex items-center gap-2">
                   <Users className="text-primary h-4 w-4" />
                   <div>
-                    <div className="text-foreground text-sm font-semibold">
+                    <Heading as="div" size="h6">
                       {editingId ? 'Edit recurring task' : 'New recurring task'}
-                    </div>
-                    <p className="text-muted-foreground text-xs">
+                    </Heading>
+                    <Body as="p" size="xs" tone="muted">
                       Assign staff, reminders, and cadence for this unit.
-                    </p>
+                    </Body>
                   </div>
                 </div>
 
                 <form onSubmit={editingId ? handleEditSubmit : handleCreate} className="space-y-4">
                   <div className="space-y-2">
-                    <Label className="text-xs font-semibold tracking-wide text-slate-600 uppercase">
+                    <Label size="xs" tone="muted" className="tracking-wide uppercase">
                       Subject
                     </Label>
                     <Input
@@ -612,7 +637,7 @@ export default function RecurringTaskManagerDialog({
                   </div>
 
                   <div className="space-y-2">
-                    <Label className="text-xs font-semibold tracking-wide text-slate-600 uppercase">
+                    <Label size="xs" tone="muted" className="tracking-wide uppercase">
                       Body
                     </Label>
                     <Textarea
@@ -632,7 +657,7 @@ export default function RecurringTaskManagerDialog({
 
                   <div className="grid gap-3 md:grid-cols-3">
                     <div className="space-y-2">
-                      <Label className="text-xs font-semibold tracking-wide text-slate-600 uppercase">
+                      <Label size="xs" tone="muted" className="tracking-wide uppercase">
                         Frequency
                       </Label>
                       <Select
@@ -662,7 +687,7 @@ export default function RecurringTaskManagerDialog({
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-xs font-semibold tracking-wide text-slate-600 uppercase">
+                      <Label size="xs" tone="muted" className="tracking-wide uppercase">
                         Interval
                       </Label>
                       <Input
@@ -683,7 +708,7 @@ export default function RecurringTaskManagerDialog({
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-xs font-semibold tracking-wide text-slate-600 uppercase">
+                      <Label size="xs" tone="muted" className="tracking-wide uppercase">
                         Active
                       </Label>
                       <div className="border-border/70 bg-muted/40 flex h-10 items-center gap-3 rounded-lg border px-3">
@@ -696,10 +721,7 @@ export default function RecurringTaskManagerDialog({
                           }
                           id="recurring-active-toggle"
                         />
-                        <Label
-                          htmlFor="recurring-active-toggle"
-                          className="text-foreground text-sm font-medium"
-                        >
+                        <Label htmlFor="recurring-active-toggle" size="sm">
                           {editingId
                             ? editingState.isActive
                               ? 'Enabled'
@@ -714,7 +736,7 @@ export default function RecurringTaskManagerDialog({
 
                   <div className="grid gap-3 md:grid-cols-3">
                     <div className="space-y-2">
-                      <Label className="text-xs font-semibold tracking-wide text-slate-600 uppercase">
+                      <Label size="xs" tone="muted" className="tracking-wide uppercase">
                         Due anchor
                       </Label>
                       <Select
@@ -741,7 +763,7 @@ export default function RecurringTaskManagerDialog({
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-xs font-semibold tracking-wide text-slate-600 uppercase">
+                      <Label size="xs" tone="muted" className="tracking-wide uppercase">
                         Offset (days)
                       </Label>
                       <Input
@@ -761,7 +783,7 @@ export default function RecurringTaskManagerDialog({
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-xs font-semibold tracking-wide text-slate-600 uppercase">
+                      <Label size="xs" tone="muted" className="tracking-wide uppercase">
                         Reminders
                       </Label>
                       <div className="flex items-center gap-2">
@@ -789,7 +811,7 @@ export default function RecurringTaskManagerDialog({
 
                   <div className="grid gap-3 md:grid-cols-2">
                     <div className="space-y-2">
-                      <Label className="text-xs font-semibold tracking-wide text-slate-600 uppercase">
+                      <Label size="xs" tone="muted" className="tracking-wide uppercase">
                         Assigned staff
                       </Label>
                       <StaffSelect
@@ -803,7 +825,7 @@ export default function RecurringTaskManagerDialog({
                         }
                         placeholder={staffLoading ? 'Loading staff...' : 'Choose staff'}
                       />
-                      <div className="text-muted-foreground flex items-center gap-2 text-xs">
+                      <Body as="div" size="xs" tone="muted" className="flex items-center gap-2">
                         <Switch
                           id="auto-assign-pm"
                           checked={
@@ -817,36 +839,41 @@ export default function RecurringTaskManagerDialog({
                               : setCreateState((prev) => ({ ...prev, autoAssignManager: checked }))
                           }
                         />
-                        <Label htmlFor="auto-assign-pm">Auto-assign property manager</Label>
-                      </div>
+                        <Label htmlFor="auto-assign-pm" size="sm">
+                          Auto-assign property manager
+                        </Label>
+                      </Body>
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-xs font-semibold tracking-wide text-slate-600 uppercase">
+                      <Label size="xs" tone="muted" className="tracking-wide uppercase">
                         Additional staff
                       </Label>
                       <div className="border-border/70 max-h-28 space-y-1 overflow-y-auto rounded-lg border p-2">
                         {staffOptions.length === 0 ? (
-                          <div className="text-muted-foreground text-xs">No staff available.</div>
+                          <Body as="div" size="xs" tone="muted">
+                            No staff available.
+                          </Body>
                         ) : (
                           staffOptions.map((staff) => {
                             const isChecked = editingId
                               ? editingState.additionalStaffIds.includes(staff.id)
                               : createState.additionalStaffIds.includes(staff.id);
                             return (
-                              <label
+                              <Label
+                                as="label"
                                 key={staff.id}
-                                className="hover:bg-muted/60 flex cursor-pointer items-center justify-between rounded-md px-2 py-1 text-sm"
+                                size="sm"
+                                className="hover:bg-muted/60 flex cursor-pointer items-center justify-between rounded-md px-2 py-1"
                               >
                                 <span>{staff.name}</span>
-                                <input
-                                  type="checkbox"
+                                <Checkbox
                                   checked={isChecked}
                                   onChange={() =>
                                     toggleAdditionalStaff(staff.id, editingId ? 'edit' : 'create')
                                   }
-                                  className="accent-primary"
+                                  className="h-4 w-4"
                                 />
-                              </label>
+                              </Label>
                             );
                           })
                         )}

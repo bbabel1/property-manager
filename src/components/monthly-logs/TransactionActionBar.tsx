@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import type { TransactionMode } from './MonthlyLogTransactionOverlay';
+import { Body } from '@/ui/typography';
 
 const TRANSACTION_MODE_LABELS: Record<TransactionMode, string> = {
   payment: 'Payment',
@@ -62,7 +63,9 @@ export default function TransactionActionBar({
       <div className="flex flex-col flex-wrap items-start gap-3 sm:flex-row sm:items-center">
         {/* Scope Selector */}
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-slate-800">Scope:</span>
+          <Body as="span" size="sm" className="font-medium text-slate-800">
+            Scope:
+          </Body>
           <RadioGroup
             value={transactionScope}
             onValueChange={(value) => onScopeChange(value as 'lease' | 'unit')}
@@ -83,7 +86,9 @@ export default function TransactionActionBar({
             ) : null}
           </RadioGroup>
           {!hasActiveLease && !supportsUnitTransactions ? (
-            <span className="text-sm text-slate-600">Unavailable</span>
+            <Body as="span" size="sm" tone="muted" className="text-slate-600">
+              Unavailable
+            </Body>
           ) : null}
         </div>
 
@@ -142,14 +147,22 @@ export default function TransactionActionBar({
 
       {/* Info Messages */}
       {addTransactionDisabledReason ? (
-        <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+        <Body
+          as="div"
+          size="sm"
+          className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-800"
+        >
           <Info className="mt-0.5 h-4 w-4 flex-shrink-0" />
           <p>{addTransactionDisabledReason}</p>
-        </div>
+        </Body>
       ) : null}
 
       {(!hasActiveLease || !supportsUnitTransactions) && !addTransactionDisabledReason ? (
-        <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+        <Body
+          as="div"
+          size="sm"
+          className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-800"
+        >
           <Info className="mt-0.5 h-4 w-4 flex-shrink-0" />
           <div className="space-y-1">
             {!hasActiveLease ? (
@@ -162,7 +175,7 @@ export default function TransactionActionBar({
               <p>Unit transactions require this monthly log to be linked to a unit.</p>
             ) : null}
           </div>
-        </div>
+        </Body>
       ) : null}
     </div>
   );

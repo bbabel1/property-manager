@@ -43,6 +43,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useAuth } from '@/components/providers';
 import { RoleRank, type AppRole } from '@/lib/auth/roles';
 import { cn } from '@/components/ui/utils';
+import { Body } from '@/ui/typography';
 
 type NavItem = {
   id: string;
@@ -339,7 +340,7 @@ export function AppSidebarLayout({ children, title }: { children: ReactNode; tit
                               }
                             }}
                             className={cn(
-                              'sidebar-submenu border-border bg-popover text-popover-foreground fixed z-[9999] min-w-[15.5rem] max-h-[calc(100vh-32px)] overflow-y-auto rounded-lg border p-3 shadow-md',
+                              'sidebar-submenu border-border bg-background text-popover-foreground fixed z-[9999] min-w-[15.5rem] max-h-[calc(100vh-32px)] overflow-y-auto rounded-lg border p-3 shadow-md',
                               isOpen
                                 ? 'pointer-events-auto visible opacity-100 transition-opacity duration-150'
                                 : 'pointer-events-none invisible opacity-0',
@@ -409,7 +410,9 @@ export function AppSidebarLayout({ children, title }: { children: ReactNode; tit
                     </AvatarFallback>
                   </Avatar>
                   <div className="min-w-0">
-                    <div className="truncate text-sm font-medium">{displayName}</div>
+                    <Body as="div" size="sm" className="truncate font-medium">
+                      {displayName}
+                    </Body>
                     {roleLabel ? (
                       <div className="text-muted-foreground truncate text-xs">{roleLabel}</div>
                     ) : null}
@@ -434,9 +437,9 @@ export function AppSidebarLayout({ children, title }: { children: ReactNode; tit
             <div className="border-border bg-background/95 sticky top-0 z-10 border-b backdrop-blur supports-[backdrop-filter]:bg-background/80">
               <div className="flex h-12 items-center gap-2 px-3 sm:px-4 md:px-6">
                 <SidebarTrigger />
-                <div className="text-foreground truncate text-base font-medium">
+                <Body as="div" className="text-foreground truncate font-medium">
                   {title ?? activeLabel}
-                </div>
+                </Body>
               </div>
             </div>
             <div className="bg-background">{children}</div>

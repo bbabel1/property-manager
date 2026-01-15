@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Dropdown } from '@/components/ui/Dropdown'
 import { BEDROOM_OPTIONS, BATHROOM_OPTIONS } from '@/types/units'
+import { Body, Heading, Label } from '@/ui/typography'
 
 type UnitCardProperty = {
   id?: string | null
@@ -53,7 +54,12 @@ const parseJson = async <T,>(res: Response, fallback: T): Promise<T> => {
 
 export default function UnitDetailsCard({ property, unit }: { property: UnitCardProperty; unit: UnitCardUnit }) {
   const status = String(unit?.status || '').toLowerCase()
-  const statusCls = status === 'occupied' ? 'bg-[var(--color-action-50)] text-[var(--color-action-600)]' : status ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-800'
+  const statusVariant =
+    status === 'occupied'
+      ? 'success'
+      : status
+        ? 'warning'
+        : 'info'
   const bedrooms = unit?.unit_bedrooms ?? '—'
   const bathrooms = unit?.unit_bathrooms ?? '—'
   const size = unit?.unit_size ? `${unit.unit_size} sq ft` : '—'
@@ -176,32 +182,44 @@ export default function UnitDetailsCard({ property, unit }: { property: UnitCard
             {previewUrl ? (uploading ? 'Uploading…' : 'Replace Image') : (uploading ? 'Uploading…' : 'Add Image')}
           </button>
           {uploadError ? <p className="mt-1 text-xs text-destructive">{uploadError}</p> : null}
-          {uploadSuccess ? <p className="mt-1 text-xs text-[var(--color-action-600)]">{uploadSuccess}</p> : null}
+          {uploadSuccess ? <p className="mt-1 text-xs text-primary-600">{uploadSuccess}</p> : null}
         </div>
       </div>
       <div className="space-y-5 md:col-span-3">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            {status ? <Badge className={statusCls}>{unit?.status}</Badge> : null}
+            {status ? (
+              <Badge variant={statusVariant} className="status-pill">
+                {unit?.status}
+              </Badge>
+            ) : null}
             {unit?.buildium_unit_id ? (
               <Badge variant="secondary">{unit.buildium_unit_id}</Badge>
             ) : (
               <Badge variant="outline">Not in Buildium</Badge>
             )}
           </div>
-          <h2 className="text-xl font-semibold text-foreground">
+          <Heading as="h2" size="h3" className="text-foreground">
             {(property?.address_line1 || property?.name || 'Property')}{unit?.unit_number ? ` - ${unit.unit_number}` : ''}
-          </h2>
+          </Heading>
         </div>
 
         {/* Address */}
         <div>
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Address</p>
-          <p className="text-sm font-medium text-foreground leading-tight">{unit?.address_line1 || property?.address_line1 || '—'}</p>
-          {unit?.address_line2 ? <p className="text-sm font-medium text-foreground leading-tight">{unit.address_line2}</p> : null}
-          <p className="text-sm text-muted-foreground leading-tight">
+          <Label as="div" size="xs" tone="muted" className="tracking-wider uppercase">
+            Address
+          </Label>
+          <Body as="p" size="sm" className="font-medium leading-tight text-foreground">
+            {unit?.address_line1 || property?.address_line1 || '—'}
+          </Body>
+          {unit?.address_line2 ? (
+            <Body as="p" size="sm" className="font-medium leading-tight text-foreground">
+              {unit.address_line2}
+            </Body>
+          ) : null}
+          <Body as="p" size="sm" tone="muted" className="leading-tight">
             {(unit?.city || property?.city) || '—'}{property?.state ? `, ${property.state}` : ''} {unit?.postal_code || property?.postal_code || ''}
-          </p>
+          </Body>
         </div>
 
         {/* Specifications */}
@@ -294,7 +312,7 @@ export default function UnitDetailsCard({ property, unit }: { property: UnitCard
             >Remove Image</button>
           ) : null}
           {uploadError ? <p className="mt-1 text-xs text-destructive">{uploadError}</p> : null}
-          {uploadSuccess ? <p className="mt-1 text-xs text-[var(--color-action-600)]">{uploadSuccess}</p> : null}
+          {uploadSuccess ? <p className="mt-1 text-xs text-primary-600">{uploadSuccess}</p> : null}
         </div>
       </div>
       <div className="space-y-5 md:col-span-3">

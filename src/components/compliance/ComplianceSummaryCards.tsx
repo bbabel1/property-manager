@@ -1,13 +1,14 @@
-'use client'
+'use client';
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { AlertTriangle, Clock, TrendingUp } from 'lucide-react'
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { AlertTriangle, Clock, TrendingUp } from 'lucide-react';
+import { Body, Heading } from '@/ui/typography';
 
 interface ComplianceSummaryCardsProps {
-  openViolations: number
-  overdueItems: number
-  itemsDueNext30Days: number
-  averageRiskScore: number | null
+  openViolations: number;
+  overdueItems: number;
+  itemsDueNext30Days: number;
+  averageRiskScore: number | null;
 }
 
 export function ComplianceSummaryCards({
@@ -20,51 +21,71 @@ export function ComplianceSummaryCards({
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Open Violations</CardTitle>
-          <AlertTriangle className="h-4 w-4 text-destructive" />
+          <Body as="div" size="sm" className="font-medium">
+            Open Violations
+          </Body>
+          <AlertTriangle className="text-destructive h-4 w-4" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{openViolations}</div>
-          <p className="text-xs text-muted-foreground">Active compliance violations</p>
+          <Heading as="div" size="h2" className="font-bold">
+            {openViolations}
+          </Heading>
+          <Body as="p" size="xs" tone="muted">
+            Active compliance violations
+          </Body>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Overdue Items</CardTitle>
-          <AlertTriangle className="h-4 w-4 text-destructive" />
+          <Body as="div" size="sm" className="font-medium">
+            Overdue Items
+          </Body>
+          <AlertTriangle className="text-destructive h-4 w-4" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{overdueItems}</div>
-          <p className="text-xs text-muted-foreground">Past due compliance items</p>
+          <Heading as="div" size="h2" className="font-bold">
+            {overdueItems}
+          </Heading>
+          <Body as="p" size="xs" tone="muted">
+            Past due compliance items
+          </Body>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Due in Next 30 Days</CardTitle>
-          <Clock className="h-4 w-4 text-warning" />
+          <Body as="div" size="sm" className="font-medium">
+            Due in Next 30 Days
+          </Body>
+          <Clock className="text-warning h-4 w-4" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{itemsDueNext30Days}</div>
-          <p className="text-xs text-muted-foreground">Upcoming compliance deadlines</p>
+          <Heading as="div" size="h2" className="font-bold">
+            {itemsDueNext30Days}
+          </Heading>
+          <Body as="p" size="xs" tone="muted">
+            Upcoming compliance deadlines
+          </Body>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Average Risk Score</CardTitle>
-          <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          <Body as="div" size="sm" className="font-medium">
+            Average Risk Score
+          </Body>
+          <TrendingUp className="text-muted-foreground h-4 w-4" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">
+          <Heading as="div" size="h2" className="font-bold">
             {averageRiskScore !== null ? Math.round(averageRiskScore) : '—'}
-          </div>
-          <p className="text-xs text-muted-foreground">
+          </Heading>
+          <Body as="p" size="xs" tone="muted">
             {averageRiskScore !== null ? 'Portfolio risk level' : 'No data available'}
-          </p>
+          </Body>
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

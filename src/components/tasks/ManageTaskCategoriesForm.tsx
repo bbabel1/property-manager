@@ -17,6 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { Body, Label } from '@/ui/typography';
 
 type CategoryRecord = {
   id: string;
@@ -154,14 +155,18 @@ export default function ManageTaskCategoriesForm({
       <PageBody>
         <Card className="border-border/70 border shadow-sm">
           <CardContent className="space-y-0 p-0">
-            <Table className="text-sm">
+            <Table>
               <TableHeader>
                 <TableRow className="border-border bg-muted/30 sticky top-0 z-10 border-b">
-                  <TableHead className="text-muted-foreground w-2/5 px-4 py-3 text-xs tracking-wide uppercase">
-                    Category name
+                  <TableHead className="w-2/5 px-4 py-3">
+                    <Label as="span" size="xs" tone="muted" className="tracking-wide uppercase">
+                      Category name
+                    </Label>
                   </TableHead>
-                  <TableHead className="text-muted-foreground px-4 py-3 text-xs tracking-wide uppercase">
-                    Details
+                  <TableHead className="px-4 py-3">
+                    <Label as="span" size="xs" tone="muted" className="tracking-wide uppercase">
+                      Details
+                    </Label>
                   </TableHead>
                   <TableHead className="w-12 px-4 py-3">
                     <span className="sr-only">Remove</span>
@@ -171,8 +176,10 @@ export default function ManageTaskCategoriesForm({
               <TableBody className="divide-border/70 divide-y">
                 {visibleDrafts.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={3} className="text-muted-foreground bg-background px-4 py-8 text-center text-sm">
-                      No categories yet. Add one below to get started.
+                    <TableCell colSpan={3} className="bg-background px-4 py-8 text-center">
+                      <Body tone="muted" size="sm">
+                        No categories yet. Add one below to get started.
+                      </Body>
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -186,13 +193,15 @@ export default function ManageTaskCategoriesForm({
                             onChange={(event) => handleNameChange(draft.localId, event.target.value)}
                             disabled={saving || draft.isUnassigned}
                             placeholder="Category name"
-                            className="focus:border-primary border-transparent bg-transparent px-0 text-base font-medium shadow-none focus:bg-white"
+                            className="focus:border-primary border-transparent bg-transparent px-0 shadow-none focus:bg-white"
                           />
                         </TableCell>
-                        <TableCell className="text-muted-foreground px-4 py-3 align-middle text-sm">
-                          {draft.isUnassigned
-                            ? 'Tasks without a category are listed here.'
-                            : taskCountLabel(draft.taskCount)}
+                        <TableCell className="px-4 py-3 align-middle">
+                          <Body tone="muted" size="sm">
+                            {draft.isUnassigned
+                              ? 'Tasks without a category are listed here.'
+                              : taskCountLabel(draft.taskCount)}
+                          </Body>
                         </TableCell>
                         <TableCell className="px-4 py-3 text-right align-middle">
                           {isRemovable ? (
@@ -219,7 +228,8 @@ export default function ManageTaskCategoriesForm({
               <Button
                 type="button"
                 variant="link"
-                className="px-0 text-sm font-medium"
+                size="sm"
+                className="px-0"
                 onClick={handleAdd}
                 disabled={saving}
               >

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
+import { Label as FormLabel } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/table';
 import { Loader2, Save, Printer, X, Trash2 } from 'lucide-react';
 import DestructiveActionModal from '@/components/common/DestructiveActionModal';
+import { Body, Heading, Label } from '@/ui/typography';
 
 type BankAccount = {
   id: string;
@@ -190,7 +191,9 @@ export default function DepositEditForm({
     <div className="bg-card flex max-h-screen w-full flex-col overflow-hidden rounded-none border-none shadow-2xl sm:max-h-[95vh] sm:w-[min(900px,95vw)] sm:rounded-2xl sm:border">
       <div className="border-b p-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-xl font-semibold">Edit deposit</h1>
+          <Heading as="h1" size="h4">
+            Edit deposit
+          </Heading>
           <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8">
             <X className="h-4 w-4" />
           </Button>
@@ -208,9 +211,9 @@ export default function DepositEditForm({
         <div className="space-y-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <Label htmlFor="bankAccount" className="text-sm font-medium">
+              <FormLabel htmlFor="bankAccount" className="text-sm font-[var(--font-weight-medium)]">
                 BANK ACCOUNT <span className="text-destructive">*</span>
-              </Label>
+              </FormLabel>
               <Select
                 value={formData.bankAccountId}
                 onValueChange={(value) => setFormData({ ...formData, bankAccountId: value })}
@@ -231,9 +234,9 @@ export default function DepositEditForm({
             </div>
 
             <div>
-              <Label htmlFor="date" className="text-sm font-medium">
+              <FormLabel htmlFor="date" className="text-sm font-[var(--font-weight-medium)]">
                 DATE <span className="text-destructive">*</span>
-              </Label>
+              </FormLabel>
               <DatePicker
                 id="date"
                 value={formData.date}
@@ -244,9 +247,9 @@ export default function DepositEditForm({
           </div>
 
           <div>
-            <Label htmlFor="memo" className="text-sm font-medium">
+            <FormLabel htmlFor="memo" className="text-sm font-[var(--font-weight-medium)]">
               MEMO
-            </Label>
+            </FormLabel>
             <Textarea
               id="memo"
               value={formData.memo}
@@ -263,14 +266,16 @@ export default function DepositEditForm({
 
         {/* Total Deposit Amount Section */}
         <div className="bg-muted rounded-md p-4">
-          <div className="text-muted-foreground text-sm font-medium">TOTAL DEPOSIT AMOUNT</div>
-          <div className="mt-2 text-2xl font-semibold">
+          <Label as="div" size="sm" tone="muted">
+            TOTAL DEPOSIT AMOUNT
+          </Label>
+          <Heading as="p" size="h3" className="mt-2">
             $
             {totalAmount.toLocaleString('en-US', {
               minimumFractionDigits: 2,
               maximumFractionDigits: 2,
             })}
-          </div>
+          </Heading>
           <div className="text-muted-foreground mt-1 text-sm">
             {paymentCount} deposited payment{paymentCount !== 1 ? 's' : ''}
           </div>
@@ -279,7 +284,9 @@ export default function DepositEditForm({
         {/* Other Deposit Items Section */}
         <div>
           <div className="mb-2 flex items-center justify-between">
-            <h3 className="text-sm font-medium">Other deposit items</h3>
+            <Label as="h3" size="sm">
+              Other deposit items
+            </Label>
             <Button type="button" variant="ghost" size="sm" className="text-sm">
               + Add another
             </Button>
@@ -288,7 +295,9 @@ export default function DepositEditForm({
 
         {/* Payments Section */}
         <div>
-          <h3 className="mb-3 text-sm font-medium">Payments</h3>
+          <Label as="h3" size="sm" className="mb-3">
+            Payments
+          </Label>
           {deposit?.payment_transactions && deposit.payment_transactions.length > 0 ? (
             <div className="rounded-md border">
               <Table>
@@ -337,7 +346,9 @@ export default function DepositEditForm({
 
         {/* Attachment Section */}
         <div>
-          <Label className="text-sm font-medium">Attachment (1 file up to 1000kb)</Label>
+          <Label as="div" size="sm">
+            Attachment (1 file up to 1000kb)
+          </Label>
           <div className="border-muted-foreground/25 mt-2 rounded-md border-2 border-dashed p-8 text-center">
             <p className="text-muted-foreground text-sm">
               Drag & drop file here or{' '}

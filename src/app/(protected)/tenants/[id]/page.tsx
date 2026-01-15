@@ -27,6 +27,7 @@ import {
   NavTabsContent,
 } from '@/components/ui/nav-tabs';
 import { resolveLeaseBalances } from '@/lib/lease-balance';
+import { Body, Heading } from '@/ui/typography';
 
 type ContactDetails = {
   first_name?: string | null;
@@ -467,7 +468,9 @@ export default async function TenantDetailsPage({ params }: { params: Promise<{ 
       <div className="flex items-start justify-between">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-foreground text-2xl font-semibold">{name}</h1>
+            <Heading as="h1" size="h2">
+              {name}
+            </Heading>
             {tenant?.buildium_tenant_id ? (
               <Badge variant="secondary" className="text-xs">
                 {tenant.buildium_tenant_id}
@@ -478,7 +481,9 @@ export default async function TenantDetailsPage({ params }: { params: Promise<{ 
               </Badge>
             )}
           </div>
-          <p className="text-muted-foreground text-sm">{primaryLeaseSubtitle}</p>
+          <Body size="sm" tone="muted">
+            {primaryLeaseSubtitle}
+          </Body>
         </div>
       </div>
       <NavTabsHeader className="mt-4">
@@ -531,7 +536,7 @@ export default async function TenantDetailsPage({ params }: { params: Promise<{ 
           </div>
           <div>
             <div className="border-primary/30 bg-primary/5 rounded-lg border p-4 text-sm">
-              <div className="text-foreground mb-1 font-medium">{primaryLeaseHeadline}</div>
+              <Body className="mb-1 font-medium">{primaryLeaseHeadline}</Body>
               {primaryLease ? (
                 <>
                   <div className="space-y-1">
@@ -541,40 +546,46 @@ export default async function TenantDetailsPage({ params }: { params: Promise<{ 
                     >
                       {primaryLease.unitName || primaryLease.propertyUnit || 'View lease'}
                     </Link>
-                    <div className="text-muted-foreground">{primaryLease.type || '—'}</div>
+                    <Body tone="muted" size="sm">
+                      {primaryLease.type || '—'}
+                    </Body>
                   </div>
-                  <div className="text-muted-foreground mt-2">
+                  <Body tone="muted" size="sm" className="mt-2">
                     {fmtDate(primaryLease.start)} – {fmtDate(primaryLease.end)}
-                  </div>
+                  </Body>
                   <div className="border-border my-3 border-t" />
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-foreground">Balance:</span>
-                      <span className="text-foreground font-semibold">
+                      <Body as="span">Balance:</Body>
+                      <Body as="span" className="font-semibold">
                         {fmtUsd(primaryLeaseBalances.balance)}
-                      </span>
+                      </Body>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-foreground">Prepayments:</span>
-                      <span className="font-medium">{fmtUsd(primaryLeaseBalances.prepayments)}</span>
+                      <Body as="span">Prepayments:</Body>
+                      <Body as="span" className="font-medium">
+                        {fmtUsd(primaryLeaseBalances.prepayments)}
+                      </Body>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-foreground">Deposits held:</span>
-                      <span className="font-medium">
+                      <Body as="span">Deposits held:</Body>
+                      <Body as="span" className="font-medium">
                         {fmtUsd(Math.abs(primaryLeaseBalances.depositsHeld))}
-                      </span>
+                      </Body>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-foreground">Rent:</span>
-                      <span className="font-medium">{fmtUsd(primaryLease.rent)}</span>
+                      <Body as="span">Rent:</Body>
+                      <Body as="span" className="font-medium">
+                        {fmtUsd(primaryLease.rent)}
+                      </Body>
                     </div>
                   </div>
-                  <p className="text-muted-foreground mt-3">
+                  <Body tone="muted" size="sm" className="mt-3">
                     Payment is due on the 1st of the month. If payment isn't received, a one-time
                     fee of $50.00 will be charged on the 2nd of each month. An additional daily fee
                     of $10.00 will be charged starting on the 3rd and continue until the month ends.
                     Late fees will never exceed $100.00 per month.
-                  </p>
+                  </Body>
                   <div className="mt-3 flex items-center justify-between">
                     <Button variant="secondary" disabled>
                       Receive payment
@@ -588,7 +599,7 @@ export default async function TenantDetailsPage({ params }: { params: Promise<{ 
                   </div>
                 </>
               ) : (
-                <div className="text-muted-foreground">Add a lease to see details here.</div>
+                <Body tone="muted">Add a lease to see details here.</Body>
               )}
             </div>
           </div>
@@ -598,7 +609,9 @@ export default async function TenantDetailsPage({ params }: { params: Promise<{ 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <div className="space-y-6 lg:col-span-2">
             <div className="space-y-4">
-              <h2 className="text-foreground text-lg font-semibold">Leases</h2>
+              <Heading as="h2" size="h3">
+                Leases
+              </Heading>
               <div className="border-border rounded-lg border">
                 <Table>
                   <TableHeader>

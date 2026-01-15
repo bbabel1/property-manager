@@ -1,19 +1,41 @@
 // OpenTelemetry instrumentation for Next.js (Node runtime)
 // Enabled when OTEL_ENABLED=1 (and optional OTLP endpoint is provided)
 
+// Only import types at top level - these are safe in Edge Runtime
 import type * as Http from 'node:http';
 import type * as Https from 'node:https';
-import { createRequire } from 'node:module';
 
 const globalWithTelemetryFlags = globalThis as typeof globalThis & {
   __otelShutdownHookRegistered?: boolean;
   __buildiumEgressGuardRegistered?: boolean;
 };
 
-// Use createRequire to obtain a mutable CommonJS module object; ESM namespace objects are read-only.
-const require = createRequire(import.meta.url);
-const httpModule = require('node:http') as typeof import('node:http');
-const httpsModule = require('node:https') as typeof import('node:https');
+// Lazy-load Node.js modules only when in Node.js runtime
+function getNodeModules(): {
+  httpModule: typeof import('node:http') | null;
+  httpsModule: typeof import('node:https') | null;
+} {
+  const nodeProcess =
+    typeof globalThis === 'object' ? (globalThis.process as NodeJS.Process | undefined) : undefined;
+  const isNodeRuntime = Boolean(nodeProcess?.versions?.node);
+
+  if (!isNodeRuntime) {
+    return { httpModule: null, httpsModule: null };
+  }
+
+  try {
+    // Dynamic require only in Node.js runtime
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { createRequire } = require('node:module');
+    const requireFn = createRequire(import.meta.url);
+    return {
+      httpModule: requireFn('node:http') as typeof import('node:http'),
+      httpsModule: requireFn('node:https') as typeof import('node:https'),
+    };
+  } catch {
+    return { httpModule: null, httpsModule: null };
+  }
+}
 
 const BUILDIUM_HOSTNAMES = new Set(['api.buildium.com', 'apisandbox.buildium.com']);
 
@@ -43,7 +65,14 @@ function wrapHttpRequest<T extends (...args: any[]) => any>(
   original: T,
   moduleName: 'http' | 'https',
 ): T {
-  const wrapped = function (...args: any[]) {
+  const getHeaders = (value: unknown): unknown => {
+    if (value && typeof value === 'object') {
+      return (value as Record<string, unknown>).headers;
+    }
+    return undefined;
+  };
+
+  const wrapped = (...args: Parameters<T>) => {
     // request(url[, options][, callback]) or request(options[, callback])
     let hostname: string | null = null;
     let headers: unknown;
@@ -55,15 +84,15 @@ function wrapHttpRequest<T extends (...args: any[]) => any>(
       } catch {
         // ignore parse failures; fall through
       }
-      headers = args[1]?.headers ?? args[0]?.headers;
+      headers = getHeaders(args[1]);
     } else if (args[0] instanceof URL) {
       hostname = normalizeHostname(args[0].hostname);
-      headers = args[1]?.headers ?? args[0]?.headers;
+      headers = getHeaders(args[1]);
     } else if (args[0] && typeof args[0] === 'object') {
       hostname = normalizeHostname(
         (args[0] as any).hostname || (args[0] as any).host || (args[0] as any).Host,
       );
-      headers = (args[0] as any).headers;
+      headers = getHeaders(args[0]);
     }
 
     if (shouldBlockBuildiumEgress(hostname, headers)) {
@@ -72,7 +101,7 @@ function wrapHttpRequest<T extends (...args: any[]) => any>(
       );
     }
 
-    return original.apply(this, args);
+    return original(...(args as any[]));
   };
 
   return wrapped as T;
@@ -143,18 +172,22 @@ function registerBuildiumEgressGuard() {
   };
 
   // Also guard lower-level http/https.request to block axios/undici/Raw HTTP bypasses.
-  (httpModule as any).request = wrapHttpRequest(httpModule.request, 'http');
-  (httpModule as any).get = function (...args: any[]) {
-    const req = (httpModule as any).request(...args);
-    req.end();
-    return req;
-  };
-  (httpsModule as any).request = wrapHttpRequest(httpsModule.request, 'https');
-  (httpsModule as any).get = function (...args: any[]) {
-    const req = (httpsModule as any).request(...args);
-    req.end();
-    return req;
-  };
+  // Only patch in Node.js runtime where these modules are available
+  const { httpModule, httpsModule } = getNodeModules();
+  if (httpModule && httpsModule) {
+    (httpModule as any).request = wrapHttpRequest(httpModule.request, 'http');
+    (httpModule as any).get = function (...args: any[]) {
+      const req = (httpModule as any).request(...args);
+      req.end();
+      return req;
+    };
+    (httpsModule as any).request = wrapHttpRequest(httpsModule.request, 'https');
+    (httpsModule as any).get = function (...args: any[]) {
+      const req = (httpsModule as any).request(...args);
+      req.end();
+      return req;
+    };
+  }
 
   globalWithTelemetryFlags.__buildiumEgressGuardRegistered = true;
 }

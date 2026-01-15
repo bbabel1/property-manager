@@ -23,6 +23,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { fetchWithSupabaseAuth } from '@/lib/supabase/fetch';
 import EntityPicker from '@/components/files/upload/EntityPicker';
+import { InteractiveSurface } from '@/ui/interactive-surface';
 
 interface FileUploadDialogProps {
   open: boolean;
@@ -240,7 +241,7 @@ export default function FileUploadDialog({
 
   return (
     <Dialog open={open} onOpenChange={(value) => (value ? onOpenChange(true) : close())}>
-      <DialogContent className="w-[680px] max-w-[680px]">
+      <DialogContent size="md">
         <DialogHeader>
           <DialogTitle>Upload File</DialogTitle>
           <DialogDescription>
@@ -252,25 +253,37 @@ export default function FileUploadDialog({
 
         {step === 'select' ? (
           <div className="space-y-4">
-            <label
-              onDrop={onDrop}
-              onDragOver={(event) => event.preventDefault()}
+            <InteractiveSurface
+              asChild
+              tabIndex={0}
+              role="button"
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  fileInputRef.current?.click();
+                }
+              }}
               className="border-muted-foreground/40 bg-muted/40 text-muted-foreground hover:border-primary hover:text-primary flex h-40 cursor-pointer items-center justify-center rounded-md border-2 border-dashed text-sm transition"
             >
-              <div className="text-center">
-                <Upload className="mx-auto mb-2 h-8 w-8" />
-                <div>
-                  Drag &amp; drop files here or{' '}
-                  <span className="text-primary underline">Browse</span>
+              <label
+                onDrop={onDrop}
+                onDragOver={(event) => event.preventDefault()}
+              >
+                <div className="text-center">
+                  <Upload className="mx-auto mb-2 h-8 w-8" />
+                  <div>
+                    Drag &amp; drop files here or{' '}
+                    <span className="text-primary underline">Browse</span>
+                  </div>
                 </div>
-              </div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                className="hidden"
-                onChange={onFileInputChange}
-              />
-            </label>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  className="hidden"
+                  onChange={onFileInputChange}
+                />
+              </label>
+            </InteractiveSurface>
             <div className="text-muted-foreground text-xs">
               Supported formats: PDF, images, documents. Maximum size 25 MB.
             </div>
@@ -284,7 +297,7 @@ export default function FileUploadDialog({
               <div className="bg-background space-y-4 border-t p-4">
                 {/* File Preview */}
                 <div className="flex items-center gap-3 rounded-md border p-3">
-                  <CheckCircle2 className="h-5 w-5 text-[var(--color-action-600)]" />
+                  <CheckCircle2 className="h-5 w-5 text-primary-600" />
                   <div className="flex-1">
                     <div className="font-medium">{selectedFile?.name}</div>
                     <div className="text-muted-foreground text-xs">

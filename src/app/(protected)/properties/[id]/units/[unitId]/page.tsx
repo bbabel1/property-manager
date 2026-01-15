@@ -18,6 +18,7 @@ import { TableRowLink } from '@/components/ui/table-row-link';
 import { cn } from '@/components/ui/utils';
 import BillRowActions from '@/components/financials/BillRowActions';
 import AddLink from '@/components/ui/AddLink';
+import { Body, Heading, Label } from '@/ui/typography';
 import { PropertyService } from '@/lib/property-service';
 import { supabase as supaClient, supabaseAdmin } from '@/lib/db';
 import { rollupFinances, signedAmountFromTransaction } from '@/lib/finance/model';
@@ -1066,8 +1067,10 @@ export default async function UnitDetailsNested({
                     </TableHeader>
                     <TableBody>
                       <TableRow>
-                        <TableCell colSpan={3} className="text-muted-foreground text-sm">
-                          No files have been uploaded for this unit.
+                        <TableCell colSpan={3}>
+                          <Body size="sm" tone="muted">
+                            No files have been uploaded for this unit.
+                          </Body>
                         </TableCell>
                       </TableRow>
                     </TableBody>
@@ -1088,32 +1091,53 @@ export default async function UnitDetailsNested({
       ) : activeTab === 'ledger' ? (
         <div className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <span className="text-muted-foreground text-sm">{ledgerCountLabel}</span>
+            <Body size="sm" tone="muted">
+              {ledgerCountLabel}
+            </Body>
           </div>
           <div className="border-border overflow-hidden rounded-lg border shadow-sm">
-            <Table className="text-sm">
+            <Table>
               <TableHeader>
                 <TableRow className="border-border border-b">
-                  <TableHead className="text-muted-foreground w-[12rem]">Date</TableHead>
-                  <TableHead className="text-muted-foreground w-[8rem]">Unit</TableHead>
-                  <TableHead className="text-muted-foreground">Transaction</TableHead>
-                  <TableHead className="text-muted-foreground">Memo</TableHead>
-                  <TableHead className="text-muted-foreground w-[10rem] text-right">
-                    Amount
+                  <TableHead className="w-[12rem]">
+                    <Label as="span" size="xs" tone="muted">
+                      Date
+                    </Label>
                   </TableHead>
-                  <TableHead className="text-muted-foreground w-[10rem] text-right">
-                    Balance
+                  <TableHead className="w-[8rem]">
+                    <Label as="span" size="xs" tone="muted">
+                      Unit
+                    </Label>
+                  </TableHead>
+                  <TableHead>
+                    <Label as="span" size="xs" tone="muted">
+                      Transaction
+                    </Label>
+                  </TableHead>
+                  <TableHead>
+                    <Label as="span" size="xs" tone="muted">
+                      Memo
+                    </Label>
+                  </TableHead>
+                  <TableHead className="w-[10rem] text-right">
+                    <Label as="span" size="xs" tone="muted">
+                      Amount
+                    </Label>
+                  </TableHead>
+                  <TableHead className="w-[10rem] text-right">
+                    <Label as="span" size="xs" tone="muted">
+                      Balance
+                    </Label>
                   </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody className="divide-border divide-y">
                 {ledgerGroups.length === 0 ? (
                   <TableRow>
-                    <TableCell
-                      colSpan={6}
-                      className="text-muted-foreground py-6 text-center text-sm"
-                    >
-                      No ledger activity found for this unit.
+                    <TableCell colSpan={6} className="py-6 text-center">
+                      <Body tone="muted" size="sm">
+                        No ledger activity found for this unit.
+                      </Body>
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -1133,30 +1157,35 @@ export default async function UnitDetailsNested({
                     return (
                       <Fragment key={group.id}>
                         <TableRow className="bg-muted/40">
-                          <TableCell colSpan={6} className="text-primary font-medium">
-                            <span className="text-muted-foreground mr-2">—</span>
-                            {group.name}
-                            {group.number ? (
-                              <span className="text-muted-foreground ml-2 text-xs">
-                                {group.number}
-                              </span>
-                            ) : null}
-                            {group.type ? (
-                              <span className="text-muted-foreground ml-3 text-xs uppercase">
-                                {group.type}
-                              </span>
-                            ) : null}
+                          <TableCell colSpan={6}>
+                            <Label as="div" size="sm" className="text-primary">
+                              <Body as="span" size="sm" tone="muted" className="mr-2">
+                                —
+                              </Body>
+                              {group.name}
+                              {group.number ? (
+                                <Body as="span" size="xs" tone="muted" className="ml-2">
+                                  {group.number}
+                                </Body>
+                              ) : null}
+                              {group.type ? (
+                                <Body as="span" size="xs" tone="muted" className="ml-3 uppercase">
+                                  {group.type}
+                                </Body>
+                              ) : null}
+                            </Label>
                           </TableCell>
                         </TableRow>
                         <TableRow className="bg-background">
-                          <TableCell
-                            colSpan={5}
-                            className="text-muted-foreground text-xs font-semibold tracking-wide uppercase"
-                          >
-                            Prior balance
+                          <TableCell colSpan={5} className="tracking-wide uppercase">
+                            <Label as="span" size="xs" tone="muted">
+                              Prior balance
+                            </Label>
                           </TableCell>
-                          <TableCell className="text-muted-foreground text-right font-semibold">
-                            {formatSignedCurrency(group.prior)}
+                          <TableCell className="text-right">
+                            <Label as="span" size="sm" tone="muted">
+                              {formatSignedCurrency(group.prior)}
+                            </Label>
                           </TableCell>
                         </TableRow>
                         {detailDisplay.length === 0 ? (
@@ -1181,31 +1210,61 @@ export default async function UnitDetailsNested({
 
                             return (
                               <TableRow key={`${group.id}-${line.date}-${idx}`}>
-                                <TableCell>{formatDateString(line.date)}</TableCell>
-                                <TableCell>{unitDisplay}</TableCell>
-                                <TableCell>{txnLabel || '—'}</TableCell>
-                                <TableCell>{memo}</TableCell>
+                                <TableCell>
+                                  <Body as="span" size="sm">
+                                    {formatDateString(line.date)}
+                                  </Body>
+                                </TableCell>
+                                <TableCell>
+                                  <Body as="span" size="sm">
+                                    {unitDisplay}
+                                  </Body>
+                                </TableCell>
+                                <TableCell>
+                                  <Body as="span" size="sm">
+                                    {txnLabel || '—'}
+                                  </Body>
+                                </TableCell>
+                                <TableCell>
+                                  <Body as="span" size="sm">
+                                    {memo}
+                                  </Body>
+                                </TableCell>
                                 <TableCell
                                   className={cn('text-right', signed < 0 ? 'text-destructive' : '')}
                                 >
-                                  {formatSignedCurrency(signed)}
+                                  <Body
+                                    as="span"
+                                    size="sm"
+                                    className={signed < 0 ? 'text-destructive' : undefined}
+                                  >
+                                    {formatSignedCurrency(signed)}
+                                  </Body>
                                 </TableCell>
                                 <TableCell className="text-right">
-                                  {formatSignedCurrency(runningAfter)}
+                                  <Body as="span" size="sm">
+                                    {formatSignedCurrency(runningAfter)}
+                                  </Body>
                                 </TableCell>
                               </TableRow>
                             );
                           })
                         )}
                         <TableRow className="bg-muted/30">
-                          <TableCell colSpan={4} className="font-semibold">
-                            Total {group.name}
+                          <TableCell colSpan={4}>
+                            <Label as="span" size="sm">
+                              Total {group.name}
+                            </Label>
                           </TableCell>
-                          <TableCell className="text-foreground text-right font-semibold">
-                            {formatSignedCurrency(group.net)}
+                          <TableCell className="text-right">
+                            <Label as="span" size="sm">
+                              {formatSignedCurrency(group.net)}
+                            </Label>
                           </TableCell>
-                          <TableCell className="text-foreground text-right font-semibold">
-                            {formatSignedCurrency(group.prior + group.net)}
+                          <TableCell className="text-right">
+                            <Label as="span" size="sm">
+                              {formatSignedCurrency(group.prior + group.net)}
+                            </Label>
                           </TableCell>
                         </TableRow>
                       </Fragment>
@@ -1245,7 +1304,9 @@ export default async function UnitDetailsNested({
                 Paid bills
               </Link>
             </nav>
-            <div className="text-muted-foreground text-sm">{billCountLabel}</div>
+            <Body size="sm" tone="muted">
+              {billCountLabel}
+            </Body>
             <div className="ml-auto flex gap-2">
               <Button type="button">Record bill</Button>
               <Button type="button" variant="outline">
@@ -1263,33 +1324,60 @@ export default async function UnitDetailsNested({
             selectedStatusIds={selectedStatusSlugs}
           />
           <div className="border-border overflow-hidden rounded-lg border shadow-sm">
-            <Table className="text-sm">
+            <Table>
               <TableHeader>
                 <TableRow className="border-border border-b">
-                  <TableHead className="w-[12rem]">Due date</TableHead>
-                  <TableHead className="w-[10rem]">Status</TableHead>
-                  <TableHead className="w-[16rem]">Vendor</TableHead>
-                  <TableHead>Memo</TableHead>
-                  <TableHead className="w-[10rem]">Ref No.</TableHead>
-                  <TableHead className="w-[10rem] text-right">Amount</TableHead>
+                  <TableHead className="w-[12rem]">
+                    <Label as="span" size="xs" tone="muted">
+                      Due date
+                    </Label>
+                  </TableHead>
+                  <TableHead className="w-[10rem]">
+                    <Label as="span" size="xs" tone="muted">
+                      Status
+                    </Label>
+                  </TableHead>
+                  <TableHead className="w-[16rem]">
+                    <Label as="span" size="xs" tone="muted">
+                      Vendor
+                    </Label>
+                  </TableHead>
+                  <TableHead>
+                    <Label as="span" size="xs" tone="muted">
+                      Memo
+                    </Label>
+                  </TableHead>
+                  <TableHead className="w-[10rem]">
+                    <Label as="span" size="xs" tone="muted">
+                      Ref No.
+                    </Label>
+                  </TableHead>
+                  <TableHead className="w-[10rem] text-right">
+                    <Label as="span" size="xs" tone="muted">
+                      Amount
+                    </Label>
+                  </TableHead>
                   <TableHead className="w-[3rem]" />
                 </TableRow>
               </TableHeader>
               <TableBody className="divide-border divide-y">
                 {visibleBillRows.length === 0 ? (
                   <TableRow>
-                    <TableCell
-                      colSpan={7}
-                      className="text-muted-foreground py-6 text-center text-sm"
-                    >
-                      No bills found for this unit.
+                    <TableCell colSpan={7} className="py-6 text-center">
+                      <Body tone="muted" size="sm">
+                        No bills found for this unit.
+                      </Body>
                     </TableCell>
                   </TableRow>
                 ) : (
                   visibleBillRows.map((row) => (
                     <TableRowLink key={row.id} href={`/bills/${row.id}`}>
-                      <TableCell>{row.dueDateLabel}</TableCell>
-                      <TableCell className="text-foreground">
+                      <TableCell>
+                        <Body as="span" size="sm">
+                          {row.dueDateLabel}
+                        </Body>
+                      </TableCell>
+                      <TableCell>
                         {row.status ? (
                           <Badge
                             variant={statusToVariant(row.status)}
@@ -1301,13 +1389,31 @@ export default async function UnitDetailsNested({
                             {row.status}
                           </Badge>
                         ) : (
-                          '—'
+                          <Body as="span" size="sm" tone="muted">
+                            —
+                          </Body>
                         )}
                       </TableCell>
-                      <TableCell className="text-foreground">{row.vendorLabel}</TableCell>
-                      <TableCell className="text-foreground">{row.memo}</TableCell>
-                      <TableCell>{row.referenceNumber}</TableCell>
-                      <TableCell className="text-right">{row.amountLabel}</TableCell>
+                      <TableCell>
+                        <Body as="span" size="sm">
+                          {row.vendorLabel}
+                        </Body>
+                      </TableCell>
+                      <TableCell>
+                        <Body as="span" size="sm">
+                          {row.memo}
+                        </Body>
+                      </TableCell>
+                      <TableCell>
+                        <Body as="span" size="sm">
+                          {row.referenceNumber}
+                        </Body>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Body as="span" size="sm">
+                          {row.amountLabel}
+                        </Body>
+                      </TableCell>
                       <TableCell className="text-right" data-row-link-ignore="true">
                         <BillRowActions billId={String(row.id)} />
                       </TableCell>
@@ -1323,10 +1429,12 @@ export default async function UnitDetailsNested({
           <CardContent className="space-y-6 p-6">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="space-y-1">
-                <h3 className="text-foreground text-base font-semibold">Monthly Logs</h3>
-                <p className="text-muted-foreground text-sm">
+                <Heading as="h3" size="h4">
+                  Monthly Logs
+                </Heading>
+                <Body size="sm" tone="muted">
                   Monthly logs for this unit will be organized here.
-                </p>
+                </Body>
               </div>
               <CreateMonthlyLogButton
                 propertyId={propertyIdString}
@@ -1337,32 +1445,53 @@ export default async function UnitDetailsNested({
               />
             </div>
             {monthlyLogs.length === 0 ? (
-              <div className="border-muted-foreground/40 text-muted-foreground rounded-md border border-dashed p-6 text-sm">
+              <Body
+                as="div"
+                size="sm"
+                tone="muted"
+                className="border-muted-foreground/40 rounded-md border border-dashed p-6"
+              >
                 No monthly logs have been created for this unit yet.
-              </div>
+              </Body>
             ) : (
               <div className="border-border overflow-hidden rounded-lg border shadow-sm">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-[14rem]">Month</TableHead>
-                      <TableHead className="w-[12rem]">Status</TableHead>
-                      <TableHead>Stage</TableHead>
+                      <TableHead className="w-[14rem]">
+                        <Label as="span" size="xs" tone="muted">
+                          Month
+                        </Label>
+                      </TableHead>
+                      <TableHead className="w-[12rem]">
+                        <Label as="span" size="xs" tone="muted">
+                          Status
+                        </Label>
+                      </TableHead>
+                      <TableHead>
+                        <Label as="span" size="xs" tone="muted">
+                          Stage
+                        </Label>
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {monthlyLogs.map((log) => (
                       <TableRowLink key={log.id} href={`/monthly-logs/${log.id}`}>
-                        <TableCell className="text-foreground">
-                          {formatPeriodStartLabel(log.periodStart)}
+                        <TableCell>
+                          <Body as="span" size="sm">
+                            {formatPeriodStartLabel(log.periodStart)}
+                          </Body>
                         </TableCell>
-                        <TableCell className="text-foreground">
+                        <TableCell>
                           <Badge variant={monthlyLogStatusVariant(log.status)}>
                             {monthlyLogStatusLabels[log.status]}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-foreground">
-                          {monthlyLogStageLabels[log.stage]}
+                        <TableCell>
+                          <Body as="span" size="sm">
+                            {monthlyLogStageLabels[log.stage]}
+                          </Body>
                         </TableCell>
                       </TableRowLink>
                     ))}

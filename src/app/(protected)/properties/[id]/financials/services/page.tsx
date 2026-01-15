@@ -2,6 +2,7 @@ import { PageBody, Stack } from '@/components/layout/page-shell';
 import { PropertyService } from '@/lib/property-service';
 import ServiceBillingEvents from '@/components/financials/ServiceBillingEvents';
 import { resolvePropertyIdentifier } from '@/lib/public-id-utils';
+import { Body, Heading } from '@/ui/typography';
 
 export default async function PropertyServiceBillingPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: slug } = await params;
@@ -11,9 +12,9 @@ export default async function PropertyServiceBillingPage({ params }: { params: P
   if (!property) {
     return (
       <div className="p-6">
-        <div className="text-muted-foreground text-center">
+        <Body tone="muted" className="text-center">
           Unable to load property details. You may not have access or the property does not exist.
-        </div>
+        </Body>
       </div>
     );
   }
@@ -22,10 +23,12 @@ export default async function PropertyServiceBillingPage({ params }: { params: P
     <PageBody>
       <Stack gap="lg">
         <div>
-          <h2 className="text-2xl font-bold text-foreground">Service Billing Events</h2>
-          <p className="text-muted-foreground mt-1 text-sm">
+          <Heading as="h2" size="h3">
+            Service Billing Events
+          </Heading>
+          <Body tone="muted" size="sm" className="mt-1">
             View all service fee billing events and transactions for {property.name || 'this property'}
-          </p>
+          </Body>
         </div>
         <ServiceBillingEvents propertyId={propertyId} />
       </Stack>

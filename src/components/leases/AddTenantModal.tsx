@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ChevronDown } from 'lucide-react';
+import { Body, Heading, Label } from '@/ui/typography';
 
 type PersonPayload = {
   first_name: string;
@@ -117,7 +118,7 @@ export default function AddTenantModal({
                   {!showAltPhone ? (
                     <button
                       type="button"
-                      className="text-primary text-sm underline"
+                      className="text-primary underline"
                       onClick={() => setShowAltPhone(true)}
                     >
                       + Add alternate phone
@@ -132,7 +133,7 @@ export default function AddTenantModal({
                         />
                         <button
                           type="button"
-                          className="text-primary text-sm underline"
+                          className="text-primary underline"
                           onClick={() => {
                             setShowAltPhone(false);
                             setAltPhone('');
@@ -158,7 +159,7 @@ export default function AddTenantModal({
                   {!showAltEmail ? (
                     <button
                       type="button"
-                      className="text-primary text-sm underline"
+                      className="text-primary underline"
                       onClick={() => setShowAltEmail(true)}
                     >
                       + Add alternate email
@@ -174,7 +175,7 @@ export default function AddTenantModal({
                         />
                         <button
                           type="button"
-                          className="text-primary text-sm underline"
+                          className="text-primary underline"
                           onClick={() => {
                             setShowAltEmail(false);
                             setAltEmail('');
@@ -190,7 +191,7 @@ export default function AddTenantModal({
             </Section>
 
             <Section title="Address" required>
-              <label className="text-foreground flex items-center gap-2 text-sm">
+              <Label as="label" className="text-foreground flex items-center gap-2">
                 <Checkbox
                   checked={tenantSameAddress}
                   onCheckedChange={(v) => {
@@ -213,7 +214,7 @@ export default function AddTenantModal({
                   }}
                 />
                 Same as unit address
-              </label>
+              </Label>
               {!tenantSameAddress ? (
                 <div className="mt-3 space-y-3">
                   <Field label="Address line 1">
@@ -250,7 +251,7 @@ export default function AddTenantModal({
                   {!showAltAddress ? (
                     <button
                       type="button"
-                      className="text-primary text-sm underline"
+                      className="text-primary underline"
                       onClick={() => setShowAltAddress(true)}
                     >
                       + Add alternate address
@@ -291,7 +292,7 @@ export default function AddTenantModal({
                       </div>
                       <button
                         type="button"
-                        className="text-primary text-sm underline"
+                        className="text-primary underline"
                         onClick={() => {
                           setShowAltAddress(false);
                           setTenantAltAddr1('');
@@ -466,11 +467,13 @@ function Section({
 }) {
   return (
     <div className="border-border/70 rounded-lg border">
-      <div className="border-border/60 bg-muted text-foreground border-b px-4 py-2 text-sm font-medium">
-        {title}
-        {required ? <span className="text-destructive ml-1">*</span> : null}
+      <div className="border-border/60 bg-muted text-foreground border-b px-4 py-2">
+        <Heading as="div" size="h6">
+          {title}
+          {required ? <span className="text-destructive ml-1">*</span> : null}
+        </Heading>
       </div>
-      <div className="text-muted-foreground space-y-3 px-4 py-4 text-sm">{children}</div>
+      <div className="space-y-3 px-4 py-4">{children}</div>
     </div>
   );
 }
@@ -485,11 +488,11 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <label className="flex flex-col gap-1 text-sm">
-      <span className="text-muted-foreground text-xs font-medium uppercase">
+    <label className="flex flex-col gap-1">
+      <Label as="span" size="xs" tone="muted" className="tracking-wide uppercase">
         {label}
         {required ? ' *' : ''}
-      </span>
+      </Label>
       {children}
     </label>
   );
@@ -502,13 +505,15 @@ function Disclosure({ title }: { title: string }) {
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        className="text-foreground flex w-full items-center justify-between px-4 py-3 text-sm font-medium"
+        className="text-foreground flex w-full items-center justify-between px-4 py-3"
       >
-        {title}
+        <Label as="span">{title}</Label>
         <ChevronDown className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open ? (
-        <div className="text-muted-foreground px-4 pb-4 text-sm">Form fields coming soon.</div>
+        <Body tone="muted" className="px-4 pb-4">
+          Form fields coming soon.
+        </Body>
       ) : null}
     </div>
   );

@@ -36,6 +36,7 @@ import { getSupabaseServerClient } from '@/lib/supabase/server';
 import { supabaseAdminMaybe } from '@/lib/db';
 import Link from 'next/link';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { Body, Heading, Label } from '@/ui/typography';
 
 type SearchParams = {
   from?: string;
@@ -453,7 +454,9 @@ export default async function BankAccountShow({
   if (accountError || !account) {
     return (
       <InfoCard title="Bank account">
-        <p className="text-sm text-red-600">Bank account not found.</p>
+        <Body size="sm" className="text-destructive">
+          Bank account not found.
+        </Body>
       </InfoCard>
     );
   }
@@ -677,12 +680,14 @@ export default async function BankAccountShow({
     if (!bankAccount.org_id) return null;
 
     const rpcClient = (supabaseAdminMaybe || supabaseAuthed) as SupabaseClient<Database>;
-    const { data, error } = await rpcClient.rpc('gl_account_balance_as_of', {
+    const rpcArgs = {
       p_org_id: bankAccount.org_id,
       p_gl_account_id: bankAccount.id,
       p_as_of: asOf,
-      p_property_id: undefined,
-    });
+      p_property_id: null,
+      p_entity_type: null,
+    } as unknown as Database['public']['Functions']['gl_account_balance_as_of']['Args'];
+    const { data, error } = await rpcClient.rpc('gl_account_balance_as_of', rpcArgs);
 
     if (!error && typeof data === 'number' && Number.isFinite(data)) return data;
 
@@ -918,16 +923,11 @@ export default async function BankAccountShow({
           </div>
         </div>
 
-        <div className="border-border/70 text-muted-foreground flex flex-wrap items-center justify-between gap-3 border-b px-6 py-3 text-sm">
-          <span>
+        <div className="border-border/70 flex flex-wrap items-center justify-between gap-3 border-b px-6 py-3">
+          <Body size="sm" tone="muted">
             {rows.length} {rows.length === 1 ? 'match' : 'matches'}
-          </span>
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            className="text-muted-foreground hover:text-foreground px-3"
-          >
+          </Body>
+          <Button type="button" size="sm" variant="ghost" className="px-3">
             Export
           </Button>
         </div>
@@ -935,28 +935,67 @@ export default async function BankAccountShow({
         <div className="overflow-x-auto">
           <Table className="min-w-[1080px]">
             <TableHeader>
-              <TableRow className="border-border/70 bg-muted/40 text-muted-foreground border-b text-xs font-semibold tracking-widest uppercase">
-                <TableHead className="text-muted-foreground w-[7rem]">Date</TableHead>
-                <TableHead className="text-muted-foreground w-[6rem]">Type</TableHead>
-                <TableHead className="text-muted-foreground w-[18rem]">Paid by</TableHead>
-                <TableHead className="text-muted-foreground w-[18rem]">Paid to</TableHead>
-                <TableHead className="text-muted-foreground">Memo</TableHead>
-                <TableHead className="text-muted-foreground w-[9rem] text-right">Payment</TableHead>
-                <TableHead className="text-muted-foreground w-[9rem] text-right">Deposit</TableHead>
-                <TableHead className="text-muted-foreground w-[8rem] text-center">Status</TableHead>
-                <TableHead className="text-muted-foreground w-[10rem] text-right">Balance</TableHead>
-                <TableHead className="text-muted-foreground w-[7rem] text-right">Actions</TableHead>
+              <TableRow className="border-border/70 bg-muted/40 border-b uppercase">
+                <TableHead className="w-[7rem]">
+                  <Label as="span" size="xs" className="tracking-widest" tone="muted">
+                    Date
+                  </Label>
+                </TableHead>
+                <TableHead className="w-[6rem]">
+                  <Label as="span" size="xs" className="tracking-widest" tone="muted">
+                    Type
+                  </Label>
+                </TableHead>
+                <TableHead className="w-[18rem]">
+                  <Label as="span" size="xs" className="tracking-widest" tone="muted">
+                    Paid by
+                  </Label>
+                </TableHead>
+                <TableHead className="w-[18rem]">
+                  <Label as="span" size="xs" className="tracking-widest" tone="muted">
+                    Paid to
+                  </Label>
+                </TableHead>
+                <TableHead>
+                  <Label as="span" size="xs" className="tracking-widest" tone="muted">
+                    Memo
+                  </Label>
+                </TableHead>
+                <TableHead className="w-[9rem] text-right">
+                  <Label as="span" size="xs" className="tracking-widest" tone="muted">
+                    Payment
+                  </Label>
+                </TableHead>
+                <TableHead className="w-[9rem] text-right">
+                  <Label as="span" size="xs" className="tracking-widest" tone="muted">
+                    Deposit
+                  </Label>
+                </TableHead>
+                <TableHead className="w-[8rem] text-center">
+                  <Label as="span" size="xs" className="tracking-widest" tone="muted">
+                    Status
+                  </Label>
+                </TableHead>
+                <TableHead className="w-[10rem] text-right">
+                  <Label as="span" size="xs" className="tracking-widest" tone="muted">
+                    Balance
+                  </Label>
+                </TableHead>
+                <TableHead className="w-[7rem] text-right">
+                  <Label as="span" size="xs" className="tracking-widest" tone="muted">
+                    Actions
+                  </Label>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {rows.length === 0 ? (
                 <TableRow>
-                  <TableCell
-                    colSpan={10}
-                    className="text-muted-foreground py-10 text-center text-sm"
-                  >
-                    We didn&apos;t find any transactions for this account in the selected date
-                    range.
+                  <TableCell colSpan={10} className="py-10 text-center">
+                    <Body size="sm" tone="muted">
+                      We didn&apos;t find any transactions for this account in the selected date
+                      range.
+                    </Body>
                   </TableCell>
                 </TableRow>
               ) : (
@@ -975,43 +1014,60 @@ export default async function BankAccountShow({
                       href={row.href}
                       className="border-border/70 bg-background hover:bg-muted/40 border-b transition-colors last:border-0"
                     >
-                      <TableCell className="align-top text-sm">{row.dateLabel}</TableCell>
-                      <TableCell className="align-top text-sm">
+                      <TableCell className="align-top">
+                        <Body as="span" size="sm">
+                          {row.dateLabel}
+                        </Body>
+                      </TableCell>
+                      <TableCell className="align-top">
                         <div className="flex flex-col gap-1">
-                          <div className="font-medium leading-tight">
+                          <Body as="div" className="leading-tight">
                             {row.depositId && row.typeLabel === 'Deposit'
                               ? `${row.typeLabel} • ${row.depositId}`
                               : row.typeLabel}
-                          </div>
+                          </Body>
                           {row.depositStatus ? (
-                            <Badge
-                              variant="outline"
-                              className="w-fit text-[11px] capitalize"
-                            >
+                            <Badge variant="outline" className="w-fit capitalize">
                               {row.depositStatus}
                             </Badge>
                           ) : null}
                         </div>
                       </TableCell>
-                      <TableCell className="align-top text-sm">{row.paidByLabel}</TableCell>
-                      <TableCell className="align-top text-sm">{row.paidToLabel}</TableCell>
-                      <TableCell className="align-top text-sm">{row.memoLabel}</TableCell>
-                      <TableCell className="text-right align-top text-sm">
+                      <TableCell className="align-top">
+                        <Body as="span" size="sm">
+                          {row.paidByLabel}
+                        </Body>
+                      </TableCell>
+                      <TableCell className="align-top">
+                        <Body as="span" size="sm">
+                          {row.paidToLabel}
+                        </Body>
+                      </TableCell>
+                      <TableCell className="align-top">
+                        <Body as="span" size="sm">
+                          {row.memoLabel}
+                        </Body>
+                      </TableCell>
+                      <TableCell className="text-right align-top">
                         {row.paymentAmount > 0 ? formatCurrency(row.paymentAmount) : '—'}
                       </TableCell>
-                      <TableCell className="text-right align-top text-sm">
+                      <TableCell className="text-right align-top">
                         {row.depositAmount > 0 ? formatCurrency(row.depositAmount) : '—'}
                       </TableCell>
-                      <TableCell className="align-top text-sm text-center">
-                        <span className="inline-flex items-center justify-center gap-1 rounded-full border px-2 py-1 text-xs font-semibold">
+                      <TableCell className="align-top text-center">
+                        <Label
+                          as="span"
+                          size="xs"
+                          className="inline-flex items-center justify-center gap-1 rounded-full border px-2 py-1"
+                        >
                           {showLock ? <Lock className="h-3 w-3" aria-hidden /> : null}
                           {statusLabel}
-                        </span>
+                        </Label>
                       </TableCell>
-                      <TableCell className="text-right align-top text-sm">
+                      <TableCell className="text-right align-top">
                         {formatCurrency(row.balanceAfter)}
                       </TableCell>
-                      <TableCell className="text-right align-top text-sm">
+                      <TableCell className="text-right align-top">
                         <BankTransactionActions
                           deleteUrl={row.deleteUrl}
                           detailHref={row.href}
@@ -1034,17 +1090,17 @@ export default async function BankAccountShow({
       <PageHeader
         title={bankAccount.name || 'Bank account'}
         description={
-          <div className="flex flex-wrap items-center gap-2 text-sm">
-            <span className="font-mono text-base">{maskedAccountNumber}</span>
-            <span className="text-muted-foreground">| {accountTypeLabel}</span>
-            <span className="text-muted-foreground">
+          <Body as="div" size="sm" className="flex flex-wrap items-center gap-2" tone="muted">
+            <span className="font-mono text-base text-foreground">{maskedAccountNumber}</span>
+            <span>| {accountTypeLabel}</span>
+            <span>
               {buildiumId ? `Buildium GL ID ${buildiumId}` : 'Not linked to Buildium yet'}
             </span>
             <Badge variant={bankAccount.is_active ? 'secondary' : 'outline'}>
               {bankAccount.is_active ? 'Active' : 'Inactive'}
             </Badge>
             <EditBankAccountLauncher accountId={bankAccount.id} initialData={editInitialData} />
-          </div>
+          </Body>
         }
         actions={
           <div className="flex flex-wrap items-center gap-2">
@@ -1103,8 +1159,10 @@ export default async function BankAccountShow({
 
               <TabsContent value="check-search">
                 <Card className="border-border/70 border shadow-sm">
-                  <CardContent className="text-muted-foreground py-12 text-center text-sm">
-                    Check search tools for this bank account will appear here in a future update.
+                  <CardContent className="py-12 text-center">
+                    <Body size="sm" tone="muted">
+                      Check search tools for this bank account will appear here in a future update.
+                    </Body>
                   </CardContent>
                 </Card>
               </TabsContent>
@@ -1113,8 +1171,10 @@ export default async function BankAccountShow({
 
           <NavTabsContent value="bank-feed">
             <Card className="border-border/70 border shadow-sm">
-              <CardContent className="text-muted-foreground py-12 text-center text-sm">
-                Bank feed connections and imported transactions will appear here in a future update.
+              <CardContent className="py-12 text-center">
+                <Body size="sm" tone="muted">
+                  Bank feed connections and imported transactions will appear here in a future update.
+                </Body>
               </CardContent>
             </Card>
           </NavTabsContent>
@@ -1124,10 +1184,12 @@ export default async function BankAccountShow({
               <CardContent className="flex flex-col gap-3 p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="text-lg font-semibold">Reconciliation workspace</div>
-                    <div className="text-muted-foreground text-sm">
+                    <Heading as="div" size="h5">
+                      Reconciliation workspace
+                    </Heading>
+                    <Body tone="muted">
                       View cleared/uncleared status and audit activity for this bank account.
-                    </div>
+                    </Body>
                   </div>
                   <Button asChild size="sm" variant="outline">
                     <Link href={`/bank-accounts/${bankAccount.id}/reconciliation`}>
@@ -1150,65 +1212,79 @@ export default async function BankAccountShow({
                   />
                 </div>
 
-                <div className="border-border/70 text-muted-foreground flex flex-wrap items-center justify-between gap-3 border-b px-6 py-3 text-sm">
-                  <span>
+                <div className="border-border/70 flex flex-wrap items-center justify-between gap-3 border-b px-6 py-3">
+                  <Body size="sm" tone="muted">
                     {breakdownRows.length} {breakdownMatchLabel}
-                  </span>
-                  <span className="text-muted-foreground">As of {formatDate(balanceAsOfStr)}</span>
+                  </Body>
+                  <Body size="sm" tone="muted">
+                    As of {formatDate(balanceAsOfStr)}
+                  </Body>
                 </div>
 
                 {propertyFilterApplied ? (
-                  <div className="border-border/70 text-muted-foreground border-b px-6 py-3 text-sm">
-                    You are viewing a filtered list of properties or company. Amounts shown here
-                    represent only the selected properties&apos; or company portion of the balance.
+                  <div className="border-border/70 border-b px-6 py-3">
+                    <Body size="sm" tone="muted">
+                      You are viewing a filtered list of properties or company. Amounts shown here
+                      represent only the selected properties&apos; or company portion of the balance.
+                    </Body>
                   </div>
                 ) : null}
 
                 {breakdownHasErrors ? (
-                  <div className="border-border/70 border-b bg-amber-50 px-6 py-3 text-sm text-amber-900">
-                    Some balances could not be loaded for this view. Missing rows are shown as $0.00
-                    while we finish syncing.
+                  <div className="border-border/70 border-b bg-amber-50 px-6 py-3 text-amber-900">
+                    <Body size="sm">
+                      Some balances could not be loaded for this view. Missing rows are shown as $0.00
+                      while we finish syncing.
+                    </Body>
                   </div>
                 ) : null}
 
                 <div className="overflow-x-auto">
                   <Table className="min-w-[960px]">
                     <TableHeader>
-                      <TableRow className="border-border/70 bg-muted/40 text-muted-foreground border-b text-xs font-semibold tracking-widest uppercase">
-                        <TableHead className="text-muted-foreground">
-                          {balanceView === 'owner' ? 'Owner' : 'Property or company'}
+                      <TableRow className="border-border/70 bg-muted/40 border-b uppercase">
+                        <TableHead>
+                          <Label as="span" size="xs" className="tracking-widest" tone="muted">
+                            {balanceView === 'owner' ? 'Owner' : 'Property or company'}
+                          </Label>
                         </TableHead>
-                        <TableHead className="text-muted-foreground">
-                          {balanceView === 'owner' ? 'Properties' : 'Rental owner'}
+                        <TableHead>
+                          <Label as="span" size="xs" className="tracking-widest" tone="muted">
+                            {balanceView === 'owner' ? 'Properties' : 'Rental owner'}
+                          </Label>
                         </TableHead>
-                        <TableHead className="text-muted-foreground w-[8rem] text-right">
-                          Pending
+                        <TableHead className="w-[8rem] text-right">
+                          <Label as="span" size="xs" className="tracking-widest" tone="muted">
+                            Pending
+                          </Label>
                         </TableHead>
-                        <TableHead className="text-muted-foreground w-[10rem] text-right">
-                          Balance
+                        <TableHead className="w-[10rem] text-right">
+                          <Label as="span" size="xs" className="tracking-widest" tone="muted">
+                            Balance
+                          </Label>
                         </TableHead>
-                        <TableHead className="text-muted-foreground w-[10rem] text-right">
-                          Total
+                        <TableHead className="w-[10rem] text-right">
+                          <Label as="span" size="xs" className="tracking-widest" tone="muted">
+                            Total
+                          </Label>
                         </TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {linkedProperties.length === 0 ? (
                         <TableRow>
-                          <TableCell
-                            colSpan={5}
-                            className="text-muted-foreground py-10 text-center text-sm"
-                          >
-                            No properties are linked to this bank account yet.
+                          <TableCell colSpan={5} className="py-10 text-center">
+                            <Body size="sm" tone="muted">
+                              No properties are linked to this bank account yet.
+                            </Body>
                           </TableCell>
                         </TableRow>
                       ) : breakdownRows.length === 0 ? (
                         <TableRow>
-                          <TableCell
-                            colSpan={5}
-                            className="text-muted-foreground py-10 text-center text-sm"
-                          >
-                            No balances to display for this view and filters.
+                          <TableCell colSpan={5} className="py-10 text-center">
+                            <Body size="sm" tone="muted">
+                              No balances to display for this view and filters.
+                            </Body>
                           </TableCell>
                         </TableRow>
                       ) : (
@@ -1218,17 +1294,19 @@ export default async function BankAccountShow({
                               key={row.id}
                               className="border-border/70 hover:bg-muted/30 border-b transition-colors last:border-0"
                             >
-                              <TableCell className="align-top text-sm">
+                              <TableCell className="align-top">
                                 {balanceView === 'owner' ? (
                                   <div className="space-y-1">
-                                    <p className="text-foreground font-semibold">{row.name}</p>
+                                    <Body as="p" className="font-semibold">
+                                      {row.name}
+                                    </Body>
                                     {row.properties?.length ? (
-                                      <p className="text-muted-foreground text-xs">
+                                      <Body as="p" size="xs" tone="muted">
                                         Includes {row.properties.slice(0, 3).join(', ')}
                                         {row.properties.length > 3
                                           ? `, +${row.properties.length - 3} more`
                                           : ''}
-                                      </p>
+                                      </Body>
                                     ) : null}
                                   </div>
                                 ) : (
@@ -1242,58 +1320,74 @@ export default async function BankAccountShow({
                                           {row.name}
                                         </Link>
                                       ) : (
-                                        <span className="text-foreground font-medium">
+                                        <Body as="span" className="font-medium">
                                           {row.name}
-                                        </span>
+                                        </Body>
                                       )}
                                       {row.badge ? (
-                                        <Badge
-                                          variant="secondary"
-                                          className="bg-muted/70 text-muted-foreground text-[11px] font-semibold tracking-wide uppercase"
+                                        <Label
+                                          as="span"
+                                          size="xs"
+                                          tone="muted"
+                                          className="bg-muted/70 text-[11px] tracking-wide uppercase"
                                         >
                                           {row.badge}
-                                        </Badge>
+                                        </Label>
                                       ) : null}
                                     </div>
-                                    <p className="text-muted-foreground text-xs">{row.ownerName}</p>
+                                    <Body as="p" size="xs" tone="muted">
+                                      {row.ownerName}
+                                    </Body>
                                   </div>
                                 )}
                               </TableCell>
-                              <TableCell className="align-top text-sm">
+                              <TableCell className="align-top">
                                 {balanceView === 'owner' ? (
-                                  <span className="text-muted-foreground text-sm">
+                                  <Body as="span" tone="muted">
                                     {row.properties?.length
                                       ? `${row.properties.length} properties`
                                       : '—'}
-                                  </span>
+                                  </Body>
                                 ) : (
-                                  <span className="text-foreground">{row.ownerName || '—'}</span>
+                                  <Body as="span">{row.ownerName || '—'}</Body>
                                 )}
                               </TableCell>
-                              <TableCell className="text-muted-foreground text-right align-top text-sm">
+                              <TableCell className="text-right align-top">
                                 {formatCurrency(row.pending)}
                               </TableCell>
-                              <TableCell className="text-right align-top text-sm font-medium">
+                              <TableCell className="text-right align-top">
                                 {formatCurrency(row.balance)}
                               </TableCell>
-                              <TableCell className="text-right align-top text-sm font-semibold">
+                              <TableCell className="text-right align-top">
                                 {formatCurrency(row.total)}
                               </TableCell>
                             </TableRow>
                           ))}
-                          <TableRow className="border-border/70 bg-muted/30 border-t font-semibold">
-                            <TableCell className="text-sm">Total</TableCell>
-                            <TableCell className="text-muted-foreground text-sm">
-                              {balanceView === 'owner' ? '—' : ''}
+                          <TableRow className="border-border/70 bg-muted/30 border-t">
+                            <TableCell>
+                              <Label as="span" size="xs">
+                                Total
+                              </Label>
                             </TableCell>
-                            <TableCell className="text-right text-sm">
-                              {formatCurrency(breakdownTotals.pending)}
+                            <TableCell>
+                              <Body as="span" size="sm" tone="muted">
+                                {balanceView === 'owner' ? '—' : ''}
+                              </Body>
                             </TableCell>
-                            <TableCell className="text-right text-sm">
-                              {formatCurrency(breakdownTotals.balance)}
+                            <TableCell className="text-right">
+                              <Body as="span" size="sm">
+                                {formatCurrency(breakdownTotals.pending)}
+                              </Body>
                             </TableCell>
-                            <TableCell className="text-right text-sm">
-                              {formatCurrency(breakdownTotals.pending + breakdownTotals.balance)}
+                            <TableCell className="text-right">
+                              <Body as="span" size="sm">
+                                {formatCurrency(breakdownTotals.balance)}
+                              </Body>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Body as="span" size="sm">
+                                {formatCurrency(breakdownTotals.pending + breakdownTotals.balance)}
+                              </Body>
                             </TableCell>
                           </TableRow>
                         </>
@@ -1307,16 +1401,20 @@ export default async function BankAccountShow({
 
           <NavTabsContent value="payment-settings">
             <Card className="border-border/70 border shadow-sm">
-              <CardContent className="text-muted-foreground py-12 text-center text-sm">
-                Payment settings for this bank account will appear here in a future update.
+              <CardContent className="py-12 text-center">
+                <Body size="sm" tone="muted">
+                  Payment settings for this bank account will appear here in a future update.
+                </Body>
               </CardContent>
             </Card>
           </NavTabsContent>
 
           <NavTabsContent value="check-settings">
             <Card className="border-border/70 border shadow-sm">
-              <CardContent className="text-muted-foreground py-12 text-center text-sm">
-                Check printing settings for this bank account will appear here in a future update.
+              <CardContent className="py-12 text-center">
+                <Body size="sm" tone="muted">
+                  Check printing settings for this bank account will appear here in a future update.
+                </Body>
               </CardContent>
             </Card>
           </NavTabsContent>
@@ -1325,15 +1423,19 @@ export default async function BankAccountShow({
             <Card className="border-border/70 border shadow-sm">
               <CardContent className="flex flex-col gap-0 p-0">
                 <div className="border-border/70 flex flex-col gap-1 border-b px-6 py-5">
-                  <h2 className="text-lg font-semibold">Properties</h2>
-                  <p className="text-muted-foreground text-sm">
+                  <Heading as="h2" size="h4" className="font-semibold">
+                    Properties
+                  </Heading>
+                  <Body tone="muted">
                     Review which properties are associated with this bank account.
-                  </p>
+                  </Body>
                 </div>
 
                 {propertiesError ? (
                   <div className="bg-destructive/5 text-destructive px-6 py-4 text-sm">
-                    Unable to load properties for this bank account right now.
+                    <Body size="sm" className="text-destructive">
+                      Unable to load properties for this bank account right now.
+                    </Body>
                   </div>
                 ) : null}
 
@@ -1341,10 +1443,16 @@ export default async function BankAccountShow({
                   <div className="overflow-x-auto">
                     <Table className="min-w-[560px]">
                       <TableHeader>
-                        <TableRow className="border-border/70 bg-muted/40 text-muted-foreground border-b text-xs font-semibold tracking-widest uppercase">
-                          <TableHead className="text-muted-foreground">Property</TableHead>
-                          <TableHead className="text-muted-foreground w-[14rem]">
-                            Property bank type
+                        <TableRow className="border-border/70 bg-muted/40 border-b uppercase">
+                          <TableHead>
+                            <Label as="span" size="xs" className="tracking-widest" tone="muted">
+                              Property
+                            </Label>
+                          </TableHead>
+                          <TableHead className="w-[14rem]">
+                            <Label as="span" size="xs" className="tracking-widest" tone="muted">
+                              Property bank type
+                            </Label>
                           </TableHead>
                         </TableRow>
                       </TableHeader>
@@ -1353,9 +1461,11 @@ export default async function BankAccountShow({
                           <TableRow>
                             <TableCell
                               colSpan={2}
-                              className="text-muted-foreground py-10 text-center text-sm"
+                              className="py-10 text-center"
                             >
-                              No properties are linked to this bank account yet.
+                              <Body size="sm" tone="muted">
+                                No properties are linked to this bank account yet.
+                              </Body>
                             </TableCell>
                           </TableRow>
                         ) : (
@@ -1364,7 +1474,7 @@ export default async function BankAccountShow({
                               key={property.id}
                               className="border-border/70 hover:bg-muted/40 border-b transition-colors last:border-0"
                             >
-                              <TableCell className="text-sm">
+                              <TableCell>
                                 <Link
                                   href={`/properties/${property.id}`}
                                   className="text-primary font-medium hover:underline"
@@ -1372,7 +1482,11 @@ export default async function BankAccountShow({
                                   {property.label}
                                 </Link>
                               </TableCell>
-                              <TableCell className="text-sm">{property.bankType}</TableCell>
+                              <TableCell>
+                                <Body as="span" size="sm">
+                                  {property.bankType}
+                                </Body>
+                              </TableCell>
                             </TableRow>
                           ))
                         )}

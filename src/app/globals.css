@@ -1,3 +1,4 @@
+@config "../../tailwind.config.ts";
 @import "tailwindcss";
 @plugin "@tailwindcss/forms";
 @plugin "@tailwindcss/typography";
@@ -12,23 +13,6 @@
   top: var(--submenu-top);
   left: var(--submenu-left);
 }
-
-/* Bill edit form trash button positioning */
-.trash-button-positioned {
-  top: var(--top-position);
-}
-
-/* Bill edit form trash buttons - positioned for each row */
-.bill-trash-container .trash-button-positioned:nth-child(1) { top: 56px; }
-.bill-trash-container .trash-button-positioned:nth-child(2) { top: 113px; }
-.bill-trash-container .trash-button-positioned:nth-child(3) { top: 170px; }
-.bill-trash-container .trash-button-positioned:nth-child(4) { top: 227px; }
-.bill-trash-container .trash-button-positioned:nth-child(5) { top: 284px; }
-.bill-trash-container .trash-button-positioned:nth-child(6) { top: 341px; }
-.bill-trash-container .trash-button-positioned:nth-child(7) { top: 398px; }
-.bill-trash-container .trash-button-positioned:nth-child(8) { top: 455px; }
-.bill-trash-container .trash-button-positioned:nth-child(9) { top: 512px; }
-.bill-trash-container .trash-button-positioned:nth-child(10) { top: 569px; }
 
 /* Monthly logs drag and drop styles */
 .monthly-log-card {
@@ -48,90 +32,6 @@
   --sidebar-width: 16rem;
   --sidebar-width-mobile: 18rem;
   --sidebar-width-icon: 3rem;
-
-  /* Palette hooks for utility classes */
-  --color-light-gray: var(--color-gray-100);
-  --color-silver: var(--color-gray-200);
-  --color-medium-gray: var(--color-gray-600);
-  --color-black: var(--color-gray-900);
-  --color-blue: var(--color-action-400);
-  --color-dark-gray: var(--color-brand-700);
-  --color-teal: var(--color-action-400);
-  --color-yellow: var(--color-warning-500);
-  --color-red: var(--color-danger-500);
-}
-
-.dark {
-  --color-light-gray: var(--color-gray-600);
-  --color-silver: var(--border-strong);
-  --color-medium-gray: var(--muted-foreground);
-  --color-black: var(--color-gray-900);
-  --color-blue: var(--color-action-400);
-  --color-dark-gray: var(--sidebar-primary-foreground);
-  --color-teal: var(--color-action-400);
-  --color-yellow: var(--color-warning-500);
-  --color-red: var(--color-danger-500);
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--destructive-foreground);
-  --color-border: var(--border);
-  --color-border-subtle: var(--border-subtle);
-  --color-border-strong: var(--border-strong);
-  --color-surface-info-bg: var(--surface-info-bg);
-  --color-surface-info-border: var(--surface-info-border);
-  --color-surface-primary-soft: var(--surface-primary-soft);
-  --color-surface-primary-soft-border: var(--surface-primary-soft-border);
-  --color-surface-primary-soft-highlight: var(--surface-primary-soft-highlight);
-  /* Inputs: match Property Details card — card background with standard border */
-  --color-input: var(--color-border);
-  --color-input-background: var(--color-card);
-  --color-switch-background: var(--switch-background);
-  --color-ring: var(--ring);
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
-
-  /* Custom Color Palette Tokens */
-  --color-palette-white: var(--color-white);
-  --color-palette-light-gray: var(--color-light-gray);
-  --color-palette-silver: var(--color-silver);
-  --color-palette-medium-gray: var(--color-medium-gray);
-  --color-palette-black: var(--color-black);
-  --color-palette-blue: var(--color-blue);
-  --color-palette-dark-gray: var(--color-dark-gray);
-  --color-palette-teal: var(--color-teal);
-  --color-palette-yellow: var(--color-yellow);
-  --color-palette-red: var(--color-red);
 }
 
 @layer base {
@@ -145,44 +45,56 @@
 }
 
 /**
- * Base typography. This is not applied to elements which have an ancestor with a Tailwind text class.
+  * Base typography. This is not applied to elements which have an ancestor with a Tailwind text class.
  */
 @layer base {
   :where(:not(:has([class*=" text-"]), :not(:has([class^="text-"])))) {
     h1 {
-      font-size: var(--text-2xl);
+      font-size: var(--text-3xl);
       font-weight: var(--font-weight-medium);
-      line-height: 1.5;
+      line-height: var(--leading-tight);
     }
 
     h2 {
-      font-size: var(--text-xl);
+      font-size: var(--text-2xl);
       font-weight: var(--font-weight-medium);
-      line-height: 1.5;
+      line-height: var(--leading-tight);
     }
 
     h3 {
-      font-size: var(--text-lg);
+      font-size: var(--text-xl);
       font-weight: var(--font-weight-medium);
-      line-height: 1.5;
+      line-height: var(--leading-tight);
     }
 
     h4 {
+      font-size: var(--text-lg);
+      font-weight: var(--font-weight-medium);
+      line-height: var(--leading-tight);
+    }
+
+    h5 {
       font-size: var(--text-base);
       font-weight: var(--font-weight-medium);
-      line-height: 1.5;
+      line-height: var(--leading-normal);
+    }
+
+    h6 {
+      font-size: var(--text-sm);
+      font-weight: var(--font-weight-medium);
+      line-height: var(--leading-normal);
     }
 
     p {
       font-size: var(--text-base);
       font-weight: var(--font-weight-normal);
-      line-height: 1.5;
+      line-height: var(--leading-relaxed);
     }
 
     label {
       font-size: var(--text-base);
       font-weight: var(--font-weight-medium);
-      line-height: 1.5;
+      line-height: var(--leading-tight);
     }
 
     button {
@@ -268,132 +180,34 @@ html {
   font-size: var(--font-size);
 }
 
-/* Custom Color Palette Utility Classes */
-@layer utilities {
-  .text-palette-white { color: var(--color-white); }
-  .text-palette-light-gray { color: var(--color-light-gray); }
-  .text-palette-silver { color: var(--color-silver); }
-  .text-palette-medium-gray { color: var(--color-medium-gray); }
-  .text-palette-black { color: var(--color-black); }
-  .text-palette-blue { color: var(--color-blue); }
-  .text-palette-dark-gray { color: var(--color-dark-gray); }
-  .text-palette-teal { color: var(--color-teal); }
-  .text-palette-yellow { color: var(--color-yellow); }
-  .text-palette-red { color: var(--color-red); }
-
-  .bg-palette-white { background-color: var(--color-white); }
-  .bg-palette-light-gray { background-color: var(--color-light-gray); }
-  .bg-palette-silver { background-color: var(--color-silver); }
-  .bg-palette-medium-gray { background-color: var(--color-medium-gray); }
-  .bg-palette-black { background-color: var(--color-black); }
-  .bg-palette-blue { background-color: var(--color-blue); }
-  .bg-palette-dark-gray { background-color: var(--color-dark-gray); }
-  .bg-palette-teal { background-color: var(--color-teal); }
-  .bg-palette-yellow { background-color: var(--color-yellow); }
-  .bg-palette-red { background-color: var(--color-red); }
-
-  .border-palette-white { border-color: var(--color-white); }
-  .border-palette-light-gray { border-color: var(--color-light-gray); }
-  .border-palette-silver { border-color: var(--color-silver); }
-  .border-palette-medium-gray { border-color: var(--color-medium-gray); }
-  .border-palette-black { border-color: var(--color-black); }
-  .border-palette-blue { border-color: var(--color-blue); }
-  .border-palette-dark-gray { border-color: var(--color-dark-gray); }
-  .border-palette-teal { border-color: var(--color-teal); }
-  .border-palette-yellow { border-color: var(--color-yellow); }
-  .border-palette-red { border-color: var(--color-red); }
-
-  /* Border Left Utilities for Color Accents */
-  .border-l-palette-blue { border-left-color: var(--color-blue); }
-  .border-l-palette-teal { border-left-color: var(--color-teal); }
-  .border-l-palette-yellow { border-left-color: var(--color-yellow); }
-  .border-l-palette-red { border-left-color: var(--color-red); }
-  
-  /* Gradient Utilities */
-  .bg-gradient-to-r { background-image: linear-gradient(to right, var(--tw-gradient-stops)); }
-  .from-palette-blue { --tw-gradient-from: var(--color-blue); --tw-gradient-to: rgb(22 74 172 / 0); --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to); }
-  .from-palette-teal { --tw-gradient-from: var(--color-teal); --tw-gradient-to: rgb(0 124 140 / 0); --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to); }
-  .to-palette-blue { --tw-gradient-to: var(--color-blue); }
-  .to-palette-teal { --tw-gradient-to: var(--color-teal); }
-
-}
-
+/* Standardized Status Pill Design */
 @layer components {
-  .surface-card {
-    border-radius: var(--radius-xl);
-    border: 1px solid var(--border);
-    background: var(--card);
-  }
-
-  .surface-card--muted {
-    background: var(--surface-primary-soft);
-    border-color: var(--surface-primary-soft-border);
-  }
-
-  .eyebrow-label {
-    font-size: var(--text-xs);
-    line-height: var(--leading-tight);
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    font-weight: var(--font-weight-medium);
-    color: var(--text-muted);
-  }
-
-  .card-divider {
-    border-color: var(--border-subtle);
-  }
-
-  .divide-card > :not([hidden]) ~ :not([hidden]) {
-    border-color: var(--border-subtle);
-  }
-
-  .section-title-row {
-    @apply mb-4 flex flex-wrap items-center gap-3 border-b border-[var(--color-border-strong)] pb-3;
-  }
-
-  .section-title-text {
-    @apply text-lg font-semibold text-foreground;
-  }
-
-  /* Standardized Status Pill Design */
   .status-pill {
     @apply inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-semibold;
   }
 
   .status-pill-success {
-    @apply border-[var(--color-success-500)] bg-[var(--color-success-50)] text-[var(--color-success-700)];
+    background-color: var(--color-success-50);
+    border-color: var(--color-success-500);
+    color: var(--color-success-700);
   }
 
   .status-pill-warning {
-    @apply border-yellow-800 bg-yellow-100 text-yellow-800;
+    background-color: var(--color-warning-50);
+    border-color: var(--color-warning-600);
+    color: var(--color-warning-600);
   }
 
   .status-pill-danger {
-    @apply border-red-700 bg-red-100 text-red-700;
-  }
-}
-
-@layer utilities {
-  .interactive-surface {
-    transition: background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
-    will-change: background-color, color, box-shadow;
+    background-color: var(--color-danger-50);
+    border-color: var(--color-danger-700);
+    color: var(--color-danger-700);
   }
 
-  .interactive-surface:hover {
-    background-color: var(--state-hover-overlay);
-  }
-
-  .interactive-surface:active {
-    background-color: var(--state-active-overlay);
-  }
-
-  .focus-ring-token {
-    outline: none;
-    box-shadow: 0 0 0 0 transparent;
-  }
-
-  .focus-ring-token:focus-visible {
-    box-shadow: 0 0 0 3px var(--state-focus-ring);
+  .status-pill-info {
+    background-color: var(--surface-primary-soft);
+    border-color: var(--surface-primary-soft-border);
+    color: var(--color-action-700);
   }
 }
 

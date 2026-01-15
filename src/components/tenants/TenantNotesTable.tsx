@@ -41,6 +41,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import AddNoteModal from '@/components/tenants/AddNoteModal';
 import { fetchWithSupabaseAuth } from '@/lib/supabase/fetch';
+import { Select } from '@/ui/select';
+import { Body, Heading, Label } from '@/ui/typography';
 
 type Note = Database['public']['Tables']['tenant_notes']['Row'];
 
@@ -176,12 +178,12 @@ export default function TenantNotesTable({ tenantId }: TenantNotesTableProps) {
       {/* Controls (match Files panel layout) */}
       <div className="border-border flex flex-col gap-4 border-b px-4 py-4 md:flex-row md:items-center md:justify-between">
         <div className="text-muted-foreground flex flex-wrap items-center gap-3 text-sm">
-          <select
-            className="border-input bg-background focus-visible:ring-primary h-9 rounded-md border px-3 py-1 text-sm focus-visible:ring-2 focus-visible:outline-none"
+          <Select
+            className="h-9"
             aria-label="Filter by category"
           >
             <option>All categories</option>
-          </select>
+          </Select>
           <button type="button" className="text-primary hover:underline">
             Add filter option
           </button>
@@ -196,28 +198,36 @@ export default function TenantNotesTable({ tenantId }: TenantNotesTableProps) {
 
       {/* Matches label */}
       <div className="text-muted-foreground px-4 py-3 text-xs">
-        {loading
-          ? '0 matches'
-          : `${filteredNotes.length} match${filteredNotes.length === 1 ? '' : 'es'}`}
+        <Body as="p" size="sm" tone="muted" className="text-xs">
+          {loading
+            ? '0 matches'
+            : `${filteredNotes.length} match${filteredNotes.length === 1 ? '' : 'es'}`}
+        </Body>
       </div>
 
       {/* Table Content */}
       {error ? (
         <div className="border-border border-t px-4 py-6 text-center">
           <div className="text-destructive">
-            <p className="text-sm">{error}</p>
+            <Body as="p" size="sm">
+              {error}
+            </Body>
           </div>
         </div>
       ) : loading || filteredNotes.length === 0 ? (
         <div className="border-border text-muted-foreground border-t px-4 py-6 text-sm">
-          You don't have any notes for this tenant right now.{' '}
+          <Body as="span" size="sm" tone="muted">
+            You don't have any notes for this tenant right now.{` `}
+          </Body>
           <button
             type="button"
             onClick={() => setAddModalOpen(true)}
             className="text-primary align-baseline text-sm font-normal hover:underline"
             disabled={loading}
           >
-            Add your first note
+            <Body as="span" size="sm" className="text-primary font-normal">
+              Add your first note
+            </Body>
           </button>
         </div>
       ) : (
@@ -287,16 +297,23 @@ export default function TenantNotesTable({ tenantId }: TenantNotesTableProps) {
         </DialogTrigger>
         <DialogContent className="top-[35%] w-[680px] max-w-[680px] translate-y-[-35%]">
           <DialogHeader>
-            <DialogTitle className="text-foreground text-lg font-semibold">
-              {editing ? 'Edit note' : 'Add note'}
+            <DialogTitle>
+              <Heading as="h2" size="h4" className="text-foreground">
+                {editing ? 'Edit note' : 'Add note'}
+              </Heading>
             </DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4">
             <div>
-              <label className="text-muted-foreground mb-2 block text-xs font-medium tracking-wider uppercase">
+              <Label
+                as="label"
+                className="text-muted-foreground mb-2 block uppercase tracking-wider"
+                size="xs"
+                tone="muted"
+              >
                 NOTE
-              </label>
+              </Label>
               <Textarea
                 value={formNote}
                 onChange={(e) => setFormNote(e.target.value)}

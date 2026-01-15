@@ -23,6 +23,7 @@ import {
   type LeaseFormSuccessPayload,
 } from '@/components/leases/types';
 import { formatCurrency } from '@/lib/transactions/formatting';
+import { Body, Heading, Label } from '@/ui/typography';
 
 const IssueCreditSchema = z.object({
   date: z.string().min(1, 'Date required'),
@@ -263,15 +264,15 @@ export default function IssueCreditForm({
   return (
     <div className="mx-auto w-full max-w-5xl space-y-8">
       <div className="space-y-1">
-        <h1 className="text-foreground text-2xl font-semibold">
+        <Heading as="h1" size="h2" className="text-foreground">
           Issue credit{leaseSummary?.propertyUnit ? ` for ${leaseSummary.propertyUnit}` : ''}
           {leaseSummary?.tenants ? ` • ${leaseSummary.tenants}` : ''}
-        </h1>
-        <div className="flex items-start gap-3 rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+        </Heading>
+        <div className="flex items-start gap-3 rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-blue-900">
           <Info className="h-4 w-4 flex-none" />
-          <span>
+          <Body as="span" size="sm">
             Use a credit to offset unpaid charges, exchange services, or refund previous payments.
-          </span>
+          </Body>
         </div>
       </div>
 
@@ -280,9 +281,9 @@ export default function IssueCreditForm({
           <form className="space-y-10" onSubmit={handleSubmit}>
             <section className="grid gap-6 lg:grid-cols-2">
               <label className="space-y-2">
-                <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                <Label as="span" size="xs" tone="muted" className="tracking-wide uppercase">
                   Date *
-                </span>
+                </Label>
                 <DatePicker
                   value={form.date}
                   onChange={(value) => updateField('date', value)}
@@ -291,9 +292,9 @@ export default function IssueCreditForm({
                 {errors.date ? <p className="text-destructive text-xs">{errors.date}</p> : null}
               </label>
               <label className="space-y-2">
-                <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                <Label as="span" size="xs" tone="muted" className="tracking-wide uppercase">
                   Amount *
-                </span>
+                </Label>
                 <Input
                   type="number"
                   inputMode="decimal"
@@ -307,9 +308,9 @@ export default function IssueCreditForm({
             </section>
 
             <section className="space-y-3">
-              <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+              <Label as="span" size="xs" tone="muted" className="tracking-wide uppercase">
                 Credit action
-              </span>
+              </Label>
               <div className="flex flex-col gap-2">
                 {ACTION_OPTIONS.map((option) => (
                   <label
@@ -345,7 +346,9 @@ export default function IssueCreditForm({
                 />
               </label>
 
-              <h2 className="text-foreground text-sm font-semibold">Apply credit to balances</h2>
+              <Heading as="h2" size="h6" className="text-foreground">
+                Apply credit to balances
+              </Heading>
               <div className="border-border overflow-hidden rounded-lg border">
                 <Table className="min-w-full">
                   <TableHeader>

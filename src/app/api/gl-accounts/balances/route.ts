@@ -269,6 +269,7 @@ export async function GET(request: NextRequest) {
           p_gl_account_id: glAccountId,
           p_as_of: asOfDate,
           p_property_id: propertyId ?? null,
+          p_entity_type: null,
         },
       )
       if (rpcErr) return NextResponse.json({ error: rpcErr.message }, { status: 500 })

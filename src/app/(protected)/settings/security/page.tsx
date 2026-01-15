@@ -6,10 +6,11 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { Label as FormLabel } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { useAuth } from '@/components/providers'
 import { getSupabaseBrowserClient } from '@/lib/supabase/client'
+import { Body, Heading, Label } from '@/ui/typography'
 
 const RECENT_LOGINS = [
   { device: 'MacBook Pro · Safari', location: 'Brooklyn, NY', time: 'Today, 8:12 AM', current: true },
@@ -55,10 +56,12 @@ export default function SecurityPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-2">
-        <h1 className="text-2xl font-bold text-foreground">Security</h1>
-        <p className="text-sm text-muted-foreground">
+        <Heading as="h1" size="h3" className="font-bold">
+          Security
+        </Heading>
+        <Body tone="muted" size="sm">
           Keep your account protected with two-factor authentication and session visibility.
-        </p>
+        </Body>
       </div>
 
       <Card>
@@ -66,9 +69,9 @@ export default function SecurityPage() {
           <CardTitle>Password &amp; login</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <p className="text-sm text-muted-foreground">
+          <Body tone="muted" size="sm">
             Ora uses Supabase auth. Send yourself a password reset to change your login password.
-          </p>
+          </Body>
           <Button onClick={() => toast.info('Password reset', { description: 'Send reset via Supabase auth API.' })}>
             Email me a reset link
           </Button>
@@ -83,8 +86,12 @@ export default function SecurityPage() {
           <div className="flex flex-col gap-2 rounded-md border border-border/60 bg-muted/30 px-3 py-3">
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-sm font-medium">SMS verification</div>
-                <p className="text-xs text-muted-foreground">Secure sign-in codes and critical alerts.</p>
+                <Body as="div" size="sm" className="font-medium">
+                  SMS verification
+                </Body>
+                <Label as="p" size="xs" tone="muted">
+                  Secure sign-in codes and critical alerts.
+                </Label>
               </div>
               <Switch checked={twoFactorSms} onCheckedChange={setTwoFactorSms} />
             </div>
@@ -116,14 +123,18 @@ export default function SecurityPage() {
           <div className="flex flex-col gap-2 rounded-md border border-border/60 px-3 py-3">
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-sm font-medium">Authenticator app</div>
-                <p className="text-xs text-muted-foreground">Use Google Authenticator, 1Password, or Duo.</p>
+                <Body as="div" size="sm" className="font-medium">
+                  Authenticator app
+                </Body>
+                <Label as="p" size="xs" tone="muted">
+                  Use Google Authenticator, 1Password, or Duo.
+                </Label>
               </div>
               <Switch checked={twoFactorTotp} onCheckedChange={setTwoFactorTotp} />
             </div>
-            <p className="text-xs text-muted-foreground">
+            <Label as="p" size="xs" tone="muted">
               Turn on to display a QR code and secret key. We’ll respect existing SMS or TOTP 2FA during sign-in.
-            </p>
+            </Label>
           </div>
 
           <div className="flex justify-end">
@@ -145,13 +156,13 @@ export default function SecurityPage() {
               className="flex flex-col gap-1 rounded-md border border-border/60 px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
             >
               <div>
-                <div className="flex flex-wrap items-center gap-2 text-sm font-medium">
+                <Body as="div" size="sm" className="flex flex-wrap items-center gap-2 font-medium">
                   <span>{row.device}</span>
                   {row.current ? <Badge variant="outline">This device</Badge> : null}
-                </div>
-                <div className="text-xs text-muted-foreground">
+                </Body>
+                <Label as="div" size="xs" tone="muted">
                   {row.location} • {row.time}
-                </div>
+                </Label>
               </div>
               {!row.current ? (
                 <Button

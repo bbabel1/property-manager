@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Body, Heading } from '@/ui/typography';
 
 type Allocation = { bill_id: string; amount: string };
 type Option = { id: string; label: string; meta?: string | null };
@@ -135,7 +136,7 @@ export function BillPaymentForm({ defaultBillId, bankAccounts, billOptions }: Pr
   return (
     <Card className="border-border/70 shadow-sm">
       <CardHeader>
-        <CardTitle className="text-base font-semibold">Record payment</CardTitle>
+        <CardTitle headingSize="h6">Record payment</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -172,7 +173,9 @@ export function BillPaymentForm({ defaultBillId, bankAccounts, billOptions }: Pr
 
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-semibold">Bill allocations</span>
+            <Heading as="div" size="h6">
+              Bill allocations
+            </Heading>
             <Button size="sm" variant="ghost" onClick={addAllocationRow}>
               Add bill
             </Button>
@@ -202,9 +205,9 @@ export function BillPaymentForm({ defaultBillId, bankAccounts, billOptions }: Pr
                   value={alloc.amount}
                   onChange={(e) => handleAllocationChange(idx, 'amount', e.target.value)}
                 />
-                <div className="flex items-center text-sm text-muted-foreground">
+                <Body as="div" size="sm" tone="muted" className="flex items-center">
                   {billOptions.find((b) => b.id === alloc.bill_id)?.meta || 'Apply amount to bill'}
-                </div>
+                </Body>
               </div>
             ))}
           </div>

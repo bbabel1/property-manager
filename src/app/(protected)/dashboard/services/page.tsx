@@ -17,6 +17,7 @@ import ServiceRevenueChart from '@/components/dashboard/ServiceRevenueChart';
 import ServiceUtilizationCard from '@/components/dashboard/ServiceUtilizationCard';
 import { TrendingUp, DollarSign, BarChart3, Download } from 'lucide-react';
 import supabase from '@/lib/db';
+import { Body, Heading, Label } from '@/ui/typography';
 
 export default function ServiceDashboardPage() {
   const [selectedPeriod, setSelectedPeriod] = useState<'month' | 'quarter' | 'year'>('month');
@@ -54,7 +55,9 @@ export default function ServiceDashboardPage() {
     return (
       <PageShell>
         <PageBody>
-          <div className="text-muted-foreground py-12 text-center">Loading dashboard...</div>
+          <div className="py-12 text-center">
+            <Body tone="muted">Loading dashboard...</Body>
+          </div>
         </PageBody>
       </PageShell>
     );
@@ -67,10 +70,12 @@ export default function ServiceDashboardPage() {
           {/* Header */}
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-foreground text-2xl font-bold">Service Performance Dashboard</h1>
-              <p className="text-muted-foreground mt-1 text-sm">
+              <Heading as="h1" size="h3">
+                Service Performance Dashboard
+              </Heading>
+              <Body tone="muted" className="mt-1">
                 Track revenue, costs, and profitability across all service offerings
-              </p>
+              </Body>
             </div>
             <div className="flex items-center gap-2">
               <Select
@@ -97,32 +102,56 @@ export default function ServiceDashboardPage() {
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Service Revenue</CardTitle>
+                <CardTitle>
+                  <Label as="span" size="xs">
+                    Total Service Revenue
+                  </Label>
+                </CardTitle>
                 <DollarSign className="text-muted-foreground h-4 w-4" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">$0</div>
-                <p className="text-muted-foreground text-xs">Loading...</p>
+                <Heading as="div" size="h3">
+                  $0
+                </Heading>
+                <Body size="xs" tone="muted">
+                  Loading...
+                </Body>
               </CardContent>
             </Card>
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Service Costs</CardTitle>
+                <CardTitle>
+                  <Label as="span" size="xs">
+                    Total Service Costs
+                  </Label>
+                </CardTitle>
                 <TrendingUp className="text-muted-foreground h-4 w-4" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">$0</div>
-                <p className="text-muted-foreground text-xs">Loading...</p>
+                <Heading as="div" size="h3">
+                  $0
+                </Heading>
+                <Body size="xs" tone="muted">
+                  Loading...
+                </Body>
               </CardContent>
             </Card>
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Net Margin</CardTitle>
+                <CardTitle>
+                  <Label as="span" size="xs">
+                    Net Margin
+                  </Label>
+                </CardTitle>
                 <BarChart3 className="text-muted-foreground h-4 w-4" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">0%</div>
-                <p className="text-muted-foreground text-xs">Loading...</p>
+                <Heading as="div" size="h3">
+                  0%
+                </Heading>
+                <Body size="xs" tone="muted">
+                  Loading...
+                </Body>
               </CardContent>
             </Card>
           </div>

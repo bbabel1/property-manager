@@ -2,6 +2,7 @@
 
 import { ComponentPropsWithoutRef, ElementType, ReactNode } from 'react';
 import { cn } from '@/lib/utils';
+import { Body, Heading, Label } from '@/ui/typography';
 
 type Gap = 'none' | 'xs' | 'sm' | 'md' | 'lg' | 'xl';
 type Align = 'start' | 'center' | 'end' | 'stretch';
@@ -154,14 +155,22 @@ export function PageHeader({
       <div className='flex flex-col gap-4 md:flex-row md:items-center md:justify-between'>
         <div className='space-y-2'>
           {eyebrow ? (
-            <div className='text-muted-foreground text-xs font-semibold uppercase tracking-wide'>
+            <Label
+              as='div'
+              size='xs'
+              className='uppercase tracking-wide text-muted-foreground'
+            >
               {eyebrow}
-            </div>
+            </Label>
           ) : null}
           <Stack gap='xs'>
-            <h1 className='text-foreground text-2xl font-semibold'>{title}</h1>
+            <Heading as='h1' size='h2'>
+              {title}
+            </Heading>
             {description ? (
-              <div className='text-muted-foreground text-base'>{description}</div>
+              <Body as='div' tone='muted'>
+                {description}
+              </Body>
             ) : null}
           </Stack>
         </div>
@@ -228,8 +237,16 @@ export function PageSection({
       {(title || description || actions) && (
         <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
           <div>
-            {title ? <h2 className='text-lg font-semibold text-foreground'>{title}</h2> : null}
-            {description ? <div className='text-muted-foreground text-sm'>{description}</div> : null}
+            {title ? (
+              <Heading as='h2' size='h3'>
+                {title}
+              </Heading>
+            ) : null}
+            {description ? (
+              <Body size='sm' tone='muted'>
+                {description}
+              </Body>
+            ) : null}
           </div>
           {actions ? <Cluster gap='sm' justify='end'>{actions}</Cluster> : null}
         </div>

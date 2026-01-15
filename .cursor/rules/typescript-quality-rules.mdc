@@ -33,3 +33,7 @@ TypeScript and Code Quality Rules:
 
 10. **Remove temporary files**: Always remove test scripts and temporary files 
     before finishing any task.
+
+11. **Use typography primitives**: For headings, body copy, and form labels, prefer the shared
+    typography components/utilities (e.g., `Heading`, `Body`, `Label`) over ad-hoc text classes
+    so that font sizes and weights stay aligned with the design tokens.

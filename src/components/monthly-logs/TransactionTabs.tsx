@@ -4,6 +4,7 @@ import { Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
+import { Body, Heading, Label } from '@/ui/typography';
 import TransactionTable from './TransactionTable';
 import type { MonthlyLogTransaction } from '@/types/monthly-log';
 
@@ -85,31 +86,41 @@ export default function TransactionTabs({
           className="group text-muted-foreground hover:text-foreground focus-visible:ring-ring data-[state=active]:bg-card data-[state=active]:text-foreground relative inline-flex h-7 flex-none items-center justify-center gap-2 rounded-lg px-3 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-offset-0 focus-visible:outline-none data-[state=active]:shadow-sm"
         >
           <span>Assigned</span>
-          <span className="bg-muted text-muted-foreground group-data-[state=active]:bg-muted/80 group-data-[state=active]:text-foreground inline-flex min-w-[20px] items-center justify-center rounded-md px-1.5 py-0.5 text-[11px] leading-none font-medium transition-colors">
+          <Label
+            as="span"
+            size="xs"
+            tone="muted"
+            className="bg-muted group-data-[state=active]:bg-muted/80 group-data-[state=active]:text-foreground inline-flex min-w-[20px] items-center justify-center rounded-md px-1.5 py-0.5 leading-none transition-colors"
+          >
             {assignedTransactions.length}
-          </span>
+          </Label>
         </TabsTrigger>
         <TabsTrigger
           value="unassigned"
           className="group text-muted-foreground hover:text-foreground focus-visible:ring-ring data-[state=active]:bg-card data-[state=active]:text-foreground relative inline-flex h-7 flex-none items-center justify-center gap-2 rounded-lg px-3 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-offset-0 focus-visible:outline-none data-[state=active]:shadow-sm"
         >
           <span>Unassigned</span>
-          <span className="bg-muted text-muted-foreground group-data-[state=active]:bg-muted/80 group-data-[state=active]:text-foreground inline-flex min-w-[20px] items-center justify-center rounded-md px-1.5 py-0.5 text-[11px] leading-none font-medium transition-colors">
+          <Label
+            as="span"
+            size="xs"
+            tone="muted"
+            className="bg-muted group-data-[state=active]:bg-muted/80 group-data-[state=active]:text-foreground inline-flex min-w-[20px] items-center justify-center rounded-md px-1.5 py-0.5 leading-none transition-colors"
+          >
             {unassignedTransactions.length}
-          </span>
+          </Label>
         </TabsTrigger>
       </TabsList>
 
       <TabsContent value="assigned" className="mt-4 space-y-4">
         <div className="flex flex-col flex-wrap items-start justify-between gap-3 sm:flex-row sm:items-center">
           <div className="min-w-0 flex-1">
-            <h3 className="text-lg font-semibold text-slate-900">Assigned transactions</h3>
-            <p className="text-sm text-slate-600">
+            <Heading as="h3" size="h5">Assigned transactions</Heading>
+            <Body as="p" size="sm" tone="muted">
               Review current assignments and unassign if needed.
-            </p>
+            </Body>
           </div>
           <div className="relative w-full sm:w-[200px] md:w-[240px]">
-            <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-600" />
+            <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={assignedSearch}
               onChange={(event) => onAssignedSearchChange(event.target.value)}
@@ -134,11 +145,13 @@ export default function TransactionTabs({
       <TabsContent value="unassigned" className="mt-4 space-y-4">
         <div className="flex flex-col flex-wrap items-start justify-between gap-3 sm:flex-row sm:items-center">
           <div className="min-w-0 flex-1">
-            <h3 className="text-lg font-semibold text-slate-900">Unassigned transactions</h3>
-            <p className="text-sm text-slate-600">Assign transactions directly from this list.</p>
+            <Heading as="h3" size="h5">Unassigned transactions</Heading>
+            <Body as="p" size="sm" tone="muted">
+              Assign transactions directly from this list.
+            </Body>
           </div>
           <div className="relative w-full sm:w-[200px] md:w-[240px]">
-            <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-600" />
+            <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={unassignedSearch}
               onChange={(event) => onUnassignedSearchChange(event.target.value)}

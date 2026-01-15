@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import EnterChargeForm from '@/components/leases/EnterChargeForm'
 import type { LeaseAccountOption } from '@/components/leases/types'
 import type { BuildiumLeaseTransaction } from '@/types/buildium'
+import { Body, Heading, Label } from '@/ui/typography'
 
 type LeaseSummary = {
   propertyUnit?: string | null
@@ -168,12 +169,14 @@ export default function EditTransactionForm({
         <CardContent className="space-y-6 p-8">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="space-y-1">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Transaction detail</p>
-              <h2 className="text-2xl font-semibold capitalize text-foreground">
+              <Label size="xs" tone="muted" className="uppercase tracking-wide">
+                Transaction detail
+              </Label>
+              <Heading as="h2" size="h3" className="capitalize">
                 {heading}
                 {leaseSummary?.propertyUnit ? ` • ${leaseSummary.propertyUnit}` : ''}
                 {leaseSummary?.tenants ? ` • ${leaseSummary.tenants}` : ''}
-              </h2>
+              </Heading>
             </div>
             {state.status === 'ready' ? (
               <Badge variant="outline" className="text-xs uppercase tracking-wide">
@@ -187,16 +190,25 @@ export default function EditTransactionForm({
           </div>
 
           {state.status === 'loading' ? (
-            <div className="rounded-md border border-border/60 bg-muted/30 px-4 py-6 text-sm text-muted-foreground">
+            <Body
+              as="div"
+              size="sm"
+              tone="muted"
+              className="rounded-md border border-border/60 bg-muted/30 px-4 py-6"
+            >
               Loading transaction details…
-            </div>
+            </Body>
           ) : null}
 
           {state.status === 'error' ? (
             <div className="space-y-4">
-              <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              <Body
+                as="div"
+                size="sm"
+                className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-destructive"
+              >
                 {state.message}
-              </div>
+              </Body>
               <div className="flex flex-wrap gap-3">
                 <Button variant="cancel" onClick={onCancel}>
                   Close
@@ -210,9 +222,14 @@ export default function EditTransactionForm({
 
           {state.status === 'unsupported' ? (
             <div className="space-y-4">
-              <div className="rounded-md border border-border/60 bg-muted/40 px-4 py-5 text-sm text-muted-foreground">
+              <Body
+                as="div"
+                size="sm"
+                tone="muted"
+                className="rounded-md border border-border/60 bg-muted/40 px-4 py-5"
+              >
                 Editing {state.typeLabel.toLowerCase()} transactions is not supported yet. You can manage this entry from Buildium.
-              </div>
+              </Body>
               <div className="flex flex-wrap gap-3">
                 <Button variant="cancel" onClick={onCancel}>
                   Close

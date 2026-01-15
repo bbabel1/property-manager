@@ -3,7 +3,7 @@
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { cn } from '@/lib/utils'
+import { Body, Heading, Label } from '@/ui/typography'
 
 type StatusChip = 'on_track' | 'at_risk' | 'non_compliant'
 
@@ -23,10 +23,10 @@ interface ComplianceSummaryHeaderProps {
   actions?: React.ReactNode
 }
 
-const statusMap: Record<StatusChip, { label: string; className: string }> = {
-  on_track: { label: 'On Track', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-  at_risk: { label: 'At Risk', className: 'bg-amber-50 text-amber-700 border-amber-200' },
-  non_compliant: { label: 'Non-compliant', className: 'bg-rose-50 text-rose-700 border-rose-200' },
+const statusMap: Record<StatusChip, { label: string; variant: 'success' | 'warning' | 'danger' }> = {
+  on_track: { label: 'On Track', variant: 'success' },
+  at_risk: { label: 'At Risk', variant: 'warning' },
+  non_compliant: { label: 'Non-compliant', variant: 'danger' },
 }
 
 export function ComplianceSummaryHeader({
@@ -44,11 +44,15 @@ export function ComplianceSummaryHeader({
       <CardContent className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between py-4">
         <div className="space-y-1">
           <div className="flex items-center gap-2 flex-wrap">
-            <div className="text-lg font-semibold leading-tight">{propertyName}</div>
+            <Heading as="div" size="h4" className="leading-tight text-foreground">
+              {propertyName}
+            </Heading>
             <Badge variant="outline" className="text-xs">{jurisdiction}</Badge>
-            <Badge variant="outline" className={cn('text-xs', statusInfo.className)}>{statusInfo.label}</Badge>
+            <Badge variant={statusInfo.variant} className="text-xs">{statusInfo.label}</Badge>
           </div>
-          <div className="text-sm text-muted-foreground">{addressLine1}</div>
+          <Body as="div" size="sm" tone="muted">
+            {addressLine1}
+          </Body>
         </div>
 
         <div className="flex flex-col gap-3 items-start md:items-end w-full md:w-auto">
@@ -65,9 +69,17 @@ export function ComplianceSummaryHeader({
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {kpis.map((kpi) => (
               <div key={kpi.label} className="min-w-[120px]">
-                <div className="text-xs text-muted-foreground">{kpi.label}</div>
-                <div className="text-base font-semibold leading-tight">{kpi.value}</div>
-                {kpi.subtle && <div className="text-[11px] text-muted-foreground">{kpi.subtle}</div>}
+                <Label as="div" size="xs" tone="muted">
+                  {kpi.label}
+                </Label>
+                <Heading as="div" size="h6" className="leading-tight">
+                  {kpi.value}
+                </Heading>
+                {kpi.subtle && (
+                  <Body as="div" size="xs" tone="muted">
+                    {kpi.subtle}
+                  </Body>
+                )}
               </div>
             ))}
           </div>

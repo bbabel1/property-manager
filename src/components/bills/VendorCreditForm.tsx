@@ -7,7 +7,6 @@ import { hasPermission, type Permission } from '@/lib/permissions';
 import type { AppRole } from '@/lib/auth/roles';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Select,
@@ -17,6 +16,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Body, Heading, Label } from '@/ui/typography';
 
 type Allocation = { bill_id: string; amount: string };
 type Option = { id: string; label: string; meta?: string | null };
@@ -156,7 +156,9 @@ export function VendorCreditForm({
   return (
     <Card className="border-border/70 shadow-sm">
       <CardHeader>
-        <CardTitle className="text-base font-semibold">Vendor credit</CardTitle>
+        <CardTitle headingAs="h3" headingSize="h6">
+          Vendor credit
+        </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -220,15 +222,17 @@ export function VendorCreditForm({
 
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-semibold">Apply to bills</span>
+            <Label as="span">Apply to bills</Label>
             <Button size="sm" variant="ghost" onClick={addAllocationRow}>
               Add bill
             </Button>
           </div>
           <div className="space-y-2">
             {allocations.length === 0 ? (
-              <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
-                No allocations. Add a bill to apply this credit.
+              <div className="rounded-md border bg-muted/40 px-3 py-2">
+                <Body size="sm" tone="muted">
+                  No allocations. Add a bill to apply this credit.
+                </Body>
               </div>
             ) : (
               allocations.map((row, idx) => (
@@ -255,9 +259,9 @@ export function VendorCreditForm({
                     value={row.amount}
                     onChange={(e) => updateAlloc(idx, 'amount', e.target.value)}
                   />
-                  <div className="flex items-center text-sm text-muted-foreground">
+                  <Body as="div" size="sm" tone="muted" className="flex items-center">
                     Apply credit
-                  </div>
+                  </Body>
                 </div>
               ))
             )}

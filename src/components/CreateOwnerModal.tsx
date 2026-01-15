@@ -7,6 +7,9 @@ import { Button } from './ui/button';
 import AddressAutocomplete from './HybridAddressAutocomplete';
 import { DatePicker } from './ui/date-picker';
 import { mapGoogleCountryToEnum } from '@/lib/utils';
+import { Checkbox } from '@/ui/checkbox';
+import { Select } from '@/ui/select';
+import { Body, Heading, Label } from '@/ui/typography';
 // import { useForm } from 'react-hook-form'
 // import { zodResolver } from '@hookform/resolvers/zod'
 // import { OwnerCreateSchema, type OwnerCreateInput } from '@/schemas/owner'
@@ -227,16 +230,22 @@ export default function CreateOwnerModal({
       <DialogContent className="bg-card border-border/80 max-h-[90vh] w-[680px] max-w-[680px] overflow-y-auto rounded-none border p-0 shadow-2xl sm:rounded-2xl">
         {/* Header */}
         <DialogHeader className="border-border border-b p-6">
-          <DialogTitle className="text-foreground text-xl font-semibold">
-            Create New Owner
+          <DialogTitle>
+            <Heading as="div" size="h4">
+              Create New Owner
+            </Heading>
           </DialogTitle>
         </DialogHeader>
 
         {/* Error Message */}
         {error && (
-          <div className="mx-6 mt-4 rounded-md border border-red-200 bg-red-50 p-4">
-            <p className="text-sm text-red-600">{error}</p>
-          </div>
+          <Body
+            as="div"
+            size="sm"
+            className="mx-6 mt-4 rounded-md border border-red-200 bg-red-50 p-4 text-red-600"
+          >
+            {error}
+          </Body>
         )}
 
         {/* Tabs */}
@@ -248,14 +257,16 @@ export default function CreateOwnerModal({
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center gap-2 border-b-2 px-1 py-4 text-sm font-medium ${
+                  className={`flex items-center gap-2 border-b-2 px-1 py-4 ${
                     activeTab === tab.id
-                      ? 'border-primary text-primary'
-                      : 'text-muted-foreground hover:text-foreground hover:border-border border-transparent'
+                      ? 'border-primary text-foreground'
+                      : 'border-transparent text-muted-foreground hover:border-border hover:text-foreground'
                   }`}
                 >
                   <Icon className="h-4 w-4" />
-                  {tab.name}
+                  <Label as="span" size="sm" className="text-inherit">
+                    {tab.name}
+                  </Label>
                 </button>
               );
             })}
@@ -267,13 +278,15 @@ export default function CreateOwnerModal({
           {/* Basic Information Tab */}
           {activeTab === 'basic' && (
             <div className="space-y-6">
-              <h3 className="text-foreground text-lg font-medium">Basic Information</h3>
+              <Heading as="h3" size="h5">
+                Basic Information
+              </Heading>
 
               {/* Owner Type */}
               <div>
-                <label className="text-foreground mb-3 block text-sm font-medium">Owner Type</label>
+                <Label className="mb-3 block">Owner Type</Label>
                 <div className="flex items-center space-x-6">
-                  <label className="flex items-center">
+                  <Label as="label" className="flex items-center">
                     <input
                       type="radio"
                       checked={!formData.isCompany}
@@ -287,9 +300,11 @@ export default function CreateOwnerModal({
                       className="mr-2"
                     />
                     <User className="mr-1 h-4 w-4" />
-                    <span className="text-muted-foreground text-sm">Individual</span>
-                  </label>
-                  <label className="flex items-center">
+                    <Body as="span" size="sm" tone="muted">
+                      Individual
+                    </Body>
+                  </Label>
+                  <Label as="label" className="flex items-center">
                     <input
                       type="radio"
                       checked={formData.isCompany}
@@ -303,17 +318,19 @@ export default function CreateOwnerModal({
                       className="mr-2"
                     />
                     <Building className="mr-1 h-4 w-4" />
-                    <span className="text-muted-foreground text-sm">Company</span>
-                  </label>
+                    <Body as="span" size="sm" tone="muted">
+                      Company
+                    </Body>
+                  </Label>
                 </div>
               </div>
 
               {/* Company Name */}
               {formData.isCompany && (
                 <div>
-                  <label className="text-foreground mb-1 block text-sm font-medium">
+                  <Label className="mb-1 block">
                     Company Name *
-                  </label>
+                  </Label>
                   <input
                     type="text"
                     value={formData.companyName}
@@ -330,9 +347,9 @@ export default function CreateOwnerModal({
               {/* Name Fields */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-foreground mb-1 block text-sm font-medium">
+                  <Label className="mb-1 block">
                     First Name {!formData.isCompany && '*'}
-                  </label>
+                  </Label>
                   <input
                     type="text"
                     value={formData.firstName}
@@ -345,9 +362,9 @@ export default function CreateOwnerModal({
                   />
                 </div>
                 <div>
-                  <label className="text-foreground mb-1 block text-sm font-medium">
+                  <Label className="mb-1 block">
                     Last Name {!formData.isCompany && '*'}
-                  </label>
+                  </Label>
                   <input
                     type="text"
                     value={formData.lastName}
@@ -361,9 +378,9 @@ export default function CreateOwnerModal({
 
               {/* Date of Birth */}
               <div>
-                <label className="text-foreground mb-1 block text-sm font-medium">
+                <Label className="mb-1 block">
                   Date of Birth
-                </label>
+                </Label>
                 <DatePicker
                   value={formData.dateOfBirth || ''}
                   onChange={(v) => setFormData((prev) => ({ ...prev, dateOfBirth: v ?? '' }))}
@@ -373,9 +390,9 @@ export default function CreateOwnerModal({
               {/* Management Agreement Dates */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-foreground mb-1 block text-sm font-medium">
+                  <Label className="mb-1 block">
                     Management Agreement Start Date
-                  </label>
+                  </Label>
                   <DatePicker
                     value={formData.managementAgreementStartDate || ''}
                     onChange={(v) =>
@@ -384,9 +401,9 @@ export default function CreateOwnerModal({
                   />
                 </div>
                 <div>
-                  <label className="text-foreground mb-1 block text-sm font-medium">
+                  <Label className="mb-1 block">
                     Management Agreement End Date
-                  </label>
+                  </Label>
                   <DatePicker
                     value={formData.managementAgreementEndDate || ''}
                     onChange={(v) =>
@@ -398,7 +415,7 @@ export default function CreateOwnerModal({
 
               {/* Comment */}
               <div>
-                <label className="text-foreground mb-1 block text-sm font-medium">Comment</label>
+                <Label className="mb-1 block">Comment</Label>
                 <textarea
                   value={formData.comment}
                   onChange={(e) => setFormData((prev) => ({ ...prev, comment: e.target.value }))}
@@ -413,13 +430,13 @@ export default function CreateOwnerModal({
           {/* Contact Information Tab */}
           {activeTab === 'contact' && (
             <div className="space-y-6">
-              <h3 className="text-foreground text-lg font-medium">Contact Information</h3>
+              <Heading as="h3" size="h5">Contact Information</Heading>
 
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div>
-                  <label className="text-foreground mb-1 block text-sm font-medium">
+                  <Label className="mb-1 block">
                     Primary Email *
-                  </label>
+                  </Label>
                   <input
                     type="email"
                     value={formData.primaryEmail}
@@ -432,9 +449,9 @@ export default function CreateOwnerModal({
                   />
                 </div>
                 <div>
-                  <label className="text-foreground mb-1 block text-sm font-medium">
+                  <Label className="mb-1 block">
                     Alternative Email
-                  </label>
+                  </Label>
                   <input
                     type="email"
                     value={formData.altEmail}
@@ -444,9 +461,9 @@ export default function CreateOwnerModal({
                   />
                 </div>
                 <div>
-                  <label className="text-foreground mb-1 block text-sm font-medium">
+                  <Label className="mb-1 block">
                     Primary Phone
-                  </label>
+                  </Label>
                   <input
                     type="tel"
                     value={formData.primaryPhone}
@@ -458,9 +475,9 @@ export default function CreateOwnerModal({
                   />
                 </div>
                 <div>
-                  <label className="text-foreground mb-1 block text-sm font-medium">
+                  <Label className="mb-1 block">
                     Alternative Phone
-                  </label>
+                  </Label>
                   <input
                     type="tel"
                     value={formData.altPhone}
@@ -476,18 +493,18 @@ export default function CreateOwnerModal({
           {/* Address Information Tab */}
           {activeTab === 'address' && (
             <div className="space-y-8">
-              <h3 className="text-foreground text-lg font-medium">Address Information</h3>
+              <Heading as="h3" size="h5">Address Information</Heading>
 
               {/* Primary Address */}
               <div className="space-y-4">
-                <h4 className="text-foreground flex items-center gap-2 font-medium">
+                <Heading as="h4" size="h6" className="flex items-center gap-2">
                   <MapPin className="h-4 w-4" />
                   Primary Address *
-                </h4>
+                </Heading>
                 <div>
-                  <label className="text-foreground mb-1 block text-sm font-medium">
+                  <Label className="mb-1 block">
                     Street Address *
-                  </label>
+                  </Label>
                   <AddressAutocomplete
                     value={formData.primaryAddressLine1}
                     onChange={(value) =>
@@ -509,9 +526,9 @@ export default function CreateOwnerModal({
                   />
                 </div>
                 <div>
-                  <label className="text-foreground mb-1 block text-sm font-medium">
+                  <Label className="mb-1 block">
                     Address Line 2
-                  </label>
+                  </Label>
                   <input
                     type="text"
                     value={formData.primaryAddressLine2}
@@ -525,7 +542,7 @@ export default function CreateOwnerModal({
 
                 <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
                   <div>
-                    <label className="text-foreground mb-1 block text-sm font-medium">City</label>
+                    <Label className="mb-1 block">City</Label>
                     <input
                       type="text"
                       value={formData.primaryCity}
@@ -537,7 +554,7 @@ export default function CreateOwnerModal({
                     />
                   </div>
                   <div>
-                    <label className="text-foreground mb-1 block text-sm font-medium">State</label>
+                    <Label className="mb-1 block">State</Label>
                     <input
                       type="text"
                       value={formData.primaryState}
@@ -549,9 +566,9 @@ export default function CreateOwnerModal({
                     />
                   </div>
                   <div>
-                    <label className="text-foreground mb-1 block text-sm font-medium">
+                    <Label className="mb-1 block">
                       ZIP Code *
-                    </label>
+                    </Label>
                     <input
                       type="text"
                       value={formData.primaryPostalCode}
@@ -564,63 +581,55 @@ export default function CreateOwnerModal({
                     />
                   </div>
                   <div>
-                    <label
-                      htmlFor="owner-primary-country"
-                      className="text-foreground mb-1 block text-sm font-medium"
-                    >
+                    <Label htmlFor="owner-primary-country" className="mb-1 block">
                       Country
-                    </label>
-                    <select
+                    </Label>
+                    <Select
                       id="owner-primary-country"
                       value={formData.primaryCountry}
                       onChange={(e) =>
                         setFormData((prev) => ({ ...prev, primaryCountry: e.target.value }))
                       }
-                      className="border-input focus-visible:ring-primary focus-visible:border-primary bg-background text-foreground w-full rounded-md border px-3 py-2 focus-visible:ring-2 focus-visible:outline-none"
                     >
                       {COUNTRIES.map((country) => (
                         <option key={country} value={country}>
                           {country}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                   </div>
                 </div>
               </div>
 
               {/* Mailing Preference */}
               <div>
-                <label
-                  htmlFor="owner-mailing-preference"
-                  className="text-foreground mb-1 block text-sm font-medium"
-                >
+                <Label htmlFor="owner-mailing-preference" className="mb-1 block">
                   Mailing Preference
-                </label>
-                <select
+                </Label>
+                <Select
                   id="owner-mailing-preference"
                   value={formData.mailingPreference}
                   onChange={(e) => handleMailingPreferenceChange(coerceMailingPreference(e.target.value))}
-                  className="border-input focus-visible:ring-primary focus-visible:border-primary bg-background text-foreground w-full rounded-md border px-3 py-2 focus-visible:ring-2 focus-visible:outline-none"
                 >
                   {MAILING_PREFERENCES.map((pref) => (
                     <option key={pref} value={pref}>
                       {pref.charAt(0).toUpperCase() + pref.slice(1)} Address
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
 
               {/* Alternate Address */}
               {showAlternateAddress && (
                 <div className="space-y-4">
-                  <h4 className="text-foreground flex items-center gap-2 font-medium">
+                  <Heading as="h4" size="h6" className="flex items-center gap-2">
                     <MapPin className="h-4 w-4" />
                     Alternate Address
-                  </h4>
+                  </Heading>
                   <div>
-                    <label className="text-foreground mb-1 block text-sm font-medium">
+                    <Label className="mb-1 block">
                       Street Address
-                    </label>
+                    </Label>
                     <AddressAutocomplete
                       value={formData.altAddressLine1}
                       onChange={(value) =>
@@ -641,9 +650,9 @@ export default function CreateOwnerModal({
                     />
                   </div>
                   <div>
-                    <label className="text-foreground mb-1 block text-sm font-medium">
+                    <Label className="mb-1 block">
                       Address Line 2
-                    </label>
+                    </Label>
                     <input
                       type="text"
                       value={formData.altAddressLine2}
@@ -657,7 +666,7 @@ export default function CreateOwnerModal({
 
                   <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
                     <div>
-                      <label className="text-foreground mb-1 block text-sm font-medium">City</label>
+                      <Label className="mb-1 block">City</Label>
                       <input
                         type="text"
                         value={formData.altCity}
@@ -669,9 +678,9 @@ export default function CreateOwnerModal({
                       />
                     </div>
                     <div>
-                      <label className="text-foreground mb-1 block text-sm font-medium">
+                      <Label className="mb-1 block">
                         State
-                      </label>
+                      </Label>
                       <input
                         type="text"
                         value={formData.altState}
@@ -683,9 +692,9 @@ export default function CreateOwnerModal({
                       />
                     </div>
                     <div>
-                      <label className="text-foreground mb-1 block text-sm font-medium">
+                      <Label className="mb-1 block">
                         ZIP Code
-                      </label>
+                      </Label>
                       <input
                         type="text"
                         value={formData.altPostalCode}
@@ -697,19 +706,18 @@ export default function CreateOwnerModal({
                       />
                     </div>
                     <div>
-                      <label
+                      <Label
                         htmlFor="owner-alt-country"
-                        className="text-foreground mb-1 block text-sm font-medium"
+                        size="sm" className="mb-1 block"
                       >
                         Country
-                      </label>
-                      <select
+                      </Label>
+                      <Select
                         id="owner-alt-country"
                         value={formData.altCountry}
                         onChange={(e) =>
                           setFormData((prev) => ({ ...prev, altCountry: e.target.value }))
                         }
-                        className="border-input focus-visible:ring-primary focus-visible:border-primary bg-background text-foreground w-full rounded-md border px-3 py-2 focus-visible:ring-2 focus-visible:outline-none"
                       >
                         <option value="">Select country</option>
                         {COUNTRIES.map((country) => (
@@ -717,7 +725,7 @@ export default function CreateOwnerModal({
                             {country}
                           </option>
                         ))}
-                      </select>
+                      </Select>
                     </div>
                   </div>
                 </div>
@@ -728,14 +736,14 @@ export default function CreateOwnerModal({
           {/* Tax Information Tab */}
           {activeTab === 'tax' && (
             <div className="space-y-6">
-              <h3 className="text-foreground text-lg font-medium">Tax Information</h3>
+              <Heading as="h3" size="h5">Tax Information</Heading>
 
               {/* Tax Payer Information */}
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div>
-                  <label className="text-foreground mb-1 block text-sm font-medium">
+                  <Label className="mb-1 block">
                     Tax Payer ID
-                  </label>
+                  </Label>
                   <input
                     type="text"
                     value={formData.taxPayerId}
@@ -747,13 +755,13 @@ export default function CreateOwnerModal({
                   />
                 </div>
                 <div>
-                  <label
+                  <Label
                     htmlFor="owner-taxpayer-type"
-                    className="text-foreground mb-1 block text-sm font-medium"
+                    size="sm" className="mb-1 block"
                   >
                     Tax Payer Type
-                  </label>
-                  <select
+                  </Label>
+                  <Select
                     id="owner-taxpayer-type"
                     value={formData.taxPayerType}
                     onChange={(e) =>
@@ -762,7 +770,6 @@ export default function CreateOwnerModal({
                         taxPayerType: coerceTaxPayerType(e.target.value),
                       }))
                     }
-                    className="border-input focus-visible:ring-primary focus-visible:border-primary bg-background text-foreground w-full rounded-md border px-3 py-2 focus-visible:ring-2 focus-visible:outline-none"
                   >
                     <option value="">Select type</option>
                     {TAX_PAYER_TYPES.map((type) => (
@@ -770,15 +777,15 @@ export default function CreateOwnerModal({
                         {type}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </div>
               </div>
 
               {/* Tax Payer Name */}
               <div>
-                <label className="text-foreground mb-1 block text-sm font-medium">
+                <Label className="mb-1 block">
                   Tax Payer Name
-                </label>
+                </Label>
                 <input
                   type="text"
                   value={formData.taxPayerName}
@@ -792,15 +799,14 @@ export default function CreateOwnerModal({
 
               {/* Tax Address */}
               <div className="space-y-4">
-                <h4 className="text-foreground flex items-center gap-2 font-medium">
+                <Heading as="h4" size="h6" className="flex items-center gap-2">
                   <MapPin className="h-4 w-4" />
                   Tax Address
-                </h4>
+                </Heading>
 
                 {/* Tax Address Checkbox */}
                 <div className="flex items-center">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     id="taxSameAsPrimary"
                     checked={formData.taxSameAsPrimary}
                     onChange={(e) =>
@@ -821,18 +827,18 @@ export default function CreateOwnerModal({
                     }
                     className="mr-2"
                   />
-                  <label htmlFor="taxSameAsPrimary" className="text-muted-foreground text-sm">
+                  <Label htmlFor="taxSameAsPrimary" size="sm" tone="muted">
                     Same as primary address
-                  </label>
+                  </Label>
                 </div>
 
                 {/* Tax Address Fields - Only show if not same as primary */}
                 {!formData.taxSameAsPrimary && (
                   <>
                     <div>
-                      <label className="text-foreground mb-1 block text-sm font-medium">
+                      <Label className="mb-1 block">
                         Street Address
-                      </label>
+                      </Label>
                       <AddressAutocomplete
                         value={formData.taxAddressLine1}
                         onChange={(value) =>
@@ -853,9 +859,9 @@ export default function CreateOwnerModal({
                       />
                     </div>
                     <div>
-                      <label className="text-foreground mb-1 block text-sm font-medium">
+                      <Label className="mb-1 block">
                         Address Line 2
-                      </label>
+                      </Label>
                       <input
                         type="text"
                         value={formData.taxAddressLine2}
@@ -867,9 +873,9 @@ export default function CreateOwnerModal({
                       />
                     </div>
                     <div>
-                      <label className="text-foreground mb-1 block text-sm font-medium">
+                      <Label className="mb-1 block">
                         Address Line 3
-                      </label>
+                      </Label>
                       <input
                         type="text"
                         value={formData.taxAddressLine3}
@@ -883,9 +889,9 @@ export default function CreateOwnerModal({
 
                     <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
                       <div>
-                        <label className="text-foreground mb-1 block text-sm font-medium">
+                        <Label className="mb-1 block">
                           City
-                        </label>
+                        </Label>
                         <input
                           type="text"
                           value={formData.taxCity}
@@ -897,9 +903,9 @@ export default function CreateOwnerModal({
                         />
                       </div>
                       <div>
-                        <label className="text-foreground mb-1 block text-sm font-medium">
+                        <Label className="mb-1 block">
                           State
-                        </label>
+                        </Label>
                         <input
                           type="text"
                           value={formData.taxState}
@@ -911,9 +917,9 @@ export default function CreateOwnerModal({
                         />
                       </div>
                       <div>
-                        <label className="text-foreground mb-1 block text-sm font-medium">
+                        <Label className="mb-1 block">
                           ZIP Code
-                        </label>
+                        </Label>
                         <input
                           type="text"
                           value={formData.taxPostalCode}
@@ -925,19 +931,18 @@ export default function CreateOwnerModal({
                         />
                       </div>
                       <div>
-                        <label
+                        <Label
                           htmlFor="owner-tax-country"
-                          className="text-foreground mb-1 block text-sm font-medium"
+                          size="sm" className="mb-1 block"
                         >
                           Country
-                        </label>
-                        <select
+                        </Label>
+                        <Select
                           id="owner-tax-country"
                           value={formData.taxCountry}
                           onChange={(e) =>
                             setFormData((prev) => ({ ...prev, taxCountry: e.target.value }))
                           }
-                          className="border-input focus-visible:ring-primary focus-visible:border-primary bg-background text-foreground w-full rounded-md border px-3 py-2 focus-visible:ring-2 focus-visible:outline-none"
                         >
                           <option value="">Select country</option>
                           {COUNTRIES.map((country) => (
@@ -945,7 +950,7 @@ export default function CreateOwnerModal({
                               {country}
                             </option>
                           ))}
-                        </select>
+                        </Select>
                       </div>
                     </div>
                   </>
@@ -957,15 +962,15 @@ export default function CreateOwnerModal({
           {/* Owner-Specific Information Tab */}
           {activeTab === 'owner' && (
             <div className="space-y-6">
-              <h3 className="text-foreground text-lg font-medium">Banking Details</h3>
+              <Heading as="h3" size="h5">Banking Details</Heading>
 
               {/* ETF Account Type */}
               <div>
-                <label className="text-foreground mb-3 block text-sm font-medium">
+                <Label className="mb-3 block">
                   ETF Account Type
-                </label>
+                </Label>
                 <div className="flex items-center space-x-6">
-                  <label className="flex items-center">
+                  <Label as="label" className="flex items-center">
                     <input
                       type="radio"
                       checked={formData.etfCheckingAccount}
@@ -978,9 +983,11 @@ export default function CreateOwnerModal({
                       }
                       className="mr-2"
                     />
-                    <span className="text-muted-foreground text-sm">Checking</span>
-                  </label>
-                  <label className="flex items-center">
+                    <Body as="span" size="sm" tone="muted">
+                      Checking
+                    </Body>
+                  </Label>
+                  <Label as="label" className="flex items-center">
                     <input
                       type="radio"
                       checked={formData.etfSavingAccount}
@@ -993,8 +1000,10 @@ export default function CreateOwnerModal({
                       }
                       className="mr-2"
                     />
-                    <span className="text-muted-foreground text-sm">Saving</span>
-                  </label>
+                    <Body as="span" size="sm" tone="muted">
+                      Saving
+                    </Body>
+                  </Label>
                 </div>
               </div>
 
@@ -1002,9 +1011,9 @@ export default function CreateOwnerModal({
               {(formData.etfCheckingAccount || formData.etfSavingAccount) && (
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div>
-                    <label className="text-foreground mb-1 block text-sm font-medium">
+                    <Label className="mb-1 block">
                       Account Number
-                    </label>
+                    </Label>
                     <input
                       type="text"
                       value={formData.etfAccountNumber}
@@ -1016,9 +1025,9 @@ export default function CreateOwnerModal({
                     />
                   </div>
                   <div>
-                    <label className="text-foreground mb-1 block text-sm font-medium">
+                    <Label className="mb-1 block">
                       Routing Number
-                    </label>
+                    </Label>
                     <input
                       type="text"
                       value={formData.etfRoutingNumber}

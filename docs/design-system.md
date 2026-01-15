@@ -10,6 +10,7 @@ This document codifies the Ora UI foundation so every engineer knows where to lo
 | Tailwind theme bridge                       | `tailwind.config.ts`                   | Maps Tailwind color/font keys to CSS variables so utilities like `bg-primary` and `text-muted-foreground` just proxy the token file.                                                             |
 | Global layout helpers                       | `src/components/layout/page-shell.tsx` | `PageShell`, `PageHeader`, `PageBody`, `PageGrid`, `Stack`, and `Cluster` encapsulate responsive padding, spacing, and alignment; avoid re-declaring `flex flex-col gap-*` in feature code.      |
 | Non-DOM contexts                            | `src/lib/design-tokens.ts`             | Server-rendered HTML (PDF/email) imports the same palette + spacing constants to stay in sync with CSS variables.                                                                                |
+| Canonical pipeline                          | Tokens → Theme → Utilities             | All colors originate in `styles/tokens.css`, are bridged into Tailwind via `tailwind.config.ts`, and consumed through semantic utilities (e.g., `text-muted-foreground`, `bg-primary`). Avoid `var(--color-*)` in components. |
 
 ### Token Update Workflow
 
@@ -17,6 +18,21 @@ This document codifies the Ora UI foundation so every engineer knows where to lo
 2. **Update** `styles/tokens.css` and run `npm run lint:css` to ensure Stylelint coverage.
 3. **Sync** non-DOM references (`src/lib/design-tokens.ts`) and Storybook token stories.
 4. **Verify** visually via `npm run test:visual -- --update-snapshots` and release notes.
+
+### Color Source of Truth
+
+- Use semantic utilities wired to tokens (`text-primary`, `bg-muted`, `border-success-500`, `text-warning-600`) or the shared primitives that already wrap them.
+- Custom palette helpers (`text-palette-*`, `bg-palette-*`, gradient aliases) have been removed; the lint rule `no-restricted-syntax` now blocks `palette-*` usage in TS/TSX.
+- When you need shades, prefer the Tailwind theme bridge in `tailwind.config.ts` (primary/action, success, warning, danger, brand) instead of raw `text-[var(--color-…)]` strings.
+- **Do not** introduce raw `var(--color-*)` usages in components. If a token is missing, add it to `styles/tokens.css`, map it in `tailwind.config.ts`, and use the resulting Tailwind utility so the pipeline stays single-sourced.
+
+### Typography Source of Truth
+
+- Use the shared primitives in `src/ui/typography.tsx` (`Heading`, `Body`, `Label`) for all headings, body copy, and form labels; avoid hand-written `text-*` stacks.
+- New screens should not render headings or section titles with raw Tailwind text classes—always reach for `Heading` (with the appropriate size) so the hierarchy stays aligned to tokens.
+- Default heading sizes map directly to the tokenized scale in `styles/tokens.css` (`h1` → `text-4xl`, `h2` → `text-3xl`, `h3` → `text-2xl`, `h4` → `text-xl`, `h5` → `text-lg`, `h6` → `text-base`) with token foreground color and tight leading.
+- `Body` supports `xs`/`sm`/`md`/`lg` and defaults to `text-base`/`leading-relaxed` with token foreground or muted tone; `Label` mirrors `text-sm`/`text-xs` with medium weight.
+- New UI should not introduce raw `text-xl font-semibold` combinations—pull from these primitives or add a documented variant to the typography module if truly needed.
 
 ## Component Primitives & Usage
 

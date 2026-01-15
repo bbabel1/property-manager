@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { Body, Heading } from '@/ui/typography'
 
 type SyncResult = Record<string, unknown> | null | undefined
 
@@ -43,7 +44,9 @@ export default function GLSyncPage() {
 
   return (
     <div className="p-6 space-y-6">
-      <h1 className="text-xl font-semibold text-foreground">General Ledger Sync</h1>
+      <Heading as="h1" size="h4">
+        General Ledger Sync
+      </Heading>
 
       <div className="space-x-2">
         <Button disabled={loading !== null} onClick={() => run('accounts')}>
@@ -56,7 +59,9 @@ export default function GLSyncPage() {
       </div>
 
       {error && (
-        <div className="text-destructive">Error: {error}</div>
+        <Body as="div" size="sm" className="text-destructive">
+          Error: {error}
+        </Body>
       )}
 
       {result && (

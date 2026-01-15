@@ -24,7 +24,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { ChevronDown, Trash2, X } from 'lucide-react';
+import { Trash2, X } from 'lucide-react';
+import { Body, Heading, Label } from '@/ui/typography';
 
 type VendorOption = { id: string; label: string };
 const BILL_UNIT_PROPERTY_LEVEL_VALUE = '__PROPERTY_LEVEL__';
@@ -245,7 +246,9 @@ export default function BillEditForm({
   return (
     <div className="w-full space-y-6 p-0">
       <div className="mx-auto flex w-full max-w-8xl items-center justify-between px-4 pt-6 sm:px-8 lg:px-12 lg:pt-8">
-        <h1 className="text-foreground text-2xl font-semibold">Edit bill</h1>
+        <Heading as="h1" size="h3">
+          Edit bill
+        </Heading>
         <Button
           type="button"
           variant="ghost"
@@ -258,9 +261,13 @@ export default function BillEditForm({
         </Button>
       </div>
       {error ? (
-        <div className="border-destructive/30 bg-destructive/10 text-destructive mx-auto w-full max-w-8xl rounded-md border px-3 py-2 text-sm">
+        <Body
+          as="div"
+          size="sm"
+          className="border-destructive/30 bg-destructive/10 text-destructive mx-auto w-full max-w-8xl rounded-md border px-3 py-2"
+        >
           {error}
-        </div>
+        </Body>
       ) : null}
 
       <form className="space-y-6 pb-24" onSubmit={onSubmit}>
@@ -269,9 +276,9 @@ export default function BillEditForm({
             <div className="space-y-6">
               <div className="grid gap-6 sm:grid-cols-2 sm:items-end sm:max-w-4xl">
                 <label className="block space-y-1">
-                  <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+                  <Label as="span" size="xs" tone="muted" className="tracking-wide uppercase">
                     Date *
-                  </span>
+                  </Label>
                   <DateInput
                     value={form.date}
                     onChange={(nextDate) => update('date', nextDate)}
@@ -279,9 +286,9 @@ export default function BillEditForm({
                   />
                 </label>
                 <label className="block space-y-1">
-                  <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+                  <Label as="span" size="xs" tone="muted" className="tracking-wide uppercase">
                     Due *
-                  </span>
+                  </Label>
                   <DateInput
                     value={form.due_date || ''}
                     onChange={(nextDate) => update('due_date', nextDate)}
@@ -291,25 +298,25 @@ export default function BillEditForm({
               </div>
 
               <label className="block space-y-2">
-                <span className="text-muted-foreground block text-xs font-medium tracking-wide uppercase">
+                <Label as="span" size="xs" tone="muted" className="block tracking-wide uppercase">
                   Pay to *
-                </span>
+                </Label>
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-                  <div className="relative min-w-[16rem] sm:w-[36rem]">
-                    <select
-                      value={form.vendor_id || ''}
-                      onChange={(e) => update('vendor_id', e.target.value)}
-                      className="border-border/60 bg-background focus-visible:ring-primary block h-11 w-full appearance-none rounded-md border px-3 pr-10 text-base leading-tight focus-visible:ring-2 focus-visible:outline-none"
-                    >
-                      <option value="">Select vendor</option>
+                  <Select
+                    value={form.vendor_id || ''}
+                    onValueChange={(value) => update('vendor_id', value)}
+                  >
+                    <SelectTrigger className="min-w-[16rem] sm:w-[36rem]">
+                      <SelectValue placeholder="Select vendor" />
+                    </SelectTrigger>
+                    <SelectContent>
                       {vendors.map((v) => (
-                        <option key={v.id} value={v.id}>
+                        <SelectItem key={v.id} value={v.id}>
                           {v.label}
-                        </option>
+                        </SelectItem>
                       ))}
-                    </select>
-                    <ChevronDown className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 h-5 w-5 -translate-y-1/2" />
-                  </div>
+                    </SelectContent>
+                  </Select>
                   <button
                     type="button"
                     className="text-primary hover:underline text-sm font-semibold"
@@ -323,9 +330,9 @@ export default function BillEditForm({
               </label>
 
               <label className="block space-y-2 max-w-3xl">
-                <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+                <Label as="span" size="xs" tone="muted" className="tracking-wide uppercase">
                   Reference number
-                </span>
+                </Label>
                 <Input
                   value={form.reference_number || ''}
                   onChange={(e) => update('reference_number', e.target.value)}
@@ -335,9 +342,9 @@ export default function BillEditForm({
             </div>
 
             <label className="block space-y-2 max-w-5xl">
-              <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+              <Label as="span" size="xs" tone="muted" className="tracking-wide uppercase">
                 Memo
-              </span>
+              </Label>
               <Textarea
                 rows={3}
                 value={form.memo || ''}
@@ -361,10 +368,12 @@ export default function BillEditForm({
           <div className="space-y-4 border-t border-border/60 pt-6">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h3 className="text-foreground text-sm font-semibold">Item details</h3>
-                  <p className="text-muted-foreground text-xs">
+                  <Heading as="h3" size="h6">
+                    Item details
+                  </Heading>
+                  <Body as="p" tone="muted" size="xs">
                     Keep line details tidy to mirror what Buildium shows.
-                  </p>
+                  </Body>
                 </div>
               </div>
 
@@ -373,23 +382,35 @@ export default function BillEditForm({
                   <Table className="min-w-full text-sm border-collapse">
                     <TableHeader>
                       <TableRow className="bg-muted/40 divide-x divide-border border-b border-border/70">
-                        <TableHead className="w-[30%] min-w-[11rem] px-4 py-3 text-xs font-semibold tracking-wide uppercase text-foreground text-left">
-                          Property or company
+                        <TableHead className="w-[30%] min-w-[11rem] px-4 py-3 text-left">
+                          <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                            Property or company
+                          </Label>
                         </TableHead>
-                        <TableHead className="w-[9%] min-w-[6rem] px-4 py-3 text-xs font-semibold tracking-wide uppercase text-foreground text-left">
-                          Unit
+                        <TableHead className="w-[9%] min-w-[6rem] px-4 py-3 text-left">
+                          <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                            Unit
+                          </Label>
                         </TableHead>
-                        <TableHead className="w-[14%] min-w-[8rem] px-4 py-3 text-xs font-semibold tracking-wide uppercase text-foreground text-left">
-                          Account
+                        <TableHead className="w-[14%] min-w-[8rem] px-4 py-3 text-left">
+                          <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                            Account
+                          </Label>
                         </TableHead>
-                        <TableHead className="w-[25%] min-w-[12rem] px-4 py-3 text-xs font-semibold tracking-wide uppercase text-foreground text-left">
-                          Description
+                        <TableHead className="w-[25%] min-w-[12rem] px-4 py-3 text-left">
+                          <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                            Description
+                          </Label>
                         </TableHead>
-                        <TableHead className="w-[10%] min-w-[7rem] px-3.5 py-3 text-right text-xs font-semibold tracking-wide uppercase text-foreground tabular-nums">
-                          Initial amount
+                        <TableHead className="w-[10%] min-w-[7rem] px-3.5 py-3 text-right tabular-nums">
+                          <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                            Initial amount
+                          </Label>
                         </TableHead>
-                        <TableHead className="w-[10%] min-w-[7rem] px-3.5 py-3 text-right text-xs font-semibold tracking-wide uppercase text-foreground tabular-nums">
-                          Amount paid
+                        <TableHead className="w-[10%] min-w-[7rem] px-3.5 py-3 text-right tabular-nums">
+                          <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                            Amount paid
+                          </Label>
                         </TableHead>
                         <TableHead className="w-[44px] px-0 py-0 bg-transparent" />
                       </TableRow>
@@ -399,9 +420,11 @@ export default function BillEditForm({
                         <TableRow>
                           <TableCell
                             colSpan={7}
-                            className="text-muted-foreground py-6 text-center text-sm"
+                            className="py-6 text-center"
                           >
-                            No line items to edit.
+                            <Body as="div" size="sm" tone="muted">
+                              No line items to edit.
+                            </Body>
                           </TableCell>
                         </TableRow>
                       ) : (

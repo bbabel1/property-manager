@@ -28,6 +28,7 @@ import {
 } from '@/server/financials/ledger-utils';
 import AccountingBasisToggle from '@/components/financials/AccountingBasisToggle';
 import { resolvePropertyIdentifier } from '@/lib/public-id-utils';
+import { Body, Heading, Label } from '@/ui/typography';
 
 type FinancialSearchParams = {
   from?: string;
@@ -522,26 +523,48 @@ export default async function FinancialsTab({
             />
           </div>
           <div className="border-border mt-4 overflow-hidden rounded-lg border shadow-sm">
-            <Table className="text-sm">
+            <Table>
               <TableHeader>
                 <TableRow className="border-border border-b">
-                  <TableHead className="text-muted-foreground w-[12rem]">{dateHeading}</TableHead>
-                  <TableHead className="text-muted-foreground w-[8rem]">Unit</TableHead>
-                  <TableHead className="text-muted-foreground">Transaction</TableHead>
-                  <TableHead className="text-muted-foreground">Memo</TableHead>
-                  <TableHead className="text-muted-foreground w-[10rem] text-right">
-                    Amount
+                  <TableHead className="w-[12rem]">
+                    <Label as="span" size="xs" tone="muted">
+                      {dateHeading}
+                    </Label>
                   </TableHead>
-                  <TableHead className="text-muted-foreground w-[10rem] text-right">
-                    Balance
+                  <TableHead className="w-[8rem]">
+                    <Label as="span" size="xs" tone="muted">
+                      Unit
+                    </Label>
+                  </TableHead>
+                  <TableHead>
+                    <Label as="span" size="xs" tone="muted">
+                      Transaction
+                    </Label>
+                  </TableHead>
+                  <TableHead>
+                    <Label as="span" size="xs" tone="muted">
+                      Memo
+                    </Label>
+                  </TableHead>
+                  <TableHead className="w-[10rem] text-right">
+                    <Label as="span" size="xs" tone="muted">
+                      Amount
+                    </Label>
+                  </TableHead>
+                  <TableHead className="w-[10rem] text-right">
+                    <Label as="span" size="xs" tone="muted">
+                      Balance
+                    </Label>
                   </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody className="divide-border divide-y">
                 {groups.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-muted-foreground py-6 text-center">
-                      {emptyStateMessage}
+                    <TableCell colSpan={6} className="py-6 text-center">
+                      <Body tone="muted" size="sm">
+                        {emptyStateMessage}
+                      </Body>
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -563,39 +586,47 @@ export default async function FinancialsTab({
                     return (
                       <Fragment key={group.id}>
                         <TableRow className="bg-muted/40">
-                          <TableCell colSpan={6} className="text-primary font-medium">
-                            <span className="text-muted-foreground mr-2">—</span>
-                            {group.name}
-                            {group.number ? (
-                              <span className="text-muted-foreground ml-2 text-xs">
-                                {group.number}
-                              </span>
-                            ) : null}
-                            {group.type ? (
-                              <span className="text-muted-foreground ml-3 text-xs uppercase">
-                                {group.type}
-                              </span>
-                            ) : null}
+                          <TableCell colSpan={6}>
+                            <Label as="div" size="sm" className="text-primary">
+                              <Body as="span" size="sm" tone="muted" className="mr-2">
+                                —
+                              </Body>
+                              {group.name}
+                              {group.number ? (
+                                <Body as="span" size="xs" tone="muted" className="ml-2">
+                                  {group.number}
+                                </Body>
+                              ) : null}
+                              {group.type ? (
+                                <Body as="span" size="xs" tone="muted" className="ml-3 uppercase">
+                                  {group.type}
+                                </Body>
+                              ) : null}
+                            </Label>
                           </TableCell>
                         </TableRow>
                         <TableRow className="bg-background">
                           <TableCell
                             colSpan={5}
-                            className="text-muted-foreground text-xs font-semibold tracking-wide uppercase"
+                            className="tracking-wide uppercase"
                           >
-                            Prior balance
+                            <Label as="span" size="xs" tone="muted">Prior balance</Label>
                           </TableCell>
-                          <TableCell className="text-muted-foreground text-right font-semibold">
-                            {fmtSigned(group.prior)}
+                          <TableCell className="text-right">
+                            <Label as="span" size="sm" tone="muted">
+                              {fmtSigned(group.prior)}
+                            </Label>
                           </TableCell>
                         </TableRow>
                         {detailDisplay.length === 0 ? (
                           <TableRow>
                             <TableCell
                               colSpan={6}
-                              className="text-muted-foreground py-4 text-center text-sm"
+                              className="py-4 text-center"
                             >
-                              No activity in selected period.
+                              <Body size="sm" tone="muted">
+                                No activity in selected period.
+                              </Body>
                             </TableCell>
                           </TableRow>
                         ) : (
@@ -627,16 +658,38 @@ export default async function FinancialsTab({
                               : null;
                             const rowContent = (
                               <>
-                                <TableCell>{dateFmt.format(new Date(line.date))}</TableCell>
-                                <TableCell>{line.unitLabel || '—'}</TableCell>
-                                <TableCell>{txnLabel || '—'}</TableCell>
-                                <TableCell>{memo}</TableCell>
+                                <TableCell>
+                                  <Body as="span" size="sm">
+                                    {dateFmt.format(new Date(line.date))}
+                                  </Body>
+                                </TableCell>
+                                <TableCell>
+                                  <Body as="span" size="sm">
+                                    {line.unitLabel || '—'}
+                                  </Body>
+                                </TableCell>
+                                <TableCell>
+                                  <Body as="span" size="sm">
+                                    {txnLabel || '—'}
+                                  </Body>
+                                </TableCell>
+                                <TableCell>
+                                  <Body as="span" size="sm">
+                                    {memo}
+                                  </Body>
+                                </TableCell>
                                 <TableCell
                                   className={`text-right ${signed < 0 ? 'text-destructive' : ''}`}
                                 >
-                                  {fmtSigned(signed)}
+                                  <Body as="span" size="sm" className={signed < 0 ? 'text-destructive' : undefined}>
+                                    {fmtSigned(signed)}
+                                  </Body>
                                 </TableCell>
-                                <TableCell className="text-right">{fmtSigned(runningAfter)}</TableCell>
+                                <TableCell className="text-right">
+                                  <Body as="span" size="sm">
+                                    {fmtSigned(runningAfter)}
+                                  </Body>
+                                </TableCell>
                               </>
                             );
 
@@ -661,14 +714,20 @@ export default async function FinancialsTab({
                           )
                         )}
                         <TableRow className="bg-muted/30">
-                          <TableCell colSpan={4} className="font-semibold">
-                            Total {group.name}
+                          <TableCell colSpan={4}>
+                            <Label as="span" size="sm">
+                              Total {group.name}
+                            </Label>
                           </TableCell>
-                          <TableCell className="text-foreground text-right font-semibold">
-                            {fmtSigned(group.net)}
+                          <TableCell className="text-right">
+                            <Label as="span" size="sm">
+                              {fmtSigned(group.net)}
+                            </Label>
                           </TableCell>
-                          <TableCell className="text-foreground text-right font-semibold">
-                            {fmtSigned(group.prior + group.net)}
+                          <TableCell className="text-right">
+                            <Label as="span" size="sm">
+                              {fmtSigned(group.prior + group.net)}
+                            </Label>
                           </TableCell>
                         </TableRow>
                       </Fragment>
@@ -927,19 +986,43 @@ export default async function FinancialsTab({
                     vendorOptions={vendorOptions}
                     showPropertyFilter={false}
                   />
-                  <div className="text-muted-foreground ml-auto pb-2 text-sm">{countLabel}</div>
+                  <Body tone="muted" size="sm" className="ml-auto pb-2">
+                    {countLabel}
+                  </Body>
                 </div>
                 <div className="border-border overflow-hidden rounded-lg border shadow-sm">
-                  <Table className="text-sm">
+                  <Table>
                     <TableHeader>
                       <TableRow className="border-border border-b">
-                        <TableHead className="text-muted-foreground w-[12rem]">Due date</TableHead>
-                        <TableHead className="text-muted-foreground w-[10rem]">Status</TableHead>
-                        <TableHead className="text-muted-foreground w-[16rem]">Vendors</TableHead>
-                        <TableHead className="text-muted-foreground">Memo</TableHead>
-                        <TableHead className="text-muted-foreground w-[10rem]">Ref No.</TableHead>
-                        <TableHead className="text-muted-foreground w-[10rem] text-right">
-                          Amount
+                        <TableHead className="w-[12rem]">
+                          <Label as="span" size="xs" tone="muted">
+                            Due date
+                          </Label>
+                        </TableHead>
+                        <TableHead className="w-[10rem]">
+                          <Label as="span" size="xs" tone="muted">
+                            Status
+                          </Label>
+                        </TableHead>
+                        <TableHead className="w-[16rem]">
+                          <Label as="span" size="xs" tone="muted">
+                            Vendors
+                          </Label>
+                        </TableHead>
+                        <TableHead>
+                          <Label as="span" size="xs" tone="muted">
+                            Memo
+                          </Label>
+                        </TableHead>
+                        <TableHead className="w-[10rem]">
+                          <Label as="span" size="xs" tone="muted">
+                            Ref No.
+                          </Label>
+                        </TableHead>
+                        <TableHead className="w-[10rem] text-right">
+                          <Label as="span" size="xs" tone="muted">
+                            Amount
+                          </Label>
                         </TableHead>
                         <TableHead className="w-[3rem]" />
                       </TableRow>
@@ -947,16 +1030,22 @@ export default async function FinancialsTab({
                     <TableBody className="divide-border divide-y">
                       {billRows.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={7} className="text-muted-foreground py-6 text-center">
-                            We didn't find any bills. Maybe you don't have any or maybe you need to
-                            clear your filters.
+                          <TableCell colSpan={7} className="py-6 text-center">
+                            <Body tone="muted" size="sm">
+                              We didn't find any bills. Maybe you don't have any or maybe you need
+                              to clear your filters.
+                            </Body>
                           </TableCell>
                         </TableRow>
                       ) : (
                         billRows.map((row) => (
                           <TableRowLink key={row.id} href={`/bills/${row.id}`}>
-                            <TableCell>{formatBillDate(row.due_date)}</TableCell>
-                            <TableCell className="text-foreground">
+                            <TableCell>
+                              <Body as="span" size="sm">
+                                {formatBillDate(row.due_date)}
+                              </Body>
+                            </TableCell>
+                            <TableCell>
                               {row.status ? (
                                 <Badge
                                   variant={statusVariant(row.status as BillStatusLabel)}
@@ -969,20 +1058,32 @@ export default async function FinancialsTab({
                                   {row.status}
                                 </Badge>
                               ) : (
-                                '—'
+                                <Body as="span" size="sm" tone="muted">
+                                  —
+                                </Body>
                               )}
                             </TableCell>
-                            <TableCell className="text-foreground">
-                              {vendorMap.get(String(row.vendor_id)) || '—'}
+                            <TableCell>
+                              <Body as="span" size="sm">
+                                {vendorMap.get(String(row.vendor_id)) || '—'}
+                              </Body>
                             </TableCell>
-                            <TableCell className="text-foreground">
-                              {row.memo?.trim()
-                                ? row.memo
-                                : memoByTransactionId.get(String(row.id)) || '—'}
+                            <TableCell>
+                              <Body as="span" size="sm">
+                                {row.memo?.trim()
+                                  ? row.memo
+                                  : memoByTransactionId.get(String(row.id)) || '—'}
+                              </Body>
                             </TableCell>
-                            <TableCell>{row.reference_number || '—'}</TableCell>
+                            <TableCell>
+                              <Body as="span" size="sm">
+                                {row.reference_number || '—'}
+                              </Body>
+                            </TableCell>
                             <TableCell className="text-right">
-                              {formatBillCurrency(row.total_amount)}
+                              <Body as="span" size="sm">
+                                {formatBillCurrency(row.total_amount)}
+                              </Body>
                             </TableCell>
                             <TableCell className="text-right" data-row-link-ignore="true">
                               <BillRowActions billId={String(row.id)} />

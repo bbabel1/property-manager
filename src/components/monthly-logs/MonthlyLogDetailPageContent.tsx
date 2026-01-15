@@ -18,6 +18,7 @@ import RecurringTasksForUnit from '@/components/monthly-logs/RecurringTasksForUn
 import MonthlyLogTransactionsSection from '@/components/monthly-logs/MonthlyLogTransactionsSection';
 import TaskCreateDialog from '@/components/monthly-logs/TaskCreateDialog';
 import type { MonthlyLogStatus, MonthlyLogTaskSummary } from '@/components/monthly-logs/types';
+import { Body, Heading, Label } from '@/ui/typography';
 import { useMonthlyLogDetail } from '@/hooks/useMonthlyLogDetail';
 import type { TransactionMode } from '@/components/monthly-logs';
 import type { LeaseTenantOption } from '@/components/leases/types';
@@ -96,21 +97,18 @@ interface MonthlyLogDetailPageContentProps {
 }
 
 const TASK_STATUS_BADGE: Record<MonthlyLogTaskSummary['statusKey'], string> = {
-  new: 'border-[var(--color-warning-500)] bg-[var(--color-warning-50)] text-[var(--color-warning-600)]',
-  in_progress:
-    'border-[var(--color-action-200)] bg-[var(--color-action-50)] text-[var(--color-action-700)]',
-  completed:
-    'border-[var(--color-success-500)] bg-[var(--color-success-50)] text-[var(--color-success-700)]',
-  on_hold: 'border-[var(--color-gray-300)] bg-[var(--color-gray-50)] text-[var(--color-gray-700)]',
-  cancelled:
-    'border-[var(--color-gray-300)] bg-[var(--color-gray-50)] text-[var(--color-gray-600)]',
+  new: 'status-pill-warning',
+  in_progress: 'status-pill-info',
+  completed: 'status-pill-success',
+  on_hold: 'status-pill-warning',
+  cancelled: 'status-pill-danger',
 };
 
 const TASK_PRIORITY_DOT: Record<MonthlyLogTaskSummary['priorityKey'], string> = {
-  low: 'bg-[var(--color-gray-400)]',
-  normal: 'bg-[var(--color-warning-600)]',
-  high: 'bg-[var(--color-danger-500)]',
-  urgent: 'bg-[var(--color-danger-700)]',
+  low: 'bg-muted-foreground',
+  normal: 'bg-warning-600',
+  high: 'bg-danger-500',
+  urgent: 'bg-danger-700',
 };
 
 export default function MonthlyLogDetailPageContent({
@@ -902,25 +900,25 @@ function TasksPanel({
       {/* Compact Header */}
       <div className="mb-4 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <ClipboardList className="h-4 w-4 text-slate-700" />
-          <h2 className="text-base font-semibold text-slate-900">
+          <ClipboardList className="h-4 w-4 text-foreground" />
+          <Heading as="h2" size="h5">
             Tasks
             {items.length > 0 && (
               <Badge
-                variant="outline"
-                className="status-pill ml-2 border-slate-400 bg-slate-200 px-1.5 py-0 font-medium"
+                variant="info"
+                className="status-pill ml-2 px-1.5 py-0"
               >
                 {items.length}
               </Badge>
             )}
-          </h2>
+          </Heading>
         </div>
         <Button
           type="button"
           variant="ghost"
           size="sm"
           onClick={() => window.open('/tasks', '_blank')}
-          className="h-8 text-xs text-slate-700 hover:bg-slate-200 hover:text-slate-900"
+          className="h-8 hover:bg-slate-200"
         >
           Open workspace
         </Button>
@@ -949,7 +947,7 @@ function TasksPanel({
             placeholder="Quick add task..."
             disabled={saving}
             required
-            className="h-9 bg-white text-sm"
+            className="h-9 bg-white"
           />
         </div>
         <div className="w-full sm:w-[140px]">
@@ -975,7 +973,7 @@ function TasksPanel({
             size="sm"
             onClick={() => setDialogOpen(true)}
             disabled={saving}
-            className="h-9 px-2 text-xs"
+            className="h-9 px-2"
           >
             More
           </Button>
@@ -992,8 +990,10 @@ function TasksPanel({
 
       {/* Task List */}
       {items.length === 0 ? (
-        <div className="border border-dashed border-slate-400 bg-slate-100 p-6 text-center text-sm text-slate-600">
-          No tasks linked to this monthly log yet.
+        <div className="border border-dashed border-slate-400 bg-slate-100 p-6 text-center">
+          <Body size="sm" tone="muted">
+            No tasks linked to this monthly log yet.
+          </Body>
         </div>
       ) : (
         <div className="space-y-2">
@@ -1006,7 +1006,7 @@ function TasksPanel({
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge
                     className={cn(
-                      'status-pill px-2 py-0.5 text-[11px] font-medium',
+                      'status-pill px-2 py-0.5',
                       TASK_STATUS_BADGE[task.statusKey],
                     )}
                   >
@@ -1016,11 +1016,15 @@ function TasksPanel({
                     className={cn('h-1.5 w-1.5 rounded-full', TASK_PRIORITY_DOT[task.priorityKey])}
                   />
                   {task.categoryLabel && (
-                    <span className="text-xs text-slate-600">{task.categoryLabel}</span>
+                    <Body as="span" size="xs" tone="muted">
+                      {task.categoryLabel}
+                    </Body>
                   )}
                 </div>
-                <div className="text-sm font-medium text-slate-900">{task.subject}</div>
-                <div className="flex items-center gap-3 text-xs text-slate-600">
+                <Label as="div" size="sm">
+                  {task.subject}
+                </Label>
+                <Body as="div" size="xs" tone="muted" className="flex items-center gap-3">
                   <span className="flex items-center gap-1">
                     <Clock className="h-3 w-3" />
                     Due {task.dueDateLabel}
@@ -1032,7 +1036,7 @@ function TasksPanel({
                     </span>
                   )}
                   <span>Updated {task.updatedRelativeLabel}</span>
-                </div>
+                </Body>
               </div>
             </div>
           ))}

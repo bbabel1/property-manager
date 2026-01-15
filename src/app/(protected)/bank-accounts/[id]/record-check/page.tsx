@@ -71,8 +71,12 @@ function labelOfUnit(row: UnitRow) {
   return row?.unit_number || row?.unit_name || 'Unit';
 }
 
-export default async function RecordCheckPage({ params }: { params: { id: string } }) {
-  const { id } = params;
+export default async function RecordCheckPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
   const db = supabaseAdmin || supabase;
 
   const [

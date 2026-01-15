@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { BuildingIcon, HomeIcon } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Body, Heading, Label } from '@/ui/typography';
 
 interface NewPropertyModalProps {
   isOpen: boolean;
@@ -27,15 +28,17 @@ const Stepper = () => {
       {steps.map((s, i) => (
         <React.Fragment key={s}>
           <div
-            className={`flex h-8 w-8 items-center justify-center rounded-full border text-sm font-medium ${
+            className={`flex h-8 w-8 items-center justify-center rounded-full border ${
               s === 1
-                ? 'border-blue-700 bg-blue-700 text-white'
-                : 'border-gray-200 bg-gray-100 text-gray-500'
+                ? 'border-primary bg-primary text-primary-foreground'
+                : 'border-border bg-muted text-muted-foreground'
             }`}
           >
-            {s}
+            <Label as="span" size="sm">
+              {s}
+            </Label>
           </div>
-          {i < steps.length - 1 && <div className="h-0.5 w-10 rounded bg-gray-200" />}
+          {i < steps.length - 1 && <div className="h-0.5 w-10 rounded bg-muted" />}
         </React.Fragment>
       ))}
     </div>
@@ -55,7 +58,11 @@ const NewPropertyModal = ({ isOpen, onClose, onNext }: NewPropertyModalProps) =>
       <DialogContent className="bg-card border-border/80 max-h-[90vh] w-[680px] max-w-[680px] overflow-y-auto rounded-none border p-0 shadow-2xl sm:rounded-2xl">
         {/* Header */}
         <DialogHeader className="border-border border-b px-6 py-4">
-          <DialogTitle className="text-lg font-semibold">Add New Property</DialogTitle>
+          <DialogTitle>
+            <Heading as="div" size="h4">
+              Add New Property
+            </Heading>
+          </DialogTitle>
         </DialogHeader>
 
         {/* Body */}
@@ -68,8 +75,12 @@ const NewPropertyModal = ({ isOpen, onClose, onNext }: NewPropertyModalProps) =>
             <div className="mb-3 rounded-full bg-blue-50 p-3 text-blue-700">
               <BuildingIcon className="h-7 w-7" />
             </div>
-            <h3 className="text-base font-medium">Property Type</h3>
-            <p className="mt-1 text-sm text-gray-500">What type of property are you adding?</p>
+            <Heading as="h3" size="h6">
+              Property Type
+            </Heading>
+            <Body as="p" size="sm" tone="muted" className="mt-1">
+              What type of property are you adding?
+            </Body>
           </div>
 
           {/* Options */}
@@ -78,15 +89,17 @@ const NewPropertyModal = ({ isOpen, onClose, onNext }: NewPropertyModalProps) =>
               <button
                 key={type}
                 onClick={() => setSelected(type)}
-                className={`flex flex-col items-center rounded-lg border px-4 py-3 text-sm transition hover:shadow-sm ${
+                className={`flex flex-col items-center rounded-lg border px-4 py-3 transition hover:shadow-sm ${
                   selected === type
                     ? 'border-blue-600 ring-2 ring-blue-200'
                     : 'border-gray-200 hover:border-gray-300'
                 } ${idx === propertyTypes.length - 1 ? 'sm:col-span-2' : ''}`}
                 type="button"
               >
-                <HomeIcon className="mb-2 h-4 w-4 text-gray-600" />
-                <span className="font-medium text-gray-800">{type}</span>
+                <HomeIcon className="mb-2 h-4 w-4 text-muted-foreground" />
+                <Label as="span" size="sm">
+                  {type}
+                </Label>
               </button>
             ))}
           </div>
@@ -97,18 +110,22 @@ const NewPropertyModal = ({ isOpen, onClose, onNext }: NewPropertyModalProps) =>
           <button
             type="button"
             disabled
-            className="border-border bg-background text-muted-foreground flex items-center gap-2 rounded-md border px-4 py-2 text-sm"
+            className="border-border bg-background text-muted-foreground flex items-center gap-2 rounded-md border px-4 py-2"
           >
-            Previous
+            <Label as="span" size="sm" tone="muted">
+              Previous
+            </Label>
           </button>
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => onNext?.(selected)}
-              className="bg-primary text-primary-foreground rounded-md px-4 py-2 text-sm font-medium hover:opacity-90 disabled:opacity-60"
+              className="bg-primary text-primary-foreground rounded-md px-4 py-2 hover:opacity-90 disabled:opacity-60"
               disabled={!selected}
             >
-              Next
+              <Label as="span" size="sm">
+                Next
+              </Label>
             </button>
           </div>
         </div>

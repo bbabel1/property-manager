@@ -8,6 +8,7 @@ import EditOwnerModal, { type OwnerModalData } from '@/components/EditOwnerModal
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import type { Database } from '@/types/database'
+import { Body, Heading, Label } from '@/ui/typography'
 
 type Country = Database['public']['Enums']['countries']
 
@@ -164,7 +165,9 @@ export default function OwnersPage() {
     return (
       <div className="p-6 space-y-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-foreground">Rental Owners</h1>
+          <Heading as="h1" size="h3">
+            Rental Owners
+          </Heading>
         </div>
         <div className="bg-card rounded-lg border p-6">
           <div className="animate-pulse space-y-4">
@@ -183,15 +186,21 @@ export default function OwnersPage() {
     return (
       <div className="p-6 space-y-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-foreground">Rental Owners</h1>
+          <Heading as="h1" size="h3">
+            Rental Owners
+          </Heading>
         </div>
         <div className="bg-card rounded-lg border p-6">
           <div className="text-center py-8">
             <div className="text-destructive mb-4">
               <Users className="h-12 w-12 mx-auto" />
             </div>
-            <h3 className="text-lg font-medium text-foreground mb-2">Error Loading Owners</h3>
-            <p className="text-muted-foreground mb-4">{error}</p>
+            <Heading as="h3" size="h5" className="mb-2">
+              Error Loading Owners
+            </Heading>
+            <Body tone="muted" size="sm" className="mb-4">
+              {error}
+            </Body>
             <Button onClick={fetchOwners}>
               Try Again
             </Button>
@@ -205,8 +214,12 @@ export default function OwnersPage() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Rental Owners</h1>
-          <p className="text-muted-foreground">Manage property owners and their contact information.</p>
+          <Heading as="h1" size="h3">
+            Rental Owners
+          </Heading>
+          <Body tone="muted" size="sm">
+            Manage property owners and their contact information.
+          </Body>
         </div>
         <Button onClick={() => setShowCreateModal(true)} className="flex items-center">
           <Plus className="h-4 w-4 mr-2" />
@@ -218,8 +231,12 @@ export default function OwnersPage() {
         <div className="bg-card rounded-lg border p-6">
           <div className="text-center py-12">
             <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-foreground mb-2">No Owners Yet</h3>
-            <p className="text-muted-foreground mb-6">Get started by creating your first property owner.</p>
+            <Heading as="h3" size="h5" className="mb-2">
+              No Owners Yet
+            </Heading>
+            <Body tone="muted" size="sm" className="mb-6">
+              Get started by creating your first property owner.
+            </Body>
             <Button onClick={() => setShowCreateModal(true)} className="mx-auto flex items-center">
               <Plus className="h-5 w-5 mr-2" />
               Create First Owner
@@ -238,12 +255,22 @@ export default function OwnersPage() {
           
           {/* Table Header */}
           <div className="px-6 py-3 bg-muted border-b border-border">
-            <div className="grid grid-cols-5 gap-4 text-sm font-medium text-foreground">
-              <div>Owner</div>
-              <div>Contact</div>
-              <div>Entity Type</div>
-              <div className="text-center">Units</div>
-              <div className="text-center">Since</div>
+            <div className="grid grid-cols-5 gap-4">
+              <Label as="div" size="sm">
+                Owner
+              </Label>
+              <Label as="div" size="sm">
+                Contact
+              </Label>
+              <Label as="div" size="sm">
+                Entity Type
+              </Label>
+              <Label as="div" size="sm" className="text-center">
+                Units
+              </Label>
+              <Label as="div" size="sm" className="text-center">
+                Since
+              </Label>
             </div>
           </div>
           
@@ -258,13 +285,15 @@ export default function OwnersPage() {
                 <div className="grid grid-cols-5 gap-4 items-center">
                   {/* Owner Column */}
                   <div>
-                    <div className="font-medium text-foreground">{owner.displayName}</div>
-                    <div className="text-sm text-muted-foreground">
+                    <Label as="div" size="sm">
+                      {owner.displayName}
+                    </Label>
+                    <Body as="div" size="sm" tone="muted">
                       {owner.primary_city && owner.primary_state 
                         ? `${owner.primary_city}, ${owner.primary_state}`
                         : 'Location not specified'
                       }
-                    </div>
+                    </Body>
                   </div>
                   
                   {/* Contact Column */}
@@ -272,33 +301,39 @@ export default function OwnersPage() {
                     {owner.primary_email && (
                       <div className="flex items-center space-x-1 mb-1">
                         <Mail className="w-4 h-4 text-muted-foreground" />
-                        <span className="text-sm text-foreground">{owner.primary_email}</span>
+                        <Body as="span" size="sm">
+                          {owner.primary_email}
+                        </Body>
                       </div>
                     )}
                     {owner.primary_phone && (
                       <div className="flex items-center space-x-1">
                         <Phone className="w-4 h-4 text-muted-foreground" />
-                        <span className="text-sm text-muted-foreground">{owner.primary_phone}</span>
+                        <Body as="span" size="sm" tone="muted">
+                          {owner.primary_phone}
+                        </Body>
                       </div>
                     )}
                   </div>
                   
                   {/* Entity Type Column */}
                   <div>
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                    <Label as="span" size="xs" className={`inline-flex items-center px-2.5 py-0.5 rounded-full ${
                       owner.is_company 
                         ? 'bg-primary/10 text-primary' 
                         : 'bg-success/10 text-success'
                     }`}>
                       {owner.is_company ? 'Company' : 'Individual'}
-                    </span>
+                    </Label>
                   </div>
                   
                   {/* Units Column */}
                   <div className="text-center">
                     <div className="flex items-center justify-center space-x-1">
                       <div className="w-4 h-4 bg-primary rounded"></div>
-                      <span className="font-medium text-foreground">{owner.total_units || 0}</span>
+                      <Label as="span" size="sm">
+                        {owner.total_units || 0}
+                      </Label>
                     </div>
                   </div>
                   
@@ -306,12 +341,12 @@ export default function OwnersPage() {
                   <div className="text-center">
                     <div className="flex items-center justify-center space-x-1">
                       <Calendar className="w-4 h-4 text-muted-foreground" />
-                      <span className="text-sm text-muted-foreground">
+                      <Body as="span" size="sm" tone="muted">
                         {owner.management_agreement_start_date 
                           ? formatDate(owner.management_agreement_start_date)
                           : 'Not specified'
                         }
-                      </span>
+                      </Body>
                     </div>
                   </div>
                 </div>

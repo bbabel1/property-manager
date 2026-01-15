@@ -22,6 +22,7 @@ import {
   type LeaseFormSuccessPayload,
 } from '@/components/leases/types';
 import { formatCurrency } from '@/lib/transactions/formatting';
+import { Body, Heading, Label } from '@/ui/typography';
 
 const EnterChargeSchema = z.object({
   date: z.string().min(1, 'Date required'),
@@ -356,9 +357,9 @@ export default function EnterChargeForm({
     >
       {layout === 'standalone' && !hideTitle ? (
         <div className="space-y-1">
-          <h1 className="text-foreground text-2xl font-semibold">
+          <Heading as="h1" size="h2">
             {mode === 'edit' ? 'Edit charge' : 'Add charge'}
-          </h1>
+          </Heading>
         </div>
       ) : null}
 
@@ -366,31 +367,37 @@ export default function EnterChargeForm({
         <div className="border-border/70 bg-card space-y-6 rounded-lg border p-6">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-foreground text-lg font-semibold">Charge</h2>
-              <p className="text-muted-foreground text-sm">
+              <Heading as="h2" size="h4">
+                Charge
+              </Heading>
+              <Body as="p" size="sm" tone="muted">
                 Update the transaction details and allocations.
-              </p>
+              </Body>
             </div>
-            <span className="text-muted-foreground text-xs tracking-wide uppercase">
+            <Body as="span" size="xs" tone="muted" className="tracking-wide uppercase">
               {form.date || 'Set date'}
-            </span>
+            </Body>
           </div>
           <form className="space-y-8" onSubmit={handleSubmit}>
             <section className="grid gap-6 lg:grid-cols-2">
               <label className="space-y-2">
-                <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                <Label as="span" size="xs" tone="muted" className="tracking-wide uppercase">
                   Date *
-                </span>
+                </Label>
                 <DateInput
                   value={form.date || ''}
                   onChange={(nextValue) => updateField('date', nextValue)}
                 />
-                {errors.date ? <p className="text-destructive text-xs">{errors.date}</p> : null}
+                {errors.date ? (
+                  <Body size="xs" className="text-destructive">
+                    {errors.date}
+                  </Body>
+                ) : null}
               </label>
               <label className="space-y-2">
-                <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                <Label as="span" size="xs" tone="muted" className="tracking-wide uppercase">
                   Amount *
-                </span>
+                </Label>
                 <Input
                   type="number"
                   inputMode="decimal"
@@ -399,12 +406,16 @@ export default function EnterChargeForm({
                   onChange={(event) => updateField('amount', event.target.value)}
                   placeholder="$0.00"
                 />
-                {errors.amount ? <p className="text-destructive text-xs">{errors.amount}</p> : null}
+                {errors.amount ? (
+                  <Body size="xs" className="text-destructive">
+                    {errors.amount}
+                  </Body>
+                ) : null}
               </label>
               <label className="space-y-2 lg:col-span-2">
-                <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                <Label as="span" size="xs" tone="muted" className="tracking-wide uppercase">
                   Memo
-                </span>
+                </Label>
                 <Textarea
                   rows={3}
                   value={form.memo}
@@ -416,28 +427,46 @@ export default function EnterChargeForm({
 
             <section className="space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-foreground text-sm font-semibold">Attachment</span>
-                <span className="text-muted-foreground text-xs">1 file up to 20MB</span>
+                <Heading as="div" size="h6">
+                  Attachment
+                </Heading>
+                <Body as="span" size="xs" tone="muted">
+                  1 file up to 20MB
+                </Body>
               </div>
               <div className="border-muted-foreground/40 bg-muted/10 rounded-lg border border-dashed px-6 py-8 text-center">
-                <p className="text-muted-foreground text-sm">
+                <Body as="p" size="sm" tone="muted">
                   Drag & drop file here or{' '}
                   <button type="button" className="text-primary underline" disabled>
                     browse
                   </button>
-                </p>
+                </Body>
               </div>
             </section>
 
             <section className="space-y-4">
-              <h2 className="text-foreground text-sm font-semibold">Apply to accounts</h2>
+              <Heading as="h2" size="h6">
+                Apply to accounts
+              </Heading>
               <div className="border-border overflow-hidden rounded-lg border">
                 <Table className="min-w-full">
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Account</TableHead>
-                      <TableHead className="w-32 text-right">Amount</TableHead>
-                      <TableHead className="w-12 text-right">Remove</TableHead>
+                      <TableHead>
+                        <Label as="span" size="xs" className="uppercase tracking-wide">
+                          Account
+                        </Label>
+                      </TableHead>
+                      <TableHead className="w-32 text-right">
+                        <Label as="span" size="xs" className="uppercase tracking-wide">
+                          Amount
+                        </Label>
+                      </TableHead>
+                      <TableHead className="w-12 text-right">
+                        <Label as="span" size="xs" className="uppercase tracking-wide">
+                          Remove
+                        </Label>
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -475,10 +504,14 @@ export default function EnterChargeForm({
                         </TableCell>
                       </TableRow>
                     ))}
-                    <TableRow className="bg-muted/30 font-medium">
-                      <TableCell>Total</TableCell>
-                      <TableCell className="text-right text-sm">
-                        {formatCurrency(allocationsTotal)}
+                    <TableRow className="bg-muted/30">
+                      <TableCell>
+                        <Label as="span">Total</Label>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Body as="span" size="sm">
+                          {formatCurrency(allocationsTotal)}
+                        </Body>
                       </TableCell>
                       <TableCell />
                     </TableRow>
@@ -489,13 +522,17 @@ export default function EnterChargeForm({
                 <Plus className="h-4 w-4" /> Add row
               </Button>
               {errors.allocations ? (
-                <p className="text-destructive text-xs">{errors.allocations}</p>
+                <Body size="xs" className="text-destructive">
+                  {errors.allocations}
+                </Body>
               ) : null}
             </section>
 
             {formError ? (
-              <div className="border-destructive/40 bg-destructive/10 text-destructive rounded-md border px-4 py-3 text-sm">
-                {formError}
+              <div className="border-destructive/40 bg-destructive/10 text-destructive rounded-md border px-4 py-3">
+                <Body size="sm" className="text-destructive">
+                  {formError}
+                </Body>
               </div>
             ) : null}
 
@@ -506,16 +543,15 @@ export default function EnterChargeForm({
                 <Button type="submit" disabled={submitting}>
                   {submitting ? 'Saving…' : 'Save charge'}
                 </Button>
-                <Button type="button" variant="outline" className="text-muted-foreground" disabled>
+                <Button type="button" variant="outline" disabled>
                   Add another charge
                 </Button>
-                <Button type="button" variant="outline" className="text-muted-foreground" disabled>
+                <Button type="button" variant="outline" disabled>
                   Save and prepare invoice
                 </Button>
                 <Button
                   type="button"
                   variant="cancel"
-                  className="text-muted-foreground"
                   onClick={onCancel}
                 >
                   Cancel
@@ -528,19 +564,23 @@ export default function EnterChargeForm({
         <form className="space-y-6 md:space-y-8" onSubmit={handleSubmit}>
           <section className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-5 lg:gap-6">
             <label className="space-y-2">
-              <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+              <Label as="span" size="xs" tone="muted" className="tracking-wide uppercase">
                 Date *
-              </span>
+              </Label>
               <DateInput
                 value={form.date || ''}
                 onChange={(nextValue) => updateField('date', nextValue)}
               />
-              {errors.date ? <p className="text-destructive text-xs">{errors.date}</p> : null}
+              {errors.date ? (
+                <Body size="xs" className="text-destructive">
+                  {errors.date}
+                </Body>
+              ) : null}
             </label>
             <label className="space-y-2">
-              <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+              <Label as="span" size="xs" tone="muted" className="tracking-wide uppercase">
                 Amount *
-              </span>
+              </Label>
               <Input
                 type="number"
                 inputMode="decimal"
@@ -549,12 +589,16 @@ export default function EnterChargeForm({
                 onChange={(event) => updateField('amount', event.target.value)}
                 placeholder="$0.00"
               />
-              {errors.amount ? <p className="text-destructive text-xs">{errors.amount}</p> : null}
+              {errors.amount ? (
+                <Body size="xs" className="text-destructive">
+                  {errors.amount}
+                </Body>
+              ) : null}
             </label>
             <label className="space-y-2 md:col-span-2">
-              <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+              <Label as="span" size="xs" tone="muted" className="tracking-wide uppercase">
                 Memo
-              </span>
+              </Label>
               <Textarea
                 rows={3}
                 value={form.memo}
@@ -566,12 +610,12 @@ export default function EnterChargeForm({
 
           <section className="space-y-3 md:space-y-4">
             <div className="flex items-center justify-between gap-3">
-              <h2 className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">
+              <Heading as="h2" size="h6" className="text-muted-foreground tracking-wide uppercase">
                 Apply to accounts
-              </h2>
+              </Heading>
               <Button
                 variant="ghost"
-                className="h-9 px-2 text-sm font-semibold"
+                className="h-9 px-2"
                 type="button"
                 onClick={addRow}
               >
@@ -583,14 +627,20 @@ export default function EnterChargeForm({
               <Table className="min-w-full">
                 <TableHeader>
                   <TableRow className="bg-muted/40">
-                    <TableHead className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                      Account
+                    <TableHead>
+                      <Label as="span" size="xs" className="uppercase tracking-widest" tone="muted">
+                        Account
+                      </Label>
                     </TableHead>
-                    <TableHead className="w-32 text-right text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                      Amount
+                    <TableHead className="w-32 text-right">
+                      <Label as="span" size="xs" className="uppercase tracking-widest" tone="muted">
+                        Amount
+                      </Label>
                     </TableHead>
-                    <TableHead className="w-12 text-right text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                      Remove
+                    <TableHead className="w-12 text-right">
+                      <Label as="span" size="xs" className="uppercase tracking-widest" tone="muted">
+                        Remove
+                      </Label>
                     </TableHead>
                   </TableRow>
                 </TableHeader>
@@ -629,10 +679,14 @@ export default function EnterChargeForm({
                       </TableCell>
                     </TableRow>
                   ))}
-                  <TableRow className="bg-muted/20 font-semibold">
-                    <TableCell>Total</TableCell>
-                    <TableCell className="text-right text-sm">
-                      {formatCurrency(allocationsTotal)}
+                  <TableRow className="bg-muted/20">
+                    <TableCell>
+                      <Label as="span">Total</Label>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Body as="span" size="sm">
+                        {formatCurrency(allocationsTotal)}
+                      </Body>
                     </TableCell>
                     <TableCell />
                   </TableRow>
@@ -640,13 +694,17 @@ export default function EnterChargeForm({
               </Table>
             </div>
             {errors.allocations ? (
-              <p className="text-destructive text-xs">{errors.allocations}</p>
+              <Body size="xs" className="text-destructive">
+                {errors.allocations}
+              </Body>
             ) : null}
           </section>
 
           {formError ? (
-            <div className="border-destructive/40 bg-destructive/10 text-destructive rounded-md border px-4 py-3 text-sm">
-              {formError}
+            <div className="border-destructive/40 bg-destructive/10 text-destructive rounded-md border px-4 py-3">
+              <Body size="sm" className="text-destructive">
+                {formError}
+              </Body>
             </div>
           ) : null}
 
@@ -654,12 +712,10 @@ export default function EnterChargeForm({
             footerRenderer({ submitting, onCancel })
           ) : (
             <div className="flex flex-col gap-3 pt-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="text-sm text-muted-foreground">
+              <Body tone="muted">
                 Total:{' '}
-                <span className="font-semibold text-foreground">
-                  {formatCurrency(allocationsTotal)}
-                </span>
-              </div>
+                <Label as="span">{formatCurrency(allocationsTotal)}</Label>
+              </Body>
               <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
                 <Button type="button" variant="outline" onClick={onCancel}>
                   Cancel

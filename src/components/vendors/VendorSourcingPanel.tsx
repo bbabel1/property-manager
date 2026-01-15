@@ -5,7 +5,6 @@ import type { VendorDashboardData } from '@/lib/vendor-service';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -16,6 +15,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Building2, Loader2, PlugZap, ShieldAlert, Sparkles } from 'lucide-react';
+import { Body, Heading, Label } from '@/ui/typography';
 
 interface VendorSourcingPanelProps {
   snapshot: VendorDashboardData['aiSnapshot'];
@@ -102,7 +102,11 @@ export function VendorSourcingPanel({ snapshot }: VendorSourcingPanelProps) {
       <CardHeader className="flex flex-col gap-2">
         <div className="flex items-center justify-between gap-2">
           <div>
-            <CardTitle className="text-lg">AI vendor sourcing</CardTitle>
+            <CardTitle>
+              <Heading as="div" size="h5">
+                AI vendor sourcing
+              </Heading>
+            </CardTitle>
             <CardDescription>
               Auto-source internal and Buildium vendors based on property needs.
             </CardDescription>
@@ -115,7 +119,9 @@ export function VendorSourcingPanel({ snapshot }: VendorSourcingPanelProps) {
       <CardContent className="flex flex-col gap-4">
         <div className="grid gap-3 md:grid-cols-2">
           <div className="space-y-1">
-            <Label htmlFor="sourcing-property">Property or location</Label>
+            <Label as="label" htmlFor="sourcing-property" size="sm">
+              Property or location
+            </Label>
             <Input
               id="sourcing-property"
               placeholder="e.g., 145 Beacon Street or North Boston"
@@ -124,7 +130,9 @@ export function VendorSourcingPanel({ snapshot }: VendorSourcingPanelProps) {
             />
           </div>
           <div className="space-y-1">
-            <Label>Job category</Label>
+            <Label as="label" size="sm">
+              Job category
+            </Label>
             <Select value={jobCategory} onValueChange={setJobCategory}>
               <SelectTrigger>
                 <SelectValue placeholder="Select category" />
@@ -141,7 +149,9 @@ export function VendorSourcingPanel({ snapshot }: VendorSourcingPanelProps) {
             </Select>
           </div>
           <div className="space-y-1">
-            <Label htmlFor="sourcing-budget">Budget (optional)</Label>
+            <Label as="label" htmlFor="sourcing-budget" size="sm">
+              Budget (optional)
+            </Label>
             <Input
               id="sourcing-budget"
               type="number"
@@ -152,7 +162,9 @@ export function VendorSourcingPanel({ snapshot }: VendorSourcingPanelProps) {
             />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="sourcing-notes">Job notes (optional)</Label>
+            <Label as="label" htmlFor="sourcing-notes" size="sm">
+              Job notes (optional)
+            </Label>
             <Input
               id="sourcing-notes"
               placeholder="Any special requirements"
@@ -162,9 +174,9 @@ export function VendorSourcingPanel({ snapshot }: VendorSourcingPanelProps) {
           </div>
         </div>
         <div className="flex items-center justify-between">
-          <div className="text-muted-foreground text-xs">
+          <Body as="div" size="xs" tone="muted">
             Combines Ora vendor history, compliance data, and live Buildium directory.
-          </div>
+          </Body>
           <Button type="button" className="gap-2" onClick={runSourcing} disabled={isPending}>
             {isPending ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -174,7 +186,11 @@ export function VendorSourcingPanel({ snapshot }: VendorSourcingPanelProps) {
             Generate matches
           </Button>
         </div>
-        {error ? <div className="text-xs text-red-600">{error}</div> : null}
+        {error ? (
+          <Body as="div" size="xs" className="text-destructive">
+            {error}
+          </Body>
+        ) : null}
         <ScrollArea className="h-[260px] rounded-lg border">
           <div className="space-y-3 p-4">
             {recommendations.length > 0 ? (
@@ -184,26 +200,33 @@ export function VendorSourcingPanel({ snapshot }: VendorSourcingPanelProps) {
                   className="border-border/70 bg-card rounded-lg border p-3"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="text-foreground flex items-center gap-2 text-sm font-semibold">
+                    <Heading as="div" size="h6" className="flex items-center gap-2">
                       {rec.source === 'internal' ? (
                         <Sparkles className="text-primary h-4 w-4" />
                       ) : (
                         <Building2 className="text-muted-foreground h-4 w-4" />
                       )}
-                      <span>{rec.vendorName}</span>
+                      <span className="font-semibold">{rec.vendorName}</span>
                       {rec.category ? <Badge variant="outline">{rec.category}</Badge> : null}
-                    </div>
-                    <div className="text-muted-foreground flex items-center gap-2 text-xs">
+                    </Heading>
+                    <Body as="div" size="xs" tone="muted" className="flex items-center gap-2">
                       <span>
                         {rec.source === 'internal' ? 'Internal intelligence' : 'Buildium directory'}
                       </span>
                       <Badge variant="secondary">
                         Confidence {(rec.confidence * 100).toFixed(0)}%
                       </Badge>
-                    </div>
+                    </Body>
                   </div>
-                  <p className="text-muted-foreground mt-1 text-xs">{rec.rationale}</p>
-                  <div className="text-muted-foreground mt-2 flex flex-wrap gap-2 text-xs">
+                  <Body as="p" size="xs" tone="muted" className="mt-1">
+                    {rec.rationale}
+                  </Body>
+                  <Body
+                    as="div"
+                    size="xs"
+                    tone="muted"
+                    className="mt-2 flex flex-wrap gap-2"
+                  >
                     {rec.complianceStatus ? (
                       <span className="inline-flex items-center gap-1">
                         <ShieldAlert className="h-3.5 w-3.5" />
@@ -215,7 +238,7 @@ export function VendorSourcingPanel({ snapshot }: VendorSourcingPanelProps) {
                         Buildium ID {rec.buildiumVendorId}
                       </span>
                     ) : null}
-                  </div>
+                  </Body>
                   <div className="mt-3 flex gap-2">
                     <Button size="sm" variant="secondary">
                       Invite to quote
@@ -227,10 +250,15 @@ export function VendorSourcingPanel({ snapshot }: VendorSourcingPanelProps) {
                 </div>
               ))
             ) : (
-              <div className="text-muted-foreground flex h-[200px] flex-col items-center justify-center gap-2 text-sm">
+              <Body
+                as="div"
+                size="sm"
+                tone="muted"
+                className="flex h-[200px] flex-col items-center justify-center gap-2 text-center"
+              >
                 <PlugZap className="text-primary h-5 w-5" />
                 Run sourcing to pull AI-ranked matches from internal data and Buildium.
-              </div>
+              </Body>
             )}
           </div>
         </ScrollArea>

@@ -19,6 +19,7 @@ import { useMemo, useState } from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useAuth } from "@/components/providers";
 import { RoleRank, type AppRole } from "@/lib/auth/roles";
+import { Body, Label } from "@/ui/typography";
 
 interface SidebarProps {
   activeSection: string;
@@ -111,7 +112,9 @@ export function Sidebar({ activeSection, onNavigate }: SidebarProps) {
               />
             </div>
 
-            <div className="text-sm text-muted-foreground mb-3">Navigation</div>
+            <Label as="div" size="sm" tone="muted" className="mb-3">
+              Navigation
+            </Label>
             <nav className="space-y-2.5">
               {navigation.map((item) => {
                 const Icon = item.icon;
@@ -144,21 +147,27 @@ export function Sidebar({ activeSection, onNavigate }: SidebarProps) {
                 <AvatarFallback className="bg-blue-600 text-white text-sm">{initials}</AvatarFallback>
               </Avatar>
               <div className="min-w-0">
-                <div className="text-sm font-medium truncate">{displayName}</div>
+                <Body as="div" size="sm" className="truncate font-medium leading-tight">
+                  {displayName}
+                </Body>
                 {roleLabel ? (
-                  <div className="text-xs text-muted-foreground truncate">{roleLabel}</div>
+                  <Label as="div" size="xs" tone="muted" className="truncate">
+                    {roleLabel}
+                  </Label>
                 ) : null}
               </div>
             </div>
             <button
               type="button"
-              className="mt-3 inline-flex items-center gap-2 text-sm text-foreground hover:underline"
+              className="mt-3 inline-flex items-center gap-2 text-foreground hover:underline"
               onClick={async () => {
                 await signOut();
               }}
             >
               <LogOut className="h-4 w-4" />
-              <span>Log out</span>
+              <Body as="span" size="sm" className="leading-tight">
+                Log out
+              </Body>
             </button>
           </div>
         </div>

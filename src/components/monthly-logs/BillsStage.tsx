@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Receipt, AlertCircle, DollarSign } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
+import { Body, Heading, Label } from '@/ui/typography';
 
 interface BillsStageProps {
   monthlyLogId: string;
@@ -107,7 +108,9 @@ export default function BillsStage({ monthlyLogId }: BillsStageProps) {
         <CardContent>
           <div className="flex items-center gap-2 rounded-lg bg-red-50 p-4 text-red-600">
             <AlertCircle className="h-5 w-5" />
-            <p>{error || 'Failed to load bills data'}</p>
+            <Body as="p" size="sm">
+              {error || 'Failed to load bills data'}
+            </Body>
           </div>
         </CardContent>
       </Card>
@@ -124,10 +127,10 @@ export default function BillsStage({ monthlyLogId }: BillsStageProps) {
               <Receipt className="h-5 w-5 text-red-600" />
               Bills
             </div>
-            <div className="flex items-center gap-2 text-sm font-medium text-slate-600">
+            <Body as="div" size="sm" tone="muted" className="flex items-center gap-2 font-medium">
               <DollarSign className="h-4 w-4" />
               Total: {formatCurrency(data.totalBills)}
-            </div>
+            </Body>
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -140,19 +143,28 @@ export default function BillsStage({ monthlyLogId }: BillsStageProps) {
                 >
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-medium text-slate-900">{bill.memo}</span>
+                      <Label as="span" size="sm">
+                        {bill.memo}
+                      </Label>
                       {bill.reference_number && (
-                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
+                        <Label
+                          as="span"
+                          size="xs"
+                          tone="muted"
+                          className="rounded-full bg-slate-100 px-2 py-0.5"
+                        >
                           #{bill.reference_number}
-                        </span>
+                        </Label>
                       )}
                     </div>
-                    <div className="mt-1 text-sm text-slate-600">{formatDate(bill.date)}</div>
+                    <Body as="div" size="sm" tone="muted" className="mt-1">
+                      {formatDate(bill.date)}
+                    </Body>
                   </div>
                   <div className="text-right">
-                    <div className="font-semibold text-red-600">
+                    <Heading as="div" size="h6" className="text-red-600">
                       -{formatCurrency(Math.abs(bill.total_amount))}
-                    </div>
+                    </Heading>
                   </div>
                 </div>
               ))}
@@ -162,10 +174,12 @@ export default function BillsStage({ monthlyLogId }: BillsStageProps) {
               <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100">
                 <Receipt className="h-6 w-6 text-slate-400" />
               </div>
-              <h3 className="mt-4 text-sm font-medium text-slate-900">No bills found</h3>
-              <p className="mt-2 text-sm text-slate-600">
+              <Heading as="h3" size="h6" className="mt-4">
+                No bills found
+              </Heading>
+              <Body as="p" size="sm" tone="muted" className="mt-2">
                 No bills have been assigned to this monthly log yet.
-              </p>
+              </Body>
             </div>
           )}
         </CardContent>

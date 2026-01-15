@@ -3,6 +3,7 @@
 import React, { useRef } from 'react'
 
 interface BasicAddressAutocompleteProps {
+  id?: string
   value: string
   onChange: (value: string) => void
   _onPlaceSelect?: (place: {
@@ -18,6 +19,7 @@ interface BasicAddressAutocompleteProps {
 }
 
 export default function BasicAddressAutocomplete({
+  id,
   value,
   onChange,
   _onPlaceSelect,
@@ -34,6 +36,7 @@ export default function BasicAddressAutocomplete({
   return (
     <div className="relative">
       <input
+        id={id}
         ref={inputRef}
         type="text"
         value={value}

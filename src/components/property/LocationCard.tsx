@@ -5,6 +5,8 @@ import InlineEditCard from '@/components/form/InlineEditCard';
 import EditLink from '@/components/ui/EditLink';
 import { Button } from '@/components/ui/button';
 import { CheckCircle2, XCircle } from 'lucide-react';
+import { Checkbox } from '@/ui/checkbox';
+import { Body, Heading, Label } from '@/ui/typography';
 
 type LocationProperty = {
   id: string;
@@ -42,7 +44,8 @@ export default function LocationCard({ property }: { property: LocationProperty 
     property.latitude != null ? String(property.latitude) : '',
   );
   const [verified, setVerified] = useState<boolean>(!!property.location_verified);
-  const sectionLabelClass = 'eyebrow-label';
+  const sectionLabelClass =
+    'text-xs font-medium uppercase tracking-[0.12em] leading-tight text-muted-foreground';
 
   useEffect(() => {
     if (!editing) return;
@@ -110,23 +113,27 @@ export default function LocationCard({ property }: { property: LocationProperty 
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
         <div>
           <p className={sectionLabelClass}>Borough</p>
-          <p className="text-foreground mt-1 text-sm font-medium">{borough || '—'}</p>
+          <Body size="sm" className="mt-1 font-medium">
+            {borough || '—'}
+          </Body>
         </div>
         <div>
           <p className={sectionLabelClass}>Neighborhood</p>
-          <p className="text-foreground mt-1 text-sm font-medium">{neighborhood || '—'}</p>
+          <Body size="sm" className="mt-1 font-medium">
+            {neighborhood || '—'}
+          </Body>
         </div>
         <div>
           <p className={sectionLabelClass}>Longitude</p>
-          <p className="text-foreground mt-1 text-sm font-medium">
+          <Body size="sm" className="mt-1 font-medium">
             {longitude !== '' ? longitude : '—'}
-          </p>
+          </Body>
         </div>
         <div>
           <p className={sectionLabelClass}>Latitude</p>
-          <p className="text-foreground mt-1 text-sm font-medium">
+          <Body size="sm" className="mt-1 font-medium">
             {latitude !== '' ? latitude : '—'}
-          </p>
+          </Body>
         </div>
       </div>
       <div className="mt-4">
@@ -135,12 +142,16 @@ export default function LocationCard({ property }: { property: LocationProperty 
           {verified ? (
             <>
               <CheckCircle2 className="text-primary h-4 w-4" aria-hidden="true" />
-              <span className="text-primary text-sm font-medium">Verified</span>
+              <Body as="span" size="sm" className="text-primary font-medium">
+                Verified
+              </Body>
             </>
           ) : (
             <>
               <XCircle className="text-muted-foreground h-4 w-4" aria-hidden="true" />
-              <span className="text-muted-foreground text-sm font-medium">Not verified</span>
+              <Body as="span" size="sm" tone="muted" className="font-medium">
+                Not verified
+              </Body>
             </>
           )}
         </div>
@@ -149,7 +160,7 @@ export default function LocationCard({ property }: { property: LocationProperty 
   );
 
   const edit = (
-    <div className="surface-card relative p-6 text-sm transition-colors">
+    <div className="relative rounded-lg border border-border bg-card p-6 text-sm transition-colors">
       <div className="bg-primary absolute top-2 bottom-2 left-0 w-0.5 rounded-r-sm" />
       <button
         type="button"
@@ -168,12 +179,14 @@ export default function LocationCard({ property }: { property: LocationProperty 
       <div className="space-y-6">
         {/* Location Information */}
         <div>
-          <h4 className="text-foreground mb-2 text-sm font-medium">Location Information</h4>
+          <Heading as="h4" size="h4" className="mb-2">
+            Location Information
+          </Heading>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div>
-              <label className="text-muted-foreground mb-1 block text-sm font-medium">
+              <Label tone="muted" className="mb-1 block">
                 Borough
-              </label>
+              </Label>
               <input
                 type="text"
                 value={borough}
@@ -183,9 +196,9 @@ export default function LocationCard({ property }: { property: LocationProperty 
               />
             </div>
             <div>
-              <label className="text-muted-foreground mb-1 block text-sm font-medium">
+              <Label tone="muted" className="mb-1 block">
                 Neighborhood
-              </label>
+              </Label>
               <input
                 type="text"
                 value={neighborhood}
@@ -195,9 +208,9 @@ export default function LocationCard({ property }: { property: LocationProperty 
               />
             </div>
             <div>
-              <label className="text-muted-foreground mb-1 block text-sm font-medium">
+              <Label tone="muted" className="mb-1 block">
                 Longitude
-              </label>
+              </Label>
               <input
                 type="number"
                 step="0.000001"
@@ -208,9 +221,9 @@ export default function LocationCard({ property }: { property: LocationProperty 
               />
             </div>
             <div>
-              <label className="text-muted-foreground mb-1 block text-sm font-medium">
+              <Label tone="muted" className="mb-1 block">
                 Latitude
-              </label>
+              </Label>
               <input
                 type="number"
                 step="0.000001"
@@ -225,22 +238,25 @@ export default function LocationCard({ property }: { property: LocationProperty 
 
         {/* Verification */}
         <div>
-          <h4 className="text-foreground mb-2 text-sm font-medium">Verification</h4>
+          <Heading as="h4" size="h4" className="mb-2">
+            Verification
+          </Heading>
           <div className="flex items-center gap-2">
-            <input
+            <Checkbox
               id="verified"
-              type="checkbox"
               checked={verified}
               onChange={(e) => setVerified(e.target.checked)}
-              className="border-border accent-primary h-4 w-4 rounded"
+              className="h-4 w-4"
             />
-            <label htmlFor="verified" className="text-foreground text-sm">
-              Location Verified
-            </label>
+            <Label htmlFor="verified">Location Verified</Label>
           </div>
         </div>
 
-        {error && <p className="text-destructive text-sm">{error}</p>}
+        {error && (
+          <Body size="sm" className="text-destructive">
+            {error}
+          </Body>
+        )}
       </div>
 
       {/* Action Buttons */}
@@ -257,8 +273,10 @@ export default function LocationCard({ property }: { property: LocationProperty 
 
   return (
     <>
-      <div className="section-title-row">
-        <h2 className="section-title-text">Location</h2>
+      <div className="mb-4 flex flex-wrap items-center gap-3 border-b border-border-strong pb-3">
+        <Heading as="h2" size="h3" className="text-lg font-semibold text-foreground">
+          Location
+        </Heading>
         {!editing && <EditLink onClick={() => setEditing(true)} />}
       </div>
       <InlineEditCard
@@ -273,7 +291,7 @@ export default function LocationCard({ property }: { property: LocationProperty 
         isSaving={saving}
         canSave={true}
         variant="plain"
-        className="surface-card"
+        className="border-border bg-card"
         view={view}
         edit={edit}
         titleHidden={true}

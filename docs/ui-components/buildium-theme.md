@@ -23,6 +23,8 @@ The remaining semantic tokens (muted, secondary, accent, etc.) proxy to these pr
 - **Primary font**: `Source Sans 3` (weights 400/500/600/700 loaded via `next/font`)
 - **Fallbacks**: `Source Sans Pro`, `Open Sans`, system UI stack
 - **Scale**: 1rem base with medium headings (`font-weight: 600`), matching dashboard card titles and table typography in the sandbox console.
+- **Primitives**: Use `src/ui/typography` `Heading`, `Body`, and `Label` for all headings and body copy. Default heading hierarchy maps directly to the token scale (`h1` → `text-4xl` … `h6` → `text-base`), so avoid ad-hoc `text-*` classes for page titles and section labels.
+- **Primitives**: Use `Heading`, `Body`, and `Label` from `src/ui/typography.tsx` for all headings, body copy, and form labels. Avoid ad-hoc `text-*` classes on `h1`-`h6`/`p` tags so the tokenized scale (`--text-xs` → `--text-4xl`) stays consistent with `styles/tokens.css`.
 
 ## Implementation Notes
 

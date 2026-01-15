@@ -3,15 +3,28 @@
   "compilerOptions": {
     "target": "ES2018",
     "downlevelIteration": true,
-    "types": ["node"],
+    "types": [
+      "node"
+    ],
     "noEmit": true,
     "esModuleInterop": true,
     "baseUrl": "..",
     "paths": {
-      "@/*": ["./src/*"],
-      "@types/db": ["./src/types/database.ts"]
+      "@/*": [
+        "./src/*"
+      ],
+      "@types/db": [
+        "./src/types/database.ts"
+      ]
     }
   },
-  "include": ["./**/*.ts", "./**/*.tsx"],
-  "exclude": ["../node_modules"]
+  "include": [
+    "./**/*.ts",
+    "./**/*.tsx"
+  ],
+  "exclude": [
+    "../node_modules",
+    "**/*.tsbuildinfo",
+    "**/.next"
+  ]
 }

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { Body, Label } from '@/ui/typography';
 
 type EntityPickerType =
   | 'property'
@@ -236,8 +237,12 @@ export function EntityPicker({
   return (
     <div className={cn('space-y-2', className)} data-testid={dataTestId}>
       <div className="flex items-center justify-between">
-        <span className="text-sm font-medium leading-6 text-foreground">{label}</span>
-        <span className="text-xs text-muted-foreground">{selectedLabel}</span>
+        <Label as="span" size="sm">
+          {label}
+        </Label>
+        <Body as="span" tone="muted" size="xs">
+          {selectedLabel}
+        </Body>
       </div>
 
       <Input
@@ -264,32 +269,40 @@ export function EntityPicker({
               type="button"
               onClick={() => handleSelect(option)}
               className={cn(
-                'w-full px-3 py-2 text-left text-sm transition-colors',
-                active
-                  ? 'bg-primary/10 text-primary-foreground/90'
-                  : 'hover:bg-muted',
+                'w-full px-3 py-2 text-left transition-colors',
+                active ? 'bg-primary/10 text-primary' : 'hover:bg-muted',
               )}
             >
-              <div className="font-medium text-foreground">{option.label}</div>
+              <Label as="div" size="sm">
+                {option.label}
+              </Label>
               {option.description ? (
-                <div className="text-xs text-muted-foreground">{option.description}</div>
+                <Body as="div" tone="muted" size="xs">
+                  {option.description}
+                </Body>
               ) : null}
             </button>
           );
         })}
 
         {!isLoading && options.length === 0 ? (
-          <div className="px-3 py-6 text-center text-sm text-muted-foreground">
+          <Body as="div" tone="muted" size="sm" className="px-3 py-6 text-center">
             {debouncedSearch ? 'No matches found.' : 'No results available.'}
-          </div>
+          </Body>
         ) : null}
 
         {isLoading ? (
-          <div className="px-3 py-2 text-sm text-muted-foreground">Loading…</div>
+          <Body as="div" tone="muted" size="sm" className="px-3 py-2">
+            Loading…
+          </Body>
         ) : null}
       </div>
 
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      {error ? (
+        <Body as="p" size="sm" className="text-destructive">
+          {error}
+        </Body>
+      ) : null}
 
       {hasMore ? (
         <Button

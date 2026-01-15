@@ -10,7 +10,6 @@ import { Paperclip, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
@@ -32,6 +31,7 @@ import {
 import TransactionFileUploadDialog, {
   type TransactionAttachmentDraft,
 } from '@/components/files/TransactionFileUploadDialog';
+import { Body, Heading, Label } from '@/ui/typography';
 
 export type BankAccountOption = {
   id: string;
@@ -446,13 +446,15 @@ export default function RecordCheckForm(props: {
     <div className="w-full space-y-6 pb-10">
       {formError && (
         <div className="rounded-md border border-destructive/20 bg-destructive/10 p-4">
-          <p className="text-sm text-destructive">{formError}</p>
+          <Body as="p" size="sm" className="text-destructive">
+            {formError}
+          </Body>
         </div>
       )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
-          <Label htmlFor="record-check-date" className="text-xs font-semibold tracking-wide">
+          <Label htmlFor="record-check-date" className="text-xs tracking-wide uppercase">
             DATE <span className="text-destructive">*</span>
           </Label>
           <DatePicker
@@ -461,20 +463,24 @@ export default function RecordCheckForm(props: {
             onChange={(value) => setFormValue('date', value ?? '')}
             aria-invalid={Boolean(fieldErrors.date)}
           />
-          {fieldErrors.date && <p className="mt-1 text-xs text-destructive">{fieldErrors.date}</p>}
+          {fieldErrors.date && (
+            <Body as="p" size="sm" className="mt-1 text-xs text-destructive">
+              {fieldErrors.date}
+            </Body>
+          )}
         </div>
 
         <div className="space-y-1">
           <div className="flex items-end justify-between gap-3">
-            <Label htmlFor="record-check-bank-account" className="text-xs font-semibold tracking-wide">
-              BANK ACCOUNT <span className="text-destructive">*</span>
-            </Label>
-            <span className="text-xs text-muted-foreground">
+          <Label htmlFor="record-check-bank-account" className="text-xs tracking-wide uppercase">
+            BANK ACCOUNT <span className="text-destructive">*</span>
+          </Label>
+            <Body as="span" size="sm" tone="muted" className="text-xs">
               Balance:{' '}
-              <span className="text-foreground">
+              <Body as="span" size="sm" className="text-foreground">
                 {formatCurrency(Number(selectedBankAccount?.balance ?? 0))}
-              </span>
-            </span>
+              </Body>
+            </Body>
           </div>
           <Select value={form.bankAccountId} onValueChange={(value) => setFormValue('bankAccountId', value)}>
             <SelectTrigger id="record-check-bank-account" aria-invalid={Boolean(fieldErrors.bankAccountId)}>
@@ -489,12 +495,14 @@ export default function RecordCheckForm(props: {
             </SelectContent>
           </Select>
           {fieldErrors.bankAccountId && (
-            <p className="mt-1 text-xs text-destructive">{fieldErrors.bankAccountId}</p>
+            <Body as="p" size="sm" className="mt-1 text-xs text-destructive">
+              {fieldErrors.bankAccountId}
+            </Body>
           )}
         </div>
 
         <div className="sm:col-span-2">
-          <Label htmlFor="record-check-number" className="text-xs font-semibold tracking-wide">
+          <Label htmlFor="record-check-number" className="text-xs tracking-wide uppercase">
             CHECK NUMBER
           </Label>
           <Input
@@ -566,7 +574,7 @@ export default function RecordCheckForm(props: {
         </div>
 
         <div className="sm:col-span-2">
-          <Label htmlFor="record-check-memo" className="text-xs font-semibold tracking-wide">
+          <Label htmlFor="record-check-memo" className="text-xs tracking-wide uppercase">
             MEMO
           </Label>
           <Textarea
@@ -580,29 +588,23 @@ export default function RecordCheckForm(props: {
       </div>
 
       <div className="space-y-3">
-        <div className="text-sm font-semibold">Allocations</div>
+        <Heading as="div" size="h5">
+          Allocations
+        </Heading>
         <div className="overflow-x-auto rounded-md border">
           <Table className="min-w-[980px]">
             <TableHeader>
               <TableRow className="bg-muted/40">
-                <TableHead className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                  Property
-                </TableHead>
-                <TableHead className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                  Unit
-                </TableHead>
-                <TableHead className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                  Account
-                </TableHead>
-                <TableHead className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                  Description
-                </TableHead>
-                <TableHead className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                  Ref No.
-                </TableHead>
-                <TableHead className="text-right text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                  Amount
-                </TableHead>
+                {['Property', 'Unit', 'Account', 'Description', 'Ref No.', 'Amount'].map(
+                  (label, idx) => (
+                    <TableHead
+                      key={label}
+                      className={`text-muted-foreground uppercase tracking-widest text-[11px] ${idx === 5 ? 'text-right' : ''}`}
+                    >
+                      {label}
+                    </TableHead>
+                  ),
+                )}
                 <TableHead className="w-[3rem]" />
               </TableRow>
             </TableHeader>
@@ -703,10 +705,10 @@ export default function RecordCheckForm(props: {
                 );
               })}
               <TableRow>
-                <TableCell colSpan={5} className="text-sm font-medium">
+                <TableCell colSpan={5} className="text-sm">
                   Total
                 </TableCell>
-                <TableCell className="text-right text-sm font-semibold">{formatCurrency(totalAmount)}</TableCell>
+                <TableCell className="text-right text-sm">{formatCurrency(totalAmount)}</TableCell>
                 <TableCell />
               </TableRow>
             </TableBody>
@@ -722,10 +724,12 @@ export default function RecordCheckForm(props: {
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <div className="text-sm font-semibold">Attachments</div>
-            <div className="text-xs text-muted-foreground">
+            <Body as="div" size="sm" className="font-semibold">
+              Attachments
+            </Body>
+            <Body tone="muted" size="xs">
               Limited to {MAX_ATTACHMENT_COUNT} files. Max file size is {MAX_ATTACHMENT_SIZE_MB}MB.
-            </div>
+            </Body>
           </div>
           <Button type="button" size="sm" variant="outline" onClick={() => setIsUploadDialogOpen(true)}>
             Add files

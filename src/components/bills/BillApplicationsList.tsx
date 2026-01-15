@@ -13,6 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { Body, Label } from '@/ui/typography';
 
 type Application = {
   id: string;
@@ -78,25 +79,53 @@ export function BillApplicationsList({ billId, applications }: Props) {
 
   return (
     <div className="rounded-md border border-border/70 bg-card">
-      <div className="border-b px-4 py-3 text-sm font-semibold">Applications</div>
+      <Label as="div" size="sm" className="border-b px-4 py-3 font-semibold">
+        Applications
+      </Label>
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Source</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Applied</TableHead>
-              <TableHead>Date</TableHead>
-              <TableHead className="text-right">Amount</TableHead>
+              <TableHead>
+                <Label as="span" size="sm">
+                  Source
+                </Label>
+              </TableHead>
+              <TableHead>
+                <Label as="span" size="sm">
+                  Type
+                </Label>
+              </TableHead>
+              <TableHead>
+                <Label as="span" size="sm">
+                  Status
+                </Label>
+              </TableHead>
+              <TableHead>
+                <Label as="span" size="sm">
+                  Applied
+                </Label>
+              </TableHead>
+              <TableHead>
+                <Label as="span" size="sm">
+                  Date
+                </Label>
+              </TableHead>
+              <TableHead className="text-right">
+                <Label as="span" size="sm">
+                  Amount
+                </Label>
+              </TableHead>
               <TableHead />
             </TableRow>
           </TableHeader>
           <TableBody>
             {applications.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="py-4 text-center text-muted-foreground">
-                  No applications yet.
+                <TableCell colSpan={7} className="py-4 text-center">
+                  <Body tone="muted" size="sm">
+                    No applications yet.
+                  </Body>
                 </TableCell>
               </TableRow>
             ) : (

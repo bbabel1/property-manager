@@ -6,6 +6,7 @@ import { AlertTriangle, BellRing, CheckCircle, ShieldCheck, ShieldOff } from 'lu
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Body, Heading, Label } from '@/ui/typography'
 
 interface VendorAutomationProps {
   complianceAlerts: ComplianceAlert[]
@@ -40,8 +41,16 @@ export function VendorAutomation({ complianceAlerts, automationSignals }: Vendor
       <CardHeader className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle className="text-lg">Automation & alerts</CardTitle>
-            <CardDescription>Trigger-ready workflows for compliance, approvals, and vendor engagement.</CardDescription>
+            <CardTitle>
+              <Heading as="div" size="h4">
+                Automation & alerts
+              </Heading>
+            </CardTitle>
+            <CardDescription>
+              <Body as="p" size="sm" tone="muted">
+                Trigger-ready workflows for compliance, approvals, and vendor engagement.
+              </Body>
+            </CardDescription>
           </div>
           <Button size="sm" variant="outline">Configure workflows</Button>
         </div>
@@ -49,7 +58,9 @@ export function VendorAutomation({ complianceAlerts, automationSignals }: Vendor
       <CardContent className="grid gap-4 lg:grid-cols-2">
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-medium text-foreground">Compliance alerts</h3>
+            <Heading as="h3" size="h6">
+              Compliance alerts
+            </Heading>
             <Badge variant="secondary" className="bg-primary/10 text-primary">{complianceAlerts.length}</Badge>
           </div>
           <div className="space-y-3">
@@ -57,15 +68,17 @@ export function VendorAutomation({ complianceAlerts, automationSignals }: Vendor
               <div key={alert.vendorId} className="rounded-lg border border-border/70 bg-muted/40 p-3">
                 <div className="flex items-start justify-between gap-2">
                   <div className="space-y-1">
-                    <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                    <Label as="div" size="sm" className="flex items-center gap-2">
                       <ShieldOff className="h-4 w-4 text-red-500" />
-                      <span>{alert.vendorName}</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground">{alert.notes}</p>
+                      {alert.vendorName}
+                    </Label>
+                    <Body as="p" size="xs" tone="muted">
+                      {alert.notes}
+                    </Body>
                     {alert.insuranceExpirationDate ? (
-                      <p className="text-xs text-muted-foreground/80">
+                      <Body as="p" size="xs" tone="muted">
                         Expiration: {new Date(alert.insuranceExpirationDate).toLocaleDateString()} • {formatDays(alert.daysUntilExpiration)}
-                      </p>
+                      </Body>
                     ) : null}
                   </div>
                   <Badge variant="outline" className="uppercase">
@@ -78,16 +91,20 @@ export function VendorAutomation({ complianceAlerts, automationSignals }: Vendor
               </div>
             ))}
             {complianceAlerts.length === 0 ? (
-              <div className="flex h-[180px] flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border/60 text-sm text-muted-foreground">
+              <div className="flex h-[180px] flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border/60">
                 <ShieldCheck className="h-5 w-5" />
-                All vendors have up-to-date COIs.
+                <Body as="p" size="sm" tone="muted">
+                  All vendors have up-to-date COIs.
+                </Body>
               </div>
             ) : null}
           </div>
         </div>
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-medium text-foreground">Automation signals</h3>
+            <Heading as="h3" size="h6">
+              Automation signals
+            </Heading>
             <Badge variant="secondary" className="bg-primary/10 text-primary">{automationSignals.length}</Badge>
           </div>
           <div className="space-y-3">
@@ -97,14 +114,18 @@ export function VendorAutomation({ complianceAlerts, automationSignals }: Vendor
               return (
                 <div key={`${signal.vendorId}-${index}`} className="rounded-lg border border-border/70 bg-background p-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                    <Label as="div" size="sm" className="flex items-center gap-2">
                       <meta.icon className="h-4 w-4 text-primary" />
-                      <span>{signal.vendorName}</span>
-                    </div>
+                      {signal.vendorName}
+                    </Label>
                     <Badge className={priority.className}>{priority.label}</Badge>
                   </div>
-                  <p className="mt-2 text-xs text-muted-foreground">{signal.description}</p>
-                  <p className="mt-2 text-xs font-medium text-foreground">Suggested action: {signal.suggestedAction}</p>
+                  <Body as="p" size="xs" tone="muted" className="mt-2">
+                    {signal.description}
+                  </Body>
+                  <Label as="p" size="xs" className="mt-2">
+                    Suggested action: {signal.suggestedAction}
+                  </Label>
                   <div className="mt-3 flex gap-2">
                     <Button size="sm" variant="secondary">Automate</Button>
                     <Button size="sm" variant="ghost">Log note</Button>
@@ -113,9 +134,11 @@ export function VendorAutomation({ complianceAlerts, automationSignals }: Vendor
               )
             })}
             {automationSignals.length === 0 ? (
-              <div className="flex h-[180px] flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border/60 text-sm text-muted-foreground">
-                <CheckCircle className="h-5 w-5 text-[var(--color-action-500)]" />
-                No automation triggers at this time.
+              <div className="flex h-[180px] flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border/60">
+                <CheckCircle className="h-5 w-5 text-primary-500" />
+                <Body as="p" size="sm" tone="muted">
+                  No automation triggers at this time.
+                </Body>
               </div>
             ) : null}
           </div>

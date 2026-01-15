@@ -22,6 +22,7 @@ import EditLink from '@/components/ui/EditLink'
 import EditOwnerModal, { type OwnerModalData } from '@/components/EditOwnerModal'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { Database } from '@/types/database'
+import { Body, Heading, Label } from '@/ui/typography'
 
 type Country = Database['public']['Enums']['countries']
 
@@ -218,7 +219,9 @@ export default function OwnerDetailsPage() {
         <div className="flex items-center justify-center min-h-screen">
           <div className="text-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-            <p className="text-muted-foreground">Loading owner details...</p>
+            <Body tone="muted" size="sm">
+              Loading owner details...
+            </Body>
           </div>
         </div>
       </div>
@@ -235,13 +238,19 @@ export default function OwnerDetailsPage() {
               className="flex items-center space-x-2 text-muted-foreground hover:text-foreground transition-colors"
             >
               <ArrowLeft className="h-4 w-4" />
-              <span>Back to Owners</span>
+              <Label as="span" size="sm" tone="muted">
+                Back to Owners
+              </Label>
             </button>
           </div>
           <div className="text-center py-12">
             <AlertCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
-            <h2 className="text-xl font-semibold mb-2">Failed to Load Owner</h2>
-            <p className="text-muted-foreground mb-6">{error}</p>
+            <Heading as="h2" size="h4" className="mb-2">
+              Failed to Load Owner
+            </Heading>
+            <Body tone="muted" size="sm" className="mb-6">
+              {error}
+            </Body>
             <button
               onClick={fetchOwnerDetails}
               className="bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors"
@@ -264,13 +273,19 @@ export default function OwnerDetailsPage() {
               className="flex items-center space-x-2 text-muted-foreground hover:text-foreground transition-colors"
             >
               <ArrowLeft className="h-4 w-4" />
-              <span>Back to Owners</span>
+              <Label as="span" size="sm" tone="muted">
+                Back to Owners
+              </Label>
             </button>
           </div>
           <div className="text-center py-12">
             <User className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <h2 className="text-xl font-semibold mb-2">Owner Not Found</h2>
-            <p className="text-muted-foreground">The requested owner could not be found.</p>
+            <Heading as="h2" size="h4" className="mb-2">
+              Owner Not Found
+            </Heading>
+            <Body tone="muted" size="sm">
+              The requested owner could not be found.
+            </Body>
           </div>
         </div>
       </div>
@@ -285,38 +300,48 @@ export default function OwnerDetailsPage() {
       <div className="border-b border-border">
         <div className="px-8 py-6">
           {/* Breadcrumb */}
-          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-6">
+          <Body as="div" size="sm" tone="muted" className="flex items-center gap-2 mb-6">
             <Link href="/owners" className="hover:text-foreground transition-colors">
               <ArrowLeft className="h-4 w-4" />
             </Link>
             <span>Owners</span>
             <span>/</span>
-            <span className="text-foreground font-medium">{owner.displayName}</span>
-          </div>
+            <Label as="span" size="sm">
+              {owner.displayName}
+            </Label>
+          </Body>
 
           {/* Owner Profile */}
           <div className="flex items-start gap-6 mb-8">
             {/* Avatar */}
-            <div className="w-16 h-16 bg-primary rounded-full flex items-center justify-center text-primary-foreground text-xl font-semibold">
-              {owner.displayName.split(' ').map(n => n[0]).join('').toUpperCase()}
+            <div className="w-16 h-16 bg-primary rounded-full flex items-center justify-center">
+              <Heading as="span" size="h4" className="text-primary-foreground">
+                {owner.displayName.split(' ').map(n => n[0]).join('').toUpperCase()}
+              </Heading>
             </div>
             
             {/* Owner Info */}
             <div className="flex-1">
               <div className="flex items-center gap-3 mb-3">
-                <h1 className="text-2xl font-bold text-foreground">{owner.displayName}</h1>
-                <span className="px-3 py-1 bg-success/10 text-success text-sm font-medium rounded-full">
+                <Heading as="h1" size="h3">
+                  {owner.displayName}
+                </Heading>
+                <Label as="span" size="sm" className="px-3 py-1 bg-success/10 text-success rounded-full">
                   Active
-                </span>
+                </Label>
               </div>
               
               {/* Owner Details Line */}
               <div className="flex items-center gap-4 text-muted-foreground">
-                <span className="px-3 py-1 bg-primary/10 text-primary text-sm font-medium rounded-full">
+                <Label as="span" size="sm" className="px-3 py-1 bg-primary/10 text-primary rounded-full">
                   Individual
-                </span>
-                <span>{properties.length} Properties • {totalUnits} Units</span>
-                <span>Last contact {formatDate(owner.updated_at)}</span>
+                </Label>
+                <Body as="span" size="sm" tone="muted">
+                  {properties.length} Properties • {totalUnits} Units
+                </Body>
+                <Body as="span" size="sm" tone="muted">
+                  Last contact {formatDate(owner.updated_at)}
+                </Body>
               </div>
             </div>
 
@@ -330,44 +355,44 @@ export default function OwnerDetailsPage() {
       <div className="border-b border-border px-8 py-2">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="bg-muted border border-border rounded-full p-1 h-auto w-full justify-start gap-1">
-            <TabsTrigger 
-              value="overview" 
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-full data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-border data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:text-foreground transition-all duration-200"
+            <TabsTrigger
+              value="overview"
+              className="flex items-center gap-2 px-4 py-2 rounded-full data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-border data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:text-foreground transition-all duration-200"
             >
               <Users className="w-4 h-4" />
               Summary
             </TabsTrigger>
-            <TabsTrigger 
-              value="financials" 
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-full data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-border data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:text-foreground transition-all duration-200"
+            <TabsTrigger
+              value="financials"
+              className="flex items-center gap-2 px-4 py-2 rounded-full data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-border data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:text-foreground transition-all duration-200"
             >
               <DollarSign className="w-4 h-4" />
               Financials
             </TabsTrigger>
-            <TabsTrigger 
-              value="properties" 
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-full data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-border data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:text-foreground transition-all duration-200"
+            <TabsTrigger
+              value="properties"
+              className="flex items-center gap-2 px-4 py-2 rounded-full data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-border data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:text-foreground transition-all duration-200"
             >
               <Building2 className="w-4 h-4" />
               Properties ({properties.length})
             </TabsTrigger>
-            <TabsTrigger 
-              value="communications" 
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-full data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-border data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:text-foreground transition-all duration-200"
+            <TabsTrigger
+              value="communications"
+              className="flex items-center gap-2 px-4 py-2 rounded-full data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-border data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:text-foreground transition-all duration-200"
             >
               <MessageSquare className="w-4 h-4" />
               Communications
             </TabsTrigger>
-            <TabsTrigger 
-              value="documents" 
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-full data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-border data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:text-foreground transition-all duration-200"
+            <TabsTrigger
+              value="documents"
+              className="flex items-center gap-2 px-4 py-2 rounded-full data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-border data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:text-foreground transition-all duration-200"
             >
               <FileText className="w-4 h-4" />
               Files
             </TabsTrigger>
-            <TabsTrigger 
-              value="notes" 
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-full data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-border data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:text-foreground transition-all duration-200"
+            <TabsTrigger
+              value="notes"
+              className="flex items-center gap-2 px-4 py-2 rounded-full data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-border data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:text-foreground transition-all duration-200"
             >
               <MessageSquare className="w-4 h-4" />
               Notes
@@ -386,7 +411,9 @@ export default function OwnerDetailsPage() {
                 {/* Rental owner information */}
                 <div className="bg-card rounded-lg border p-6">
                   <div className="flex items-center gap-2 mb-6">
-                    <h2 className="text-lg font-medium text-foreground">Rental owner information</h2>
+                    <Heading as="h2" size="h5">
+                      Rental owner information
+                    </Heading>
                     <EditLink aria-label="Edit rental owner information" />
                   </div>
                   
@@ -394,12 +421,16 @@ export default function OwnerDetailsPage() {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
                     {/* Email Column */}
                     <div>
-                      <h3 className="text-sm font-medium text-foreground border-b border-border pb-2 mb-3">EMAIL:</h3>
+                      <Label as="h3" size="xs" className="border-b border-border pb-2 mb-3 tracking-wide">
+                        EMAIL:
+                      </Label>
                       <div className="space-y-2">
                         {owner.primary_email && (
                           <div className="flex items-center gap-2">
                             <Mail className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-sm text-foreground">{owner.primary_email}</span>
+                            <Body as="span" size="sm">
+                              {owner.primary_email}
+                            </Body>
                             <button 
                               onClick={() => copyToClipboard(owner.primary_email!)}
                               className="text-muted-foreground hover:text-foreground transition-colors"
@@ -412,7 +443,9 @@ export default function OwnerDetailsPage() {
                         {owner.alt_email && (
                           <div className="flex items-center gap-2">
                             <Mail className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-sm text-foreground">{owner.alt_email}</span>
+                            <Body as="span" size="sm">
+                              {owner.alt_email}
+                            </Body>
                             <button 
                               onClick={() => copyToClipboard(owner.alt_email!)}
                               className="text-muted-foreground hover:text-foreground transition-colors"
@@ -424,9 +457,9 @@ export default function OwnerDetailsPage() {
                         )}
                         {owner.email_opt_in && (
                           <div className="mt-2">
-                            <span className="px-2 py-1 bg-success/10 text-success text-xs font-medium rounded">
+                            <Label as="span" size="xs" className="px-2 py-1 bg-success/10 text-success rounded">
                               Opted In
-                            </span>
+                            </Label>
                           </div>
                         )}
                       </div>
@@ -434,19 +467,23 @@ export default function OwnerDetailsPage() {
                     
                     {/* Phone Column */}
                     <div>
-                      <h3 className="text-sm font-medium text-foreground border-b border-border pb-2 mb-3">PHONE:</h3>
+                      <Label as="h3" size="xs" className="border-b border-border pb-2 mb-3 tracking-wide">
+                        PHONE:
+                      </Label>
                       <div className="space-y-2">
                         {owner.primary_phone && (
                           <div className="flex items-center gap-2">
                             <Phone className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-sm text-foreground">{owner.primary_phone}</span>
+                            <Body as="span" size="sm">
+                              {owner.primary_phone}
+                            </Body>
                           </div>
                         )}
                         {!owner.text_opt_in && (
                           <div className="mt-2">
-                            <span className="px-2 py-1 bg-muted text-muted-foreground text-xs font-medium rounded">
+                            <Label as="span" size="xs" className="px-2 py-1 bg-muted text-muted-foreground rounded">
                               Text Messaging Disabled
-                            </span>
+                            </Label>
                           </div>
                         )}
                       </div>
@@ -454,16 +491,28 @@ export default function OwnerDetailsPage() {
                     
                     {/* Address Column */}
                     <div>
-                      <h3 className="text-sm font-medium text-foreground border-b border-border pb-2 mb-3">ADDRESS:</h3>
+                      <Label as="h3" size="xs" className="border-b border-border pb-2 mb-3 tracking-wide">
+                        ADDRESS:
+                      </Label>
                       <div className="space-y-1">
                         {owner.primary_address_line_1 ? (
                           <>
-                            <div className="text-sm text-foreground">{owner.primary_address_line_1}</div>
-                            {owner.primary_address_line_2 && <div className="text-sm text-foreground">{owner.primary_address_line_2}</div>}
-                            <div className="text-sm text-foreground">{owner.primary_city}, {owner.primary_state} {owner.primary_postal_code}</div>
+                            <Body as="div" size="sm">
+                              {owner.primary_address_line_1}
+                            </Body>
+                            {owner.primary_address_line_2 && (
+                              <Body as="div" size="sm">
+                                {owner.primary_address_line_2}
+                              </Body>
+                            )}
+                            <Body as="div" size="sm">
+                              {owner.primary_city}, {owner.primary_state} {owner.primary_postal_code}
+                            </Body>
                           </>
                         ) : (
-                          <span className="text-sm text-muted-foreground">No address</span>
+                          <Body as="span" size="sm" tone="muted">
+                            No address
+                          </Body>
                         )}
                       </div>
                     </div>
@@ -472,19 +521,25 @@ export default function OwnerDetailsPage() {
                   {/* Full-width rows for Date of Birth and Comments */}
                   <div className="space-y-4">
                     <div>
-                      <h3 className="text-sm font-medium text-foreground border-b border-border pb-2 mb-3">DATE OF BIRTH:</h3>
-                      <div className="text-sm text-foreground">
+                      <Label as="h3" size="xs" className="border-b border-border pb-2 mb-3 tracking-wide">
+                        DATE OF BIRTH:
+                      </Label>
+                      <Body as="div" size="sm">
                         {owner.date_of_birth ? formatDate(owner.date_of_birth) : (
-                          <span className="text-muted-foreground">Not provided</span>
+                          <Body as="span" size="sm" tone="muted">
+                            Not provided
+                          </Body>
                         )}
-                      </div>
+                      </Body>
                     </div>
 
                     <div>
-                      <h3 className="text-sm font-medium text-foreground border-b border-border pb-2 mb-3">COMMENTS:</h3>
-                      <div className="text-sm text-foreground">
-                        {owner.comment || <span className="text-muted-foreground">No comments</span>}
-                      </div>
+                      <Label as="h3" size="xs" className="border-b border-border pb-2 mb-3 tracking-wide">
+                        COMMENTS:
+                      </Label>
+                      <Body as="div" size="sm">
+                        {owner.comment || <Body as="span" size="sm" tone="muted">No comments</Body>}
+                      </Body>
                     </div>
                   </div>
                 </div>
@@ -492,35 +547,45 @@ export default function OwnerDetailsPage() {
                 {/* Management Agreement */}
                 <div className="bg-card rounded-lg border p-6">
                   <div className="flex items-center gap-2 mb-6">
-                    <h2 className="text-lg font-medium text-foreground">Management Agreement</h2>
+                    <Heading as="h2" size="h5">
+                      Management Agreement
+                    </Heading>
                     <EditLink aria-label="Edit management agreement" />
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                      <label className="text-sm font-medium text-muted-foreground">Start Date</label>
+                      <Label as="span" size="sm" tone="muted">
+                        Start Date
+                      </Label>
                       <div className="flex items-center gap-2 mt-1">
                         <Calendar className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm text-foreground">
+                        <Body as="span" size="sm">
                           {owner.management_agreement_start_date ? (
                             formatDate(owner.management_agreement_start_date)
                           ) : (
-                            <span className="text-muted-foreground">Not set</span>
+                            <Body as="span" size="sm" tone="muted">
+                              Not set
+                            </Body>
                           )}
-                        </span>
+                        </Body>
                       </div>
                     </div>
                     
                     <div>
-                      <label className="text-sm font-medium text-muted-foreground">End Date</label>
+                      <Label as="span" size="sm" tone="muted">
+                        End Date
+                      </Label>
                       <div className="flex items-center gap-2 mt-1">
                         <Calendar className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm text-foreground">
+                        <Body as="span" size="sm">
                           {owner.management_agreement_end_date ? (
                             formatDate(owner.management_agreement_end_date)
                           ) : (
-                            <span className="text-muted-foreground">Not set</span>
+                            <Body as="span" size="sm" tone="muted">
+                              Not set
+                            </Body>
                           )}
-                        </span>
+                        </Body>
                       </div>
                     </div>
                   </div>
@@ -529,38 +594,54 @@ export default function OwnerDetailsPage() {
                 {/* Banking Information */}
                 <div className="bg-card rounded-lg border p-6">
                   <div className="flex items-center gap-2 mb-6">
-                    <h2 className="text-lg font-medium text-foreground">Banking Information</h2>
+                    <Heading as="h2" size="h5">
+                      Banking Information
+                    </Heading>
                     <div className="flex items-center gap-2">
-                      <span className="px-2 py-1 bg-success/10 text-success text-xs font-medium rounded">
+                      <Label as="span" size="xs" className="px-2 py-1 bg-success/10 text-success rounded">
                         EFT Enabled
-                      </span>
+                      </Label>
                       <EditLink aria-label="Edit banking information" />
                     </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div>
-                      <label className="text-sm font-medium text-muted-foreground">Account Type</label>
-                      <div className="mt-1 text-sm text-foreground">
-                        {owner.etf_account_type || <span className="text-muted-foreground">Not set</span>}
-                      </div>
+                      <Label as="span" size="sm" tone="muted">
+                        Account Type
+                      </Label>
+                      <Body as="div" size="sm" className="mt-1">
+                        {owner.etf_account_type || (
+                          <Body as="span" size="sm" tone="muted">
+                            Not set
+                          </Body>
+                        )}
+                      </Body>
                     </div>
                     
                     <div>
-                      <label className="text-sm font-medium text-muted-foreground">Account Number</label>
-                      <div className="mt-1 text-sm text-foreground">
+                      <Label as="span" size="sm" tone="muted">
+                        Account Number
+                      </Label>
+                      <Body as="div" size="sm" className="mt-1">
                         {maskLastFour(owner.etf_account_number) ?? (
-                          <span className="text-muted-foreground">Not set</span>
+                          <Body as="span" size="sm" tone="muted">
+                            Not set
+                          </Body>
                         )}
-                      </div>
+                      </Body>
                     </div>
                     
                     <div>
-                      <label className="text-sm font-medium text-muted-foreground">Routing Number</label>
-                      <div className="mt-1 text-sm text-foreground">
+                      <Label as="span" size="sm" tone="muted">
+                        Routing Number
+                      </Label>
+                      <Body as="div" size="sm" className="mt-1">
                         {maskLastFour(owner.etf_routing_number) ?? (
-                          <span className="text-muted-foreground">Not set</span>
+                          <Body as="span" size="sm" tone="muted">
+                            Not set
+                          </Body>
                         )}
-                      </div>
+                      </Body>
                     </div>
                   </div>
                 </div>
@@ -568,12 +649,14 @@ export default function OwnerDetailsPage() {
                 {/* Tax Profile */}
                 <div className="bg-card rounded-lg border p-6">
                   <div className="flex items-center justify-between mb-6">
-                    <h2 className="text-lg font-medium text-foreground">Tax Profile</h2>
+                    <Heading as="h2" size="h5">
+                      Tax Profile
+                    </Heading>
                     <div className="flex items-center gap-2">
                       <AlertTriangle className="h-4 w-4 text-destructive" />
-                      <button className="text-destructive hover:underline transition-colors font-medium text-sm">
+                      <Label as="button" size="sm" className="text-destructive hover:underline transition-colors">
                         Required - Complete Now
-                      </button>
+                      </Label>
                     </div>
                   </div>
                 </div>
@@ -582,15 +665,21 @@ export default function OwnerDetailsPage() {
               {/* Right Column - Recent Activity */}
               <div className="lg:col-span-1">
                 <div className="bg-card rounded-lg border shadow-sm p-6">
-                  <h3 className="text-lg font-medium text-foreground mb-6">Recent Activity</h3>
+                  <Heading as="h3" size="h5" className="mb-6">
+                    Recent Activity
+                  </Heading>
                   <div className="space-y-4">
                     <div className="flex items-center gap-3 p-3 rounded-lg bg-muted">
                       <div className="p-2 rounded-full bg-primary/10">
                         Edit
                       </div>
                       <div className="flex-1">
-                        <div className="text-sm font-medium text-foreground">Owner information updated</div>
-                        <div className="text-xs text-muted-foreground">{formatDate(owner.updated_at)}</div>
+                        <Label as="div" size="sm">
+                          Owner information updated
+                        </Label>
+                        <Body as="div" size="xs" tone="muted">
+                          {formatDate(owner.updated_at)}
+                        </Body>
                       </div>
                     </div>
                     
@@ -599,8 +688,12 @@ export default function OwnerDetailsPage() {
                         <Building2 className="h-4 w-4 text-success" />
                       </div>
                       <div className="flex-1">
-                        <div className="text-sm font-medium text-foreground">Property added</div>
-                        <div className="text-xs text-muted-foreground">2 days ago</div>
+                        <Label as="div" size="sm">
+                          Property added
+                        </Label>
+                        <Body as="div" size="xs" tone="muted">
+                          2 days ago
+                        </Body>
                       </div>
                     </div>
                     
@@ -609,8 +702,12 @@ export default function OwnerDetailsPage() {
                         <DollarSign className="h-4 w-4 text-warning" />
                       </div>
                       <div className="flex-1">
-                        <div className="text-sm font-medium text-foreground">Monthly statement generated</div>
-                        <div className="text-xs text-muted-foreground">1 week ago</div>
+                        <Label as="div" size="sm">
+                          Monthly statement generated
+                        </Label>
+                        <Body as="div" size="xs" tone="muted">
+                          1 week ago
+                        </Body>
                       </div>
                     </div>
                   </div>

@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { Body } from '@/ui/typography';
 
 interface UtilizationData {
   offering_id: string;
@@ -80,7 +81,7 @@ export default function ServiceUtilizationCard({
     return (
       <Card>
         <CardContent className="py-6">
-          <div className="text-destructive text-center">{error}</div>
+          <Body className="text-destructive text-center">{error}</Body>
         </CardContent>
       </Card>
     );
@@ -89,16 +90,18 @@ export default function ServiceUtilizationCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Service Utilization</CardTitle>
+        <CardTitle headingAs="h3" headingSize="h4">
+          Service Utilization
+        </CardTitle>
         <CardDescription>
           Active service usage across properties and units for {period}
         </CardDescription>
       </CardHeader>
       <CardContent>
         {data.length === 0 ? (
-          <div className="text-muted-foreground rounded-md border border-dashed p-6 text-center text-sm">
+          <Body tone="muted" size="sm" className="rounded-md border border-dashed p-6 text-center">
             No utilization data available for this period.
-          </div>
+          </Body>
         ) : (
           <div className="border-border overflow-hidden rounded-lg border">
             <Table>
@@ -129,9 +132,9 @@ export default function ServiceUtilizationCard({
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <Progress value={item.utilization_rate} className="h-2 flex-1" />
-                          <span className="w-12 text-right text-sm font-medium">
+                          <Body as="span" size="sm" className="w-12 text-right font-medium">
                             {item.utilization_rate.toFixed(0)}%
-                          </span>
+                          </Body>
                         </div>
                       </TableCell>
                     </TableRow>

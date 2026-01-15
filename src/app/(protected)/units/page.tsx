@@ -3,6 +3,8 @@
 import { Bed, Bath, Plus, Building } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { Select } from '@/ui/select'
+import { Body, Heading, Label } from '@/ui/typography'
 
 type Unit = {
   id: string
@@ -53,7 +55,9 @@ export default function UnitsPage() {
     return (
       <div className="p-6 space-y-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-foreground">Units</h1>
+          <Heading as="h1" size="h2">
+            Units
+          </Heading>
         </div>
         <div className="bg-card rounded-lg border p-6">
           <div className="animate-pulse space-y-4">
@@ -72,12 +76,18 @@ export default function UnitsPage() {
     return (
       <div className="p-6 space-y-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-foreground">Units</h1>
+          <Heading as="h1" size="h2">
+            Units
+          </Heading>
         </div>
         <div className="text-center py-12">
           <Building className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-foreground mb-2">Error Loading Units</h3>
-          <p className="text-muted-foreground mb-6">{error}</p>
+          <Heading as="h3" size="h4" className="mb-2">
+            Error Loading Units
+          </Heading>
+          <Body tone="muted" className="mb-6">
+            {error}
+          </Body>
           <Button onClick={() => location.reload()}>Try Again</Button>
         </div>
       </div>
@@ -87,7 +97,9 @@ export default function UnitsPage() {
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-foreground">Units</h1>
+        <Heading as="h1" size="h2">
+          Units
+        </Heading>
         <Button className="flex items-center">
           <Plus className="h-4 w-4 mr-2" />
           Add Unit
@@ -98,8 +110,12 @@ export default function UnitsPage() {
         <div className="bg-card rounded-lg border p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-muted-foreground">Total Units</p>
-              <p className="text-2xl font-bold text-foreground">{stats.totalUnits}</p>
+              <Label tone="muted" className="block">
+                Total Units
+              </Label>
+              <Heading as="p" size="h3">
+                {stats.totalUnits}
+              </Heading>
             </div>
           </div>
         </div>
@@ -107,8 +123,12 @@ export default function UnitsPage() {
         <div className="bg-card rounded-lg border p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-muted-foreground">Occupied</p>
-              <p className="text-2xl font-bold text-success">{stats.occupiedUnits}</p>
+              <Label tone="muted" className="block">
+                Occupied
+              </Label>
+              <Heading as="p" size="h3" className="text-success">
+                {stats.occupiedUnits}
+              </Heading>
             </div>
           </div>
         </div>
@@ -116,8 +136,12 @@ export default function UnitsPage() {
         <div className="bg-card rounded-lg border p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-muted-foreground">Vacant</p>
-              <p className="text-2xl font-bold text-warning">{stats.vacantUnits}</p>
+              <Label tone="muted" className="block">
+                Vacant
+              </Label>
+              <Heading as="p" size="h3" className="text-warning">
+                {stats.vacantUnits}
+              </Heading>
             </div>
           </div>
         </div>
@@ -125,8 +149,12 @@ export default function UnitsPage() {
         <div className="bg-card rounded-lg border p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-muted-foreground">Occupancy Rate</p>
-              <p className="text-2xl font-bold text-foreground">{stats.occupancyRate}%</p>
+              <Label tone="muted" className="block">
+                Occupancy Rate
+              </Label>
+              <Heading as="p" size="h3">
+                {stats.occupancyRate}%
+              </Heading>
             </div>
           </div>
         </div>
@@ -135,7 +163,9 @@ export default function UnitsPage() {
       <div className="bg-card rounded-lg border">
         <div className="px-6 py-4 border-b border-border">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-medium text-foreground">Units</h2>
+            <Heading as="h2" size="h3">
+              Units
+            </Heading>
             <div className="flex items-center space-x-4">
               <label className="sr-only" htmlFor="units-search">
                 Search units or properties
@@ -149,35 +179,35 @@ export default function UnitsPage() {
               <label className="sr-only" htmlFor="units-property-filter">
                 Filter units by property
               </label>
-              <select
+              <Select
                 id="units-property-filter"
-                className="px-3 py-2 border border-input rounded-md text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-background text-foreground"
+                className="px-3 py-2 text-sm"
               >
                 <option>All Properties</option>
-              </select>
+              </Select>
               <label className="sr-only" htmlFor="units-status-filter">
                 Filter units by status
               </label>
-              <select
+              <Select
                 id="units-status-filter"
-                className="px-3 py-2 border border-input rounded-md text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-background text-foreground"
+                className="px-3 py-2 text-sm"
               >
                 <option>All Status</option>
                 <option>Occupied</option>
                 <option>Vacant</option>
-              </select>
+              </Select>
               <label className="sr-only" htmlFor="units-bedroom-filter">
                 Filter units by bedroom count
               </label>
-              <select
+              <Select
                 id="units-bedroom-filter"
-                className="px-3 py-2 border border-input rounded-md text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-background text-foreground"
+                className="px-3 py-2 text-sm"
               >
                 <option>All Bedrooms</option>
                 <option>1 Bedroom</option>
                 <option>2 Bedrooms</option>
                 <option>3 Bedrooms</option>
-              </select>
+              </Select>
             </div>
           </div>
         </div>
@@ -185,8 +215,12 @@ export default function UnitsPage() {
         {units.length === 0 ? (
           <div className="text-center py-12">
             <Building className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-foreground mb-2">No units found</h3>
-            <p className="text-muted-foreground mb-6">Add units to your properties to start managing rentals and leases.</p>
+            <Heading as="h3" size="h4" className="mb-2">
+              No units found
+            </Heading>
+            <Body tone="muted" className="mb-6">
+              Add units to your properties to start managing rentals and leases.
+            </Body>
             <Button>
               Add Your First Unit
             </Button>
@@ -196,71 +230,106 @@ export default function UnitsPage() {
             <table className="min-w-full divide-y divide-border">
               <thead className="bg-muted">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  <Label
+                    as="th"
+                    size="xs"
+                    tone="muted"
+                    className="px-6 py-3 text-left uppercase tracking-wider"
+                  >
                     Unit
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  </Label>
+                  <Label
+                    as="th"
+                    size="xs"
+                    tone="muted"
+                    className="px-6 py-3 text-left uppercase tracking-wider"
+                  >
                     Property
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  </Label>
+                  <Label
+                    as="th"
+                    size="xs"
+                    tone="muted"
+                    className="px-6 py-3 text-left uppercase tracking-wider"
+                  >
                     Layout
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  </Label>
+                  <Label
+                    as="th"
+                    size="xs"
+                    tone="muted"
+                    className="px-6 py-3 text-left uppercase tracking-wider"
+                  >
                     Size
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  </Label>
+                  <Label
+                    as="th"
+                    size="xs"
+                    tone="muted"
+                    className="px-6 py-3 text-left uppercase tracking-wider"
+                  >
                     Market Rent
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  </Label>
+                  <Label
+                    as="th"
+                    size="xs"
+                    tone="muted"
+                    className="px-6 py-3 text-left uppercase tracking-wider"
+                  >
                     Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  </Label>
+                  <Label
+                    as="th"
+                    size="xs"
+                    tone="muted"
+                    className="px-6 py-3 text-left uppercase tracking-wider"
+                  >
                     Tenant
-                  </th>
+                  </Label>
                 </tr>
               </thead>
               <tbody className="bg-card divide-y divide-border">
                 {units.map((unit) => (
                   <tr key={unit.id} className="hover:bg-muted/50">
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-foreground">
+                      <Label as="div" size="sm">
                         {unit.unit_number || '-'}
-                      </div>
+                      </Label>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-foreground">
+                      <Label as="div" size="sm">
                         {unit.address_line1 || '-'}
-                      </div>
-                      <div className="text-sm text-muted-foreground">
+                      </Label>
+                      <Body as="div" size="sm" tone="muted">
                         {[unit.city, unit.state].filter(Boolean).join(', ')}
-                      </div>
+                      </Body>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center text-sm text-foreground">
+                      <Body as="div" size="sm" className="flex items-center">
                         <Bed className="h-4 w-4 mr-1" />
                         {unit.unit_bedrooms ?? '-'} bed
                         <Bath className="h-4 w-4 ml-2 mr-1" />
                         {unit.unit_bathrooms ?? '-'} bath
-                      </div>
+                      </Body>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">
+                    <Body as="td" size="sm" className="px-6 py-4 whitespace-nowrap">
                       {unit.unit_size ?? '-'} sq ft
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">
+                    </Body>
+                    <Body as="td" size="sm" className="px-6 py-4 whitespace-nowrap">
                       {unit.market_rent != null ? `$${Number(unit.market_rent).toLocaleString()}` : '-'}
-                    </td>
+                    </Body>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      <Label as="span" size="xs" className={`inline-flex items-center px-2.5 py-0.5 rounded-full ${
                         unit.status === 'Occupied' 
                           ? 'bg-success/10 text-success' 
                           : 'bg-warning/10 text-warning'
                       }`}>
                         {unit.status}
-                      </span>
+                      </Label>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">
+                    <Body as="td" size="sm" className="px-6 py-4 whitespace-nowrap">
                       {'-'}
-                    </td>
+                    </Body>
                   </tr>
                 ))}
               </tbody>

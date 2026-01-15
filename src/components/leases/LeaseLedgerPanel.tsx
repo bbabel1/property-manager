@@ -31,6 +31,7 @@ import { formatCurrency, getTransactionTypeLabel } from '@/lib/transactions/form
 import type { LeaseAccountOption, LeaseTenantOption } from '@/components/leases/types';
 import type { BuildiumLeaseTransaction } from '@/types/buildium';
 import DestructiveActionModal from '@/components/common/DestructiveActionModal';
+import { Body, Heading, Label } from '@/ui/typography';
 
 type LedgerDetailLine = {
   Amount?: unknown;
@@ -379,10 +380,14 @@ export default function LeaseLedgerPanel({
 
     if (detailState.status === 'loading' || detailState.status === 'idle') {
       return (
-        <div className="space-y-3 px-6 py-8 text-sm text-muted-foreground">
+        <div className="space-y-3 px-6 py-8">
           <AccessibleTitle />
-          <p className="font-medium text-foreground">Loading transaction…</p>
-          <p>This will only take a moment.</p>
+          <Heading as="p" size="h6">
+            Loading transaction…
+          </Heading>
+          <Body as="p" tone="muted">
+            This will only take a moment.
+          </Body>
         </div>
       );
     }
@@ -391,9 +396,13 @@ export default function LeaseLedgerPanel({
       return (
         <div className="space-y-4 px-6 py-8">
           <AccessibleTitle />
-          <div className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          <Body
+            as="div"
+            size="sm"
+            className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-destructive"
+          >
             {detailState.message}
-          </div>
+          </Body>
           <div className="flex flex-wrap gap-3">
             <Button type="button" variant="ghost" onClick={closeDetailDialog}>
               Close
@@ -562,12 +571,12 @@ export default function LeaseLedgerPanel({
         <div className="grid w-full max-w-xl grid-cols-1 gap-3 sm:grid-cols-3">
           {cards.map((card) => (
             <div key={card.label} className="border-border bg-card rounded-lg border px-5 py-4">
-              <div className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+              <Label as="div" size="xs" tone="muted" className="tracking-wide uppercase">
                 {card.label}
-              </div>
-              <div className="text-foreground mt-1 text-2xl font-semibold">
+              </Label>
+              <Heading as="div" size="h4" className="mt-1">
                 {formatCurrency(Number.isFinite(card.value) ? card.value : 0)}
-              </div>
+              </Heading>
             </div>
           ))}
         </div>
@@ -607,7 +616,9 @@ export default function LeaseLedgerPanel({
         </div>
       </div>
 
-      <div className="text-muted-foreground text-sm lg:hidden">{ledgerMatchesLabel}</div>
+      <Body as="div" size="sm" tone="muted" className="lg:hidden">
+        {ledgerMatchesLabel}
+      </Body>
       <div className="text-primary flex items-center justify-end gap-2 text-sm">
         <Button variant="link" className="px-0" disabled>
           Export
@@ -618,19 +629,45 @@ export default function LeaseLedgerPanel({
         <Table className="divide-border min-w-full divide-y">
           <TableHeader>
             <TableRow>
-              <TableHead className="w-24">Date</TableHead>
-              <TableHead className="w-40">Account</TableHead>
-              <TableHead className="min-w-0 flex-1">Transaction</TableHead>
-              <TableHead className="w-24 text-right">Amount</TableHead>
-              <TableHead className="w-24 text-right">Balance</TableHead>
-              <TableHead className="w-12 text-right">Actions</TableHead>
+              <TableHead className="w-24">
+                <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                  Date
+                </Label>
+              </TableHead>
+              <TableHead className="w-40">
+                <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                  Account
+                </Label>
+              </TableHead>
+              <TableHead className="min-w-0 flex-1">
+                <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                  Transaction
+                </Label>
+              </TableHead>
+              <TableHead className="w-24 text-right">
+                <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                  Amount
+                </Label>
+              </TableHead>
+              <TableHead className="w-24 text-right">
+                <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                  Balance
+                </Label>
+              </TableHead>
+              <TableHead className="w-12 text-right">
+                <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                  Actions
+                </Label>
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody className="divide-border bg-card divide-y">
             {errorMessage ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-destructive py-6 text-center text-sm">
-                  {errorMessage}
+                <TableCell colSpan={6} className="py-6 text-center">
+                  <Body as="div" size="sm" className="text-destructive">
+                    {errorMessage}
+                  </Body>
                 </TableCell>
               </TableRow>
             ) : rows.length ? (
@@ -653,28 +690,42 @@ export default function LeaseLedgerPanel({
                       openDetailDialog(row);
                     }}
                   >
-                    <TableCell className="text-foreground text-sm">{row.date}</TableCell>
-                    <TableCell className="text-foreground text-sm">{row.account}</TableCell>
+                    <TableCell>
+                      <Body as="span" size="sm">
+                        {row.date}
+                      </Body>
+                    </TableCell>
+                    <TableCell>
+                      <Body as="span" size="sm">
+                        {row.account}
+                      </Body>
+                    </TableCell>
                     <TableCell className="min-w-0">
-                      <div className="text-foreground flex items-center gap-2 text-sm">
+                      <div className="text-foreground flex items-center gap-2">
                         <ArrowRight className="text-muted-foreground h-4 w-4 flex-shrink-0" />
                         <div className="flex min-w-0 flex-col">
-                          <span className="font-medium">{row.type}</span>
+                          <Label as="span">{row.type}</Label>
                           {row.memo ? (
-                            <span className="text-muted-foreground text-xs">{row.memo}</span>
+                            <Body as="span" size="xs" tone="muted">
+                              {row.memo}
+                            </Body>
                           ) : null}
                         </div>
                       </div>
                     </TableCell>
                     <TableCell
-                      className={`text-right text-sm ${isNegative(row.displayAmount) ? 'text-destructive' : 'text-foreground'}`}
+                      className={`text-right ${isNegative(row.displayAmount) ? 'text-destructive' : 'text-foreground'}`}
                     >
-                      {row.displayAmount}
+                      <Heading as="span" size="h6">
+                        {row.displayAmount}
+                      </Heading>
                     </TableCell>
                     <TableCell
-                      className={`text-right text-sm ${isNegative(row.balance) ? 'text-destructive' : 'text-foreground'}`}
+                      className={`text-right ${isNegative(row.balance) ? 'text-destructive' : 'text-foreground'}`}
                     >
-                      {row.balance}
+                      <Heading as="span" size="h6">
+                        {row.balance}
+                      </Heading>
                     </TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
@@ -719,8 +770,10 @@ export default function LeaseLedgerPanel({
               })
             ) : (
               <TableRow>
-                <TableCell colSpan={7} className="text-muted-foreground py-6 text-center text-sm">
-                  No transactions recorded yet.
+                <TableCell colSpan={7} className="py-6 text-center">
+                  <Body as="div" size="sm" tone="muted">
+                    No transactions recorded yet.
+                  </Body>
                 </TableCell>
               </TableRow>
             )}

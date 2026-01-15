@@ -1,5 +1,6 @@
 import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Body, Heading } from '@/ui/typography';
 
 type Restriction = {
   id: string;
@@ -26,30 +27,42 @@ export function PayerRestrictionsAlert({ restrictions, onClearRestriction }: Pro
   return (
     <Alert variant="destructive" className="border-amber-200 bg-amber-50 text-amber-900">
       <AlertCircle className="h-4 w-4" />
-      <AlertTitle className="text-sm font-semibold">Payment restrictions in effect</AlertTitle>
+      <AlertTitle className="text-left">
+        <Heading as="div" size="h6" className="text-amber-900">
+          Payment restrictions in effect
+        </Heading>
+      </AlertTitle>
       <AlertDescription className="space-y-2">
         {onClearRestriction ? (
-          <div className="text-[11px] font-medium text-amber-800">
+          <Body as="div" size="xs" className="font-medium text-amber-800">
             Only admins can clear restrictions.
-          </div>
+          </Body>
         ) : null}
         {restrictions.map((r) => {
           const expiry = formatDate(r.restricted_until);
           return (
-            <div key={r.id} className="text-xs leading-relaxed">
-              <div className="font-medium">
+            <div key={r.id} className="space-y-0.5">
+              <Body as="div" size="xs" className="font-medium text-amber-900">
                 {r.restriction_type.replaceAll('_', ' ')}{' '}
                 {r.methods?.length ? `(${r.methods.join(', ')})` : ''}
-              </div>
-              {r.reason ? <div>Reason: {r.reason}</div> : null}
-              <div>{expiry ? `Expires ${expiry}` : 'No expiry set'}</div>
+              </Body>
+              {r.reason ? (
+                <Body as="div" size="xs" className="text-amber-900">
+                  Reason: {r.reason}
+                </Body>
+              ) : null}
+              <Body as="div" size="xs" className="text-amber-900">
+                {expiry ? `Expires ${expiry}` : 'No expiry set'}
+              </Body>
               {onClearRestriction ? (
                 <button
                   type="button"
                   onClick={() => onClearRestriction(r.id)}
-                  className="mt-1 text-[11px] font-semibold text-amber-800 underline"
+                  className="mt-1 text-amber-800 underline"
                 >
-                  Clear restriction
+                  <Body as="span" size="xs" className="font-semibold">
+                    Clear restriction
+                  </Body>
                 </button>
               ) : null}
             </div>

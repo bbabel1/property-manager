@@ -3,7 +3,9 @@
 import React from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Body, Label } from '@/ui/typography'
 import { startOfMonth, addMonths, subMonths, getDaysInMonth, isSameDay } from 'date-fns'
+import { cn } from '@/components/ui/utils'
 
 type MiniCalendarProps = {
   currentDate: Date
@@ -89,26 +91,26 @@ export function MiniCalendar({ currentDate, onDateChange, selectedDate }: MiniCa
 
   return (
     <div className="px-3 py-2">
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-sm font-medium text-gray-700">
+      <div className="mb-2 flex items-center justify-between">
+        <Label as="span" size="sm">
           {monthNames[month]} {year}
-        </span>
+        </Label>
         <div className="flex items-center gap-1">
           <Button
             onClick={prevMonth}
             variant="ghost"
             size="icon"
-            className="p-1 h-auto w-auto hover:bg-gray-100 rounded-full transition-colors"
+            className="h-auto w-auto rounded-full p-1 transition-colors hover:bg-muted"
           >
-            <ChevronLeft className="w-4 h-4 text-gray-600" />
+            <ChevronLeft className="h-4 w-4 text-muted-foreground" />
           </Button>
           <Button
             onClick={nextMonth}
             variant="ghost"
             size="icon"
-            className="p-1 h-auto w-auto hover:bg-gray-100 rounded-full transition-colors"
+            className="h-auto w-auto rounded-full p-1 transition-colors hover:bg-muted"
           >
-            <ChevronRight className="w-4 h-4 text-gray-600" />
+            <ChevronRight className="h-4 w-4 text-muted-foreground" />
           </Button>
         </div>
       </div>
@@ -117,9 +119,11 @@ export function MiniCalendar({ currentDate, onDateChange, selectedDate }: MiniCa
         {daysOfWeek.map((day, i) => (
           <div
             key={i}
-            className="text-center text-xs text-gray-500 py-1 font-medium"
+            className="py-1 text-center"
           >
-            {day}
+            <Label as="span" size="xs" tone="muted" className="tracking-wide">
+              {day}
+            </Label>
           </div>
         ))}
 
@@ -130,15 +134,28 @@ export function MiniCalendar({ currentDate, onDateChange, selectedDate }: MiniCa
               key={i}
               variant="ghost"
               onClick={() => handleDayClick(day.date)}
-              className={`
-                text-center text-xs py-1 w-7 h-7 rounded-full transition-colors
-                ${day.isCurrentMonth ? 'text-gray-700' : 'text-gray-400'}
-                ${day.isToday ? 'bg-[#1a73e8] text-white font-medium' : ''}
-                ${isSelected && !day.isToday ? 'bg-blue-100 text-blue-700' : ''}
-                ${!day.isToday && !isSelected ? 'hover:bg-gray-100' : ''}
-              `}
+              className={cn(
+                'h-7 w-7 rounded-full p-1 text-center transition-colors',
+                day.isToday ? 'bg-primary' : '',
+                isSelected && !day.isToday ? 'bg-primary/10' : '',
+                !day.isToday && !isSelected ? 'hover:bg-muted' : '',
+              )}
             >
-              {day.day}
+              <Body
+                as="span"
+                size="xs"
+                className={cn(
+                  'leading-none',
+                  day.isToday
+                    ? 'text-primary-foreground font-semibold'
+                    : day.isCurrentMonth
+                      ? 'text-foreground'
+                      : 'text-muted-foreground',
+                  isSelected && !day.isToday ? 'text-primary' : '',
+                )}
+              >
+                {day.day}
+              </Body>
             </Button>
           )
         })}

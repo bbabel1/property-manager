@@ -10,13 +10,16 @@ export async function getOrgTimezone(orgId: string): Promise<string> {
   try {
     // Attempt to read timezone from organizations table if the column exists
     const { data, error } = await supabaseAdmin
-      .from('organizations' as any)
-      .select('timezone')
+      .from('organizations')
+      .select('*')
       .eq('id', orgId)
       .maybeSingle();
 
-    if (!error && data && typeof (data as any).timezone === 'string' && (data as any).timezone) {
-      return (data as any).timezone as string;
+    const timezone =
+      (data as { timezone?: string | null } | null)?.timezone ?? null;
+
+    if (!error && typeof timezone === 'string' && timezone) {
+      return timezone;
     }
   } catch {
     // Ignore and fall back

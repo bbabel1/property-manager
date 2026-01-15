@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { getSupabaseServerClient } from '@/lib/supabase/server'
 import InfoCard from '@/components/layout/InfoCard'
+import { Body, Heading } from '@/ui/typography'
 
 type BankAccountRow = {
   id: string
@@ -22,7 +23,9 @@ export default async function BankAccountsIndex() {
   if (error) {
     return (
       <InfoCard title="Bank Accounts">
-        <p className="text-sm text-red-600">Failed to load bank accounts.</p>
+        <Body as="p" size="sm" className="text-red-600">
+          Failed to load bank accounts.
+        </Body>
       </InfoCard>
     )
   }
@@ -31,19 +34,34 @@ export default async function BankAccountsIndex() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-semibold text-foreground">Bank Accounts</h1>
+      <Heading as="h1" size="h3" className="text-foreground">
+        Bank Accounts
+      </Heading>
       <div className="rounded-lg border divide-y">
         {(data as BankAccountRow[] | null | undefined)?.map((a) => (
           <div key={a.id} className="p-3 flex items-center justify-between hover:bg-muted/40">
             <div>
-              <div className="text-sm font-medium text-foreground">{a.name}</div>
-              <div className="text-xs text-muted-foreground capitalize">{a.bank_account_type || 'account'} • {mask(a.bank_account_number) || '••••'}</div>
+              <Body as="div" size="sm" className="font-medium text-foreground">
+                {a.name}
+              </Body>
+              <Body
+                as="div"
+                size="sm"
+                tone="muted"
+                className="text-xs capitalize leading-tight"
+              >
+                {a.bank_account_type || 'account'} • {mask(a.bank_account_number) || '••••'}
+              </Body>
             </div>
-            <Link className="text-primary text-sm underline" href={`/bank-accounts/${a.id}`}>View</Link>
+            <Body as={Link} href={`/bank-accounts/${a.id}`} size="sm" className="text-primary underline">
+              View
+            </Body>
           </div>
         ))}
         {(!data || data.length === 0) && (
-          <div className="p-3 text-sm text-muted-foreground">No bank accounts found.</div>
+          <Body as="div" size="sm" tone="muted" className="p-3">
+            No bank accounts found.
+          </Body>
         )}
       </div>
     </div>

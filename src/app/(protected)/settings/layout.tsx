@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import type { ReactNode } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
+import { Body, Label } from '@/ui/typography'
 
 type NavItem = {
   label: string
@@ -61,15 +62,24 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
         <aside className="lg:border-r lg:border-border/60">
           <div className="rounded-lg border border-border/60 bg-card shadow-sm lg:sticky lg:top-14 lg:max-h-[calc(100vh-5rem)] lg:overflow-y-auto">
             <div className="border-b border-border/60 px-4 py-3">
-              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Settings</div>
-              <div className="text-sm text-muted-foreground">Personal, workspace, and account controls</div>
+              <Label as="div" size="xs" tone="muted" className="font-semibold uppercase tracking-wide">
+                Settings
+              </Label>
+              <Body tone="muted" size="sm">
+                Personal, workspace, and account controls
+              </Body>
             </div>
             <nav className="space-y-6 px-4 py-4">
               {NAV_SECTIONS.map((section) => (
                 <div key={section.label} className="space-y-3">
-                  <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  <Label
+                    as="div"
+                    size="xs"
+                    tone="muted"
+                    className="font-semibold uppercase tracking-wide text-[11px]"
+                  >
                     {section.label}
-                  </div>
+                  </Label>
                   <div className="space-y-2">
                     {section.items.map((item) => {
                       const isActive = pathMatches(pathname, item.href)
@@ -82,7 +92,9 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
                             )}
                           >
                             <div className="flex items-center justify-between gap-2">
-                              <span className="text-sm font-medium">{item.label}</span>
+                              <Body as="span" size="sm" className="font-medium">
+                                {item.label}
+                              </Body>
                               {item.badge ? (
                                 <Badge variant={isActive ? 'default' : 'outline'} className="text-[11px]">
                                   {item.badge}
@@ -90,7 +102,9 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
                               ) : null}
                             </div>
                             {item.description ? (
-                              <p className="text-xs text-muted-foreground">{item.description}</p>
+                              <Label as="p" size="xs" tone="muted">
+                                {item.description}
+                              </Label>
                             ) : null}
                           </div>
                         </Link>

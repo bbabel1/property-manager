@@ -18,6 +18,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { Body, Heading } from '@/ui/typography';
 import { Loader2, Plus, Trash2 } from 'lucide-react';
 import type { ComplianceProgram, ComplianceProgramWithPropertyContext } from '@/types/compliance';
 
@@ -211,10 +212,12 @@ export function PropertyProgramsManager({
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-1">
-        <h3 className="text-lg font-semibold">Manage programs for {propertyName || 'this property'}</h3>
-        <p className="text-muted-foreground text-sm">
+        <Heading as="h3" size="h5">
+          Manage programs for {propertyName || 'this property'}
+        </Heading>
+        <Body as="p" size="sm" tone="muted">
           Assign programs even when they don&apos;t match criteria, toggle them on/off, or remove them from this property.
-        </p>
+        </Body>
       </div>
 
       {error && (
@@ -226,7 +229,11 @@ export function PropertyProgramsManager({
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-base font-semibold">Assigned programs</CardTitle>
+            <CardTitle>
+              <Heading as="h3" size="h6">
+                Assigned programs
+              </Heading>
+            </CardTitle>
             <Badge variant="outline">{sortedAssigned.length}</Badge>
           </CardHeader>
           <Separator />
@@ -288,7 +295,11 @@ export function PropertyProgramsManager({
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-3">
             <div className="space-y-1">
-              <CardTitle className="text-base font-semibold">Add programs</CardTitle>
+              <CardTitle>
+                <Heading as="h3" size="h6">
+                  Add programs
+                </Heading>
+              </CardTitle>
               <p className="text-muted-foreground text-xs">
                 Programs not yet assigned to this property.
               </p>

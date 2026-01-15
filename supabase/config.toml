@@ -131,6 +131,20 @@ minimum_password_length = 6
 # Passwords that do not meet the following requirements will be rejected as weak. Supported values
 # are: `letters_digits`, `lower_upper_letters_digits`, `lower_upper_letters_digits_symbols`
 password_requirements = ""
+# Enable leaked password protection via HaveIBeenPwned (Supabase Auth > Password settings).
+[auth.password]
+min_length = 6
+required_characters = ""
+
+[auth.password.hibp]
+enabled = true
+# If the HIBP service is unavailable, keep user experience by failing open; set to true to block instead.
+fail_closed = false
+
+[auth.password.hibp.bloom]
+enabled = true
+items = 100000
+false_positives = 0.0000099
 
 [auth.rate_limit]
 # Number of emails that can be sent per hour. Requires auth.email.smtp to be enabled.

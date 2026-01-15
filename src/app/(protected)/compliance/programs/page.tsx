@@ -29,6 +29,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Loader2, RefreshCw, Plus, Trash2, ChevronDown } from 'lucide-react';
 import { PageShell, PageHeader, PageBody, Stack } from '@/components/layout/page-shell';
 import { Separator } from '@/components/ui/separator';
+import { Body, Heading, Label as TypographyLabel } from '@/ui/typography';
 
 type ProgramCriteria = {
   scope_override?: 'property' | 'asset' | 'both';
@@ -308,10 +309,11 @@ const normalizeCriteriaRows = (input: unknown): CriteriaRowConfig[] => {
       const source = row as Record<string, unknown>;
       const rawTable = String(source.table);
       const normalizedTable = rawTable === 'device' ? 'asset' : rawTable;
-      const table: CriteriaTable =
-        ['building', 'property', 'unit', 'asset'].includes(normalizedTable)
-          ? (normalizedTable as CriteriaTable)
-          : 'building';
+      const table: CriteriaTable = ['building', 'property', 'unit', 'asset'].includes(
+        normalizedTable,
+      )
+        ? (normalizedTable as CriteriaTable)
+        : 'building';
       const fields = TABLE_FIELD_OPTIONS[table] || TABLE_FIELD_OPTIONS.building;
       const field =
         typeof source.field === 'string' && fields.some((f) => f.value === source.field)
@@ -436,17 +438,12 @@ export default function ComplianceProgramsPage() {
   const [dueDayState, setDueDayState] = useState<string>('');
   const [reassigningProgramId, setReassigningProgramId] = useState<string | null>(null);
   const groupedPrograms = useMemo(() => {
-    const grouped: Record<
-      string,
-      { label: string; programs: Program[] }
-    > = {};
+    const grouped: Record<string, { label: string; programs: Program[] }> = {};
 
     programs.forEach((program) => {
       const jurisdiction = program.jurisdiction || 'OTHER';
       const label =
-        JURISDICTION_FULL_LABEL[jurisdiction] ||
-        JURISDICTION_LABEL[jurisdiction] ||
-        jurisdiction;
+        JURISDICTION_FULL_LABEL[jurisdiction] || JURISDICTION_LABEL[jurisdiction] || jurisdiction;
 
       if (!grouped[jurisdiction]) {
         grouped[jurisdiction] = { label, programs: [] };
@@ -544,8 +541,7 @@ export default function ComplianceProgramsPage() {
       toStringSafe(override.due_date_text) ||
       defaultDue ||
       '';
-    const freqDescription =
-      toStringSafe(override.frequency_text) || defaultFreqText || '';
+    const freqDescription = toStringSafe(override.frequency_text) || defaultFreqText || '';
     const applicabilityNotes = toStringSafe(override.applicability_notes);
     const nycDatasetName = toStringSafe(override.nyc_dataset_name);
     const nycDatasetId = toStringSafe(override.nyc_dataset_id);
@@ -757,7 +753,9 @@ export default function ComplianceProgramsPage() {
         toast.success('Program created');
       } else {
         setPrograms((prev) =>
-          prev.map((p) => (editorProgram && p.id === editorProgram.id ? { ...p, ...data.program } : p)),
+          prev.map((p) =>
+            editorProgram && p.id === editorProgram.id ? { ...p, ...data.program } : p,
+          ),
         );
         toast.success('Criteria saved');
       }
@@ -1002,7 +1000,9 @@ export default function ComplianceProgramsPage() {
         <PageHeader title="Compliance Programs" />
         <PageBody>
           <div className="border-destructive bg-destructive/10 rounded-lg border p-4">
-            <p className="text-destructive text-sm">Error: {error}</p>
+            <Body as="p" size="sm" className="text-destructive">
+              Error: {error}
+            </Body>
             <Button onClick={loadPrograms} variant="outline" size="sm" className="mt-2">
               <RefreshCw className="mr-2 h-4 w-4" />
               Retry
@@ -1031,24 +1031,26 @@ export default function ComplianceProgramsPage() {
             <CardHeader>
               <CardTitle>How it works</CardTitle>
             </CardHeader>
-            <CardContent className="text-muted-foreground space-y-1 text-sm">
-              <div>
+            <CardContent className="space-y-1">
+              <Body size="sm" tone="muted">
                 <strong>Programs</strong> are the rulebooks (NYC DOB/HPD/FDNY requirements).
-              </div>
-              <div>
+              </Body>
+              <Body size="sm" tone="muted">
                 <strong>Items</strong> are the generated reminders/todos per building or asset.
-              </div>
-              <div>
+              </Body>
+              <Body size="sm" tone="muted">
                 <strong>Events</strong> are real-world inspections and filings pulled from NYC data.
-              </div>
+              </Body>
             </CardContent>
           </Card>
 
           {groupedPrograms.length === 0 ? (
             <Card>
-              <CardContent className="text-muted-foreground py-10 text-center">
-                No compliance programs found. If this seems wrong, refresh or check
-                seeding/permissions.
+              <CardContent className="py-10 text-center">
+                <Body size="sm" tone="muted">
+                  No compliance programs found. If this seems wrong, refresh or check
+                  seeding/permissions.
+                </Body>
               </CardContent>
             </Card>
           ) : (
@@ -1064,15 +1066,18 @@ export default function ComplianceProgramsPage() {
                     }
                   >
                     <CollapsibleTrigger asChild>
-                      <button
+                      <Button
                         type="button"
-                        className="flex w-full items-center justify-between rounded-md border bg-muted/40 px-3 py-2 text-left text-sm font-semibold transition-colors hover:bg-muted"
+                        variant="outline"
+                        className="bg-muted/40 hover:bg-muted flex w-full items-center justify-between px-3 py-2 text-left"
                       >
-                        <span>{group.label}</span>
+                        <TypographyLabel as="span" size="sm">
+                          {group.label}
+                        </TypographyLabel>
                         <ChevronDown
                           className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`}
                         />
-                      </button>
+                      </Button>
                     </CollapsibleTrigger>
                     <CollapsibleContent className="pt-3">
                       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -1087,28 +1092,25 @@ export default function ComplianceProgramsPage() {
                                       program.jurisdiction}
                                   </Badge>
                                 </CardTitle>
-                                <div className="text-muted-foreground text-sm">
-                                  <span className="text-foreground font-medium">Criteria: </span>
+                                <Body size="sm" tone="muted">
+                                  <TypographyLabel as="span" size="sm">
+                                    Criteria:{' '}
+                                  </TypographyLabel>
                                   {criteriaSummary(program)}
-                                </div>
-                                <div className="text-muted-foreground text-sm">
-                                  <span className="text-foreground font-medium">Frequency: </span>
+                                </Body>
+                                <Body size="sm" tone="muted">
+                                  <TypographyLabel as="span" size="sm">
+                                    Frequency:{' '}
+                                  </TypographyLabel>
                                   {formatFrequencyLabel(program.frequency_months)}
-                                </div>
+                                </Body>
                               </div>
                               <div className="flex items-center gap-2">
                                 <Switch
                                   checked={program.is_enabled}
                                   onCheckedChange={(checked) => toggleProgram(program.id, checked)}
                                 />
-                                <Badge
-                                  variant={program.is_enabled ? 'outline' : 'secondary'}
-                                  className={
-                                    program.is_enabled
-                                      ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                                      : undefined
-                                  }
-                                >
+                                <Badge variant={program.is_enabled ? 'success' : 'destructive'}>
                                   {program.is_enabled ? 'Enabled' : 'Disabled'}
                                 </Badge>
                               </div>
@@ -1150,7 +1152,9 @@ export default function ComplianceProgramsPage() {
       <Dialog open={!!editorMode} onOpenChange={(open) => (open ? null : resetEditorState())}>
         <DialogContent className="w-[680px] max-w-[680px] sm:max-w-[680px]">
           <DialogHeader>
-            <DialogTitle>{editorMode === 'create' ? 'Create program' : 'Edit applicability'}</DialogTitle>
+            <DialogTitle>
+              {editorMode === 'create' ? 'Create program' : 'Edit applicability'}
+            </DialogTitle>
             <DialogDescription>
               Choose which properties or assets this program should target before generating items.
             </DialogDescription>
@@ -1158,14 +1162,12 @@ export default function ComplianceProgramsPage() {
 
           <div className="max-h-[80vh] space-y-6 overflow-y-auto pr-4">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div className="md:col-span-2 space-y-2">
+              <div className="space-y-2 md:col-span-2">
                 <Label>Compliance Program</Label>
                 <Input
                   value={programDraft?.name ?? editorProgram?.name ?? ''}
                   onChange={(e) =>
-                    setProgramDraft((prev) =>
-                      prev ? { ...prev, name: e.target.value } : prev,
-                    )
+                    setProgramDraft((prev) => (prev ? { ...prev, name: e.target.value } : prev))
                   }
                   placeholder="Program name"
                 />
@@ -1215,8 +1217,10 @@ export default function ComplianceProgramsPage() {
 
               <div className="flex items-center justify-between rounded-md border px-3 py-2">
                 <div>
-                  <Label className="text-xs text-muted-foreground">Enabled</Label>
-                  <div className="text-sm">Generate items for this program</div>
+                  <Label size="xs" tone="muted">
+                    Enabled
+                  </Label>
+                  <Body size="sm">Generate items for this program</Body>
                 </div>
                 <Switch
                   checked={programDraft?.is_enabled ?? true}
@@ -1302,7 +1306,10 @@ export default function ComplianceProgramsPage() {
                       if (!prev) return prev;
                       const clampedDay = clampDayForMonth(nextMonth, dueDay);
                       setDueDayState(clampedDay);
-                      const iso = nextMonth && clampedDay ? buildIsoFromMonthDay(nextMonth, clampedDay) : null;
+                      const iso =
+                        nextMonth && clampedDay
+                          ? buildIsoFromMonthDay(nextMonth, clampedDay)
+                          : null;
                       return { ...prev, due_date_value: iso };
                     });
                   };
@@ -1312,15 +1319,18 @@ export default function ComplianceProgramsPage() {
                     setProgramDraft((prev) => {
                       if (!prev) return prev;
                       const clampedDay = clampDayForMonth(dueMonth, nextDay);
-                      const iso = dueMonth && clampedDay ? buildIsoFromMonthDay(dueMonth, clampedDay) : null;
+                      const iso =
+                        dueMonth && clampedDay ? buildIsoFromMonthDay(dueMonth, clampedDay) : null;
                       return { ...prev, due_date_value: iso };
                     });
                   };
 
                   return (
-                    <div className="grid grid-cols-2 gap-3 max-w-[340px]">
+                    <div className="grid max-w-[340px] grid-cols-2 gap-3">
                       <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">Month</Label>
+                        <Label size="xs" tone="muted">
+                          Month
+                        </Label>
                         <Select value={dueMonth} onValueChange={handleMonthChange}>
                           <SelectTrigger>
                             <SelectValue placeholder="Month" />
@@ -1341,7 +1351,9 @@ export default function ComplianceProgramsPage() {
                         </Select>
                       </div>
                       <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">Day</Label>
+                        <Label size="xs" tone="muted">
+                          Day
+                        </Label>
                         <Select value={dueDay} onValueChange={handleDayChange} disabled={!dueMonth}>
                           <SelectTrigger>
                             <SelectValue placeholder="Day" />
@@ -1435,11 +1447,13 @@ export default function ComplianceProgramsPage() {
             <div className="space-y-4">
               <div className="flex items-center justify-between gap-2">
                 <div>
-                  <h3 className="text-sm font-semibold">Criteria rows</h3>
-                  <p className="text-muted-foreground text-xs">
-                    Define up to 10 conditions. Use AND / OR to combine rules. All conditions must be
-                    met to apply the program.
-                  </p>
+                  <Heading as="h3" size="h6">
+                    Criteria rows
+                  </Heading>
+                  <Body as="p" tone="muted" size="xs">
+                    Define up to 10 conditions. Use AND / OR to combine rules. All conditions must
+                    be met to apply the program.
+                  </Body>
                 </div>
                 <Button
                   variant="outline"
@@ -1461,9 +1475,9 @@ export default function ComplianceProgramsPage() {
                   return (
                     <div key={row.id} className="bg-muted/40 space-y-3 rounded-md border p-3">
                       <div className="flex items-start justify-between gap-2">
-                        <div className="text-muted-foreground text-xs font-medium">
+                        <TypographyLabel as="div" size="xs" tone="muted">
                           Condition {index + 1}
-                        </div>
+                        </TypographyLabel>
                         {criteriaRows.length > 1 && (
                           <Button
                             variant="ghost"
@@ -1543,7 +1557,6 @@ export default function ComplianceProgramsPage() {
                             </SelectContent>
                           </Select>
                         </div>
-
                       </div>
 
                       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -1618,12 +1631,14 @@ export default function ComplianceProgramsPage() {
             </div>
 
             {previewResult && (
-              <div className="rounded-md border p-3 text-sm">
-                <div className="text-foreground mb-1 font-medium">Preview</div>
-                <div className="text-muted-foreground">
+              <div className="rounded-md border p-3">
+                <TypographyLabel as="div" size="sm" className="mb-1">
+                  Preview
+                </TypographyLabel>
+                <Body size="sm" tone="muted">
                   Matches {previewResult.matched_properties} properties and{' '}
                   {previewResult.matched_assets} assets.
-                </div>
+                </Body>
               </div>
             )}
           </div>
@@ -1650,28 +1665,34 @@ export default function ComplianceProgramsPage() {
           </DialogHeader>
           <div className="space-y-3">
             {generateError && (
-              <div className="text-destructive border-destructive/30 rounded-md border p-2 text-sm">
+              <Body
+                as="div"
+                size="sm"
+                className="text-destructive border-destructive/30 rounded-md border p-2"
+              >
                 {generateError}
-              </div>
+              </Body>
             )}
-            <div className="rounded-md border p-3 text-sm">
+            <div className="rounded-md border p-3">
               {generateLoading && (
-                <div className="text-muted-foreground flex items-center gap-2">
+                <Body as="div" size="sm" tone="muted" className="flex items-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin" />
                   Loading preview...
-                </div>
+                </Body>
               )}
               {!generateLoading && generatePreview.result && (
-                <div className="text-muted-foreground space-y-1">
-                  <div>
-                    <span className="text-foreground font-medium">Matches</span>{' '}
+                <div className="space-y-1">
+                  <Body size="sm" tone="muted">
+                    <TypographyLabel as="span" size="sm">
+                      Matches{' '}
+                    </TypographyLabel>
                     {generatePreview.result.matched_properties} properties /{' '}
                     {generatePreview.result.matched_assets} assets
-                  </div>
-                  <div className="text-xs">
+                  </Body>
+                  <Body size="xs" tone="muted">
                     Total available: {generatePreview.result.total_properties} properties /{' '}
                     {generatePreview.result.total_assets} assets
-                  </div>
+                  </Body>
                 </div>
               )}
             </div>

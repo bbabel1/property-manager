@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { usePathname, useSelectedLayoutSegment } from 'next/navigation';
 import { Building2, ChevronDown } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Body, Heading, Label } from '@/ui/typography';
 
 type Props = {
   property: {
@@ -83,36 +84,36 @@ export default function PageHeader({ property }: Props) {
     >
       <div className="flex items-center gap-2">
         <span
-          className={`status-pill px-2 py-0.5 ${statusActive ? 'border-[var(--color-success-500)] bg-[var(--color-success-50)] text-[var(--color-success-700)]' : 'border-red-700 bg-red-100 text-red-700'}`}
+          className={`status-pill px-2 py-0.5 ${statusActive ? 'status-pill-success' : 'status-pill-danger'}`}
         >
           {property.status || '—'}
         </span>
         {property.buildium_property_id ? (
-          <Badge variant="secondary" className="text-xs font-medium">
+          <Badge variant="secondary">
             {property.buildium_property_id}
           </Badge>
         ) : (
-          <Badge variant="outline" className="text-xs font-medium">
+          <Badge variant="outline">
             Not in Buildium
           </Badge>
         )}
       </div>
-      <h1 className="text-foreground flex items-center gap-2 text-2xl font-bold">
+      <Heading as="h1" size="h2" className="flex items-center gap-2">
         <Building2 className="h-6 w-6" />
         {property.name || 'Property'}
-      </h1>
-      <p className="text-muted-foreground flex items-center gap-1 text-sm">
+      </Heading>
+      <Body as="p" tone="muted" size="sm" className="flex items-center gap-1">
         {shouldCollapseNav ? (
-          <span className="inline-flex items-center gap-1 font-medium text-foreground">
+          <Label as="span" className="inline-flex items-center gap-1">
             Property Details
-            <ChevronDown className="h-4 w-4" aria-hidden />
-          </span>
+          <ChevronDown className="h-4 w-4" aria-hidden />
+          </Label>
         ) : subtitleParts.length ? (
           subtitleParts.join(' | ')
         ) : (
           '—'
         )}
-      </p>
+      </Body>
 
       <div
         className={`border-border mt-2 border-b transition-[max-height,opacity] duration-200 ease-out ${shouldCollapseNav ? 'invisible max-h-0 overflow-hidden opacity-0 pointer-events-none' : 'visible max-h-16 opacity-100 pointer-events-auto'}`}
@@ -120,14 +121,16 @@ export default function PageHeader({ property }: Props) {
       >
         <nav className="flex space-x-8" aria-label="Property sections" role="navigation">
           {tabs.map((t) => (
-            <Link
+            <Label
               key={t.key}
+              as={Link}
               href={`/properties/${propertyPathId}/${t.key}`}
               aria-current={seg === t.key ? 'page' : undefined}
-              className={`border-b-2 px-1 py-4 text-sm font-medium transition-colors ${seg === t.key ? 'border-primary text-primary' : 'text-muted-foreground hover:text-foreground hover:border-muted-foreground border-transparent'}`}
+              size="sm"
+              className={`border-b-2 px-1 py-4 transition-colors ${seg === t.key ? 'border-primary text-primary' : 'text-muted-foreground hover:text-foreground hover:border-muted-foreground border-transparent'}`}
             >
               {t.label}
-            </Link>
+            </Label>
           ))}
         </nav>
       </div>

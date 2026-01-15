@@ -22,7 +22,6 @@ import {
 } from '@/components/ui/select';
 import GlAccountSelectItems from '@/components/gl-accounts/GlAccountSelectItems';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
   Dialog,
   DialogContent,
@@ -36,6 +35,7 @@ import { Package, Zap, Edit, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatCurrency } from '@/lib/format-currency';
 import AutomationRulesAdmin from '@/components/settings/AutomationRulesAdmin';
+import { Body, Heading, Label } from '@/ui/typography';
 
 type FeeType = 'Percentage' | 'Flat Rate';
 const GL_UNASSIGNED_VALUE = '__UNASSIGNED__';
@@ -479,11 +479,8 @@ export default function ServiceCatalogAdmin() {
   };
 
   const renderStatusPill = (isActive: boolean) => {
-    const className = isActive
-      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-      : 'bg-rose-50 text-rose-700 border-rose-200';
     return (
-      <Badge variant="outline" className={`${className} text-xs`}>
+      <Badge variant={isActive ? 'success' : 'danger'} className="text-xs">
         {isActive ? 'Active' : 'Inactive'}
       </Badge>
     );
@@ -545,8 +542,8 @@ export default function ServiceCatalogAdmin() {
   if (loading) {
     return (
       <Card>
-        <CardContent className="text-muted-foreground py-6 text-center">
-          Loading service catalog...
+        <CardContent className="py-6 text-center">
+          <Body tone="muted">Loading service catalog...</Body>
         </CardContent>
       </Card>
     );
@@ -556,7 +553,9 @@ export default function ServiceCatalogAdmin() {
     return (
       <Card>
         <CardContent className="py-6">
-          <div className="text-destructive text-center">{error}</div>
+          <Body as="div" tone="default" className="text-destructive text-center">
+            {error}
+          </Body>
           <div className="mt-4 text-center">
             <Button onClick={loadData} variant="outline">
               Retry
@@ -610,18 +609,32 @@ export default function ServiceCatalogAdmin() {
               <div className="space-y-6">
                 {Object.entries(offeringsByCategory).map(([category, categoryOfferings]) => (
                   <div key={category}>
-                    <h3 className="text-foreground mb-3 text-lg font-semibold">{category}</h3>
+                    <Heading as="h3" size="h4" className="text-foreground mb-3">
+                      {category}
+                    </Heading>
                     <div className="border-border overflow-hidden rounded-lg border">
                       <Table className="table-fixed">
                         <TableHeader>
                           <TableRow>
-                            <TableHead className={offeringColumnClasses.name}>Name</TableHead>
-                            <TableHead className={offeringColumnClasses.defaultRate}>
-                              Default Rate
+                            <TableHead className={offeringColumnClasses.name}>
+                              <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                                Name
+                              </Label>
                             </TableHead>
-                            <TableHead className={offeringColumnClasses.status}>Status</TableHead>
+                            <TableHead className={offeringColumnClasses.defaultRate}>
+                              <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                                Default Rate
+                              </Label>
+                            </TableHead>
+                            <TableHead className={offeringColumnClasses.status}>
+                              <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                                Status
+                              </Label>
+                            </TableHead>
                             <TableHead className={`${offeringColumnClasses.actions} text-right`}>
-                              Actions
+                              <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                                Actions
+                              </Label>
                             </TableHead>
                           </TableRow>
                         </TableHeader>
@@ -686,14 +699,24 @@ export default function ServiceCatalogAdmin() {
             </CardHeader>
             <CardContent>
               {plans.length === 0 ? (
-                <p className="text-muted-foreground text-sm">No plans available.</p>
+                <Body as="p" size="sm" tone="muted">
+                  No plans available.
+                </Body>
               ) : (
                 <div className="border-border overflow-hidden rounded-lg border">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Plan</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
+                        <TableHead>
+                          <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                            Plan
+                          </Label>
+                        </TableHead>
+                        <TableHead className="text-right">
+                          <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                            Actions
+                          </Label>
+                        </TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -806,10 +829,15 @@ export default function ServiceCatalogAdmin() {
               </div>
 
               {isALaCartePlan ? (
-                <div className="rounded-lg border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
+                <Body
+                  as="div"
+                  size="sm"
+                  tone="muted"
+                  className="rounded-lg border bg-muted/30 px-3 py-2"
+                >
                   A-la-carte plans have no plan-level fee and no pre-assigned services. Services are
                   selected and priced per property/unit.
-                </div>
+                </Body>
               ) : (
                 <>
                   <div className="grid gap-4 sm:grid-cols-2">
@@ -909,10 +937,10 @@ export default function ServiceCatalogAdmin() {
 
               <div className="flex items-center justify-between rounded-lg border p-3">
                 <div>
-                  <p className="text-sm font-medium">Active</p>
-                  <p className="text-muted-foreground text-xs">
+                  <Label as="p">Active</Label>
+                  <Body as="p" size="xs" tone="muted">
                     Inactive plans may be hidden in some views.
-                  </p>
+                  </Body>
                 </div>
                 <Switch
                   checked={planForm.is_active}
@@ -926,27 +954,32 @@ export default function ServiceCatalogAdmin() {
             {isALaCartePlan ? null : (
               <div className="space-y-3">
                 <div>
-                  <p className="text-sm font-medium">Assign Services</p>
-                  <p className="text-muted-foreground text-xs">
+                  <Label as="p">Assign Services</Label>
+                  <Body as="p" size="xs" tone="muted">
                     Move offerings between Unassigned and Assigned.
-                  </p>
+                  </Body>
                 </div>
 
                 {loadingPlanDetails ? (
-                  <div className="text-muted-foreground rounded-lg border px-3 py-2 text-sm">
+                  <Body
+                    as="div"
+                    size="sm"
+                    tone="muted"
+                    className="rounded-lg border px-3 py-2"
+                  >
                     Loading assigned services…
-                  </div>
+                  </Body>
                 ) : null}
 
                 <div className="grid gap-3 md:grid-cols-[1fr_auto_1fr]">
                   <div className="overflow-hidden rounded-lg border">
                     <div className="bg-muted/30 flex items-center justify-between px-3 py-2">
-                      <span className="text-xs font-semibold tracking-wide uppercase">
+                      <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
                         Unassigned
-                      </span>
-                      <span className="text-muted-foreground text-xs">
+                      </Label>
+                      <Body as="span" size="xs" tone="muted">
                         {unassignedOfferings.length}
-                      </span>
+                      </Body>
                     </div>
                     <div className="max-h-[340px] overflow-auto">
                       <Table>
@@ -973,8 +1006,10 @@ export default function ServiceCatalogAdmin() {
                           })}
                           {unassignedOfferings.length === 0 ? (
                             <TableRow>
-                              <TableCell colSpan={1} className="text-muted-foreground text-sm">
-                                No unassigned services.
+                              <TableCell colSpan={1}>
+                                <Body as="div" size="sm" tone="muted">
+                                  No unassigned services.
+                                </Body>
                               </TableCell>
                             </TableRow>
                           ) : null}
@@ -1008,12 +1043,12 @@ export default function ServiceCatalogAdmin() {
 
                   <div className="overflow-hidden rounded-lg border">
                     <div className="bg-muted/30 flex items-center justify-between px-3 py-2">
-                      <span className="text-xs font-semibold tracking-wide uppercase">
+                      <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
                         Assigned
-                      </span>
-                      <span className="text-muted-foreground text-xs">
+                      </Label>
+                      <Body as="span" size="xs" tone="muted">
                         {assignedOfferings.length}
-                      </span>
+                      </Body>
                     </div>
                     <div className="max-h-[340px] overflow-auto">
                       <Table>
@@ -1040,8 +1075,10 @@ export default function ServiceCatalogAdmin() {
                           })}
                           {assignedOfferings.length === 0 ? (
                             <TableRow>
-                              <TableCell colSpan={1} className="text-muted-foreground text-sm">
-                                No assigned services.
+                              <TableCell colSpan={1}>
+                                <Body as="div" size="sm" tone="muted">
+                                  No assigned services.
+                                </Body>
                               </TableCell>
                             </TableRow>
                           ) : null}
@@ -1215,9 +1252,14 @@ function ServiceOfferingForm({
           <Label htmlFor="rate">Rate</Label>
           <div className="relative">
             {feeType === 'Flat Rate' ? (
-              <span className="text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2 text-sm">
+              <Label
+                as="span"
+                size="sm"
+                tone="muted"
+                className="absolute left-3 top-1/2 -translate-y-1/2"
+              >
                 $
-              </span>
+              </Label>
             ) : null}
             <Input
               id="rate"
@@ -1230,16 +1272,21 @@ function ServiceOfferingForm({
               className={feeType === 'Flat Rate' ? 'pl-7' : 'pr-10'}
             />
             {feeType === 'Percentage' ? (
-              <span className="text-muted-foreground absolute right-3 top-1/2 -translate-y-1/2 text-sm">
+              <Label
+                as="span"
+                size="sm"
+                tone="muted"
+                className="absolute right-3 top-1/2 -translate-y-1/2"
+              >
                 %
-              </span>
+              </Label>
             ) : null}
           </div>
-          <p className="text-muted-foreground text-xs">
+          <Body as="p" size="xs" tone="muted">
             {feeType === 'Percentage'
               ? 'Saved as a percentage (e.g., 10 = 10%).'
               : 'Saved as a flat dollar amount.'}
-          </p>
+          </Body>
         </div>
 
         <div className="space-y-2">
@@ -1254,9 +1301,9 @@ function ServiceOfferingForm({
       </div>
 
       {formError ? (
-        <p className="text-destructive text-sm font-medium" role="alert">
+        <Body as="p" size="sm" className="text-destructive" role="alert">
           {formError}
-        </p>
+        </Body>
       ) : null}
 
       <div className="flex justify-end gap-2">

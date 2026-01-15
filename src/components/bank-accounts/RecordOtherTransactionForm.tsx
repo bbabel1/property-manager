@@ -9,7 +9,7 @@ import { ArrowRight, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Label as FormLabel } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
   Select,
@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/select';
 import GlAccountSelectItems from '@/components/gl-accounts/GlAccountSelectItems';
 import { Textarea } from '@/components/ui/textarea';
+import { Body, Heading, Label } from '@/ui/typography';
 
 export type BankAccountOption = { id: string; label: string; balance?: number | null };
 export type PropertyOption = { id: string; label: string };
@@ -253,12 +254,16 @@ export default function RecordOtherTransactionForm(props: {
     <div className="w-full space-y-8 pb-10">
       {formError && (
         <div className="border-destructive/20 bg-destructive/10 rounded-md border p-4">
-          <p className="text-destructive text-sm">{formError}</p>
+          <Body as="p" size="sm" className="text-destructive">
+            {formError}
+          </Body>
         </div>
       )}
 
       <div className="space-y-3">
-        <div className="text-sm font-semibold">What kind of transaction are you recording?</div>
+        <Heading as="div" size="h5">
+          What kind of transaction are you recording?
+        </Heading>
         <RadioGroup
           value={mode}
           onValueChange={(value) => {
@@ -270,27 +275,29 @@ export default function RecordOtherTransactionForm(props: {
         >
           <div className="flex items-center gap-3">
             <RadioGroupItem value="transfer" id="rot-transfer" />
-            <Label htmlFor="rot-transfer" className="font-normal">
+            <FormLabel htmlFor="rot-transfer" className="font-normal">
               Transfer
-            </Label>
+            </FormLabel>
           </div>
           <div className="flex items-center gap-3">
             <RadioGroupItem value="deposit" id="rot-deposit" />
-            <Label htmlFor="rot-deposit" className="font-normal">
+            <FormLabel htmlFor="rot-deposit" className="font-normal">
               Deposit
-            </Label>
+            </FormLabel>
           </div>
           <div className="flex items-center gap-3">
             <RadioGroupItem value="withdrawal" id="rot-withdrawal" />
-            <Label htmlFor="rot-withdrawal" className="font-normal">
+            <FormLabel htmlFor="rot-withdrawal" className="font-normal">
               Withdrawal
-            </Label>
+            </FormLabel>
           </div>
         </RadioGroup>
       </div>
 
       <div className="space-y-4">
-        <div className="text-sm font-semibold">Transaction details</div>
+        <Heading as="div" size="h5">
+          Transaction details
+        </Heading>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
@@ -365,12 +372,12 @@ export default function RecordOtherTransactionForm(props: {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="text-muted-foreground text-sm">
+              <Body tone="muted" size="sm">
                 Balance:{' '}
                 <span className="text-foreground font-semibold">
                   {formatCurrency(Number(fromBalance ?? 0))}
                 </span>
-              </div>
+              </Body>
               <div>
                 <Label
                   htmlFor="rot-transfer-amount"

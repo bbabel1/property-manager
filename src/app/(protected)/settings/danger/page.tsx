@@ -3,15 +3,18 @@
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Body, Heading } from '@/ui/typography'
 
 export default function DangerPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-2">
-        <h1 className="text-2xl font-bold text-foreground">Danger Zone</h1>
-        <p className="text-sm text-muted-foreground">
+        <Heading as="h1" size="h2">
+          Danger Zone
+        </Heading>
+        <Body as="p" tone="muted" size="sm">
           Export data or remove your account. Workspace deletion should be locked behind org-admin permissions.
-        </p>
+        </Body>
       </div>
 
       <Card className="border-destructive/40">
@@ -19,9 +22,9 @@ export default function DangerPage() {
           <CardTitle>Delete my account</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <p className="text-sm text-muted-foreground">
+          <Body as="p" tone="muted" size="sm">
             This removes your personal access. Your organization data stays intact for other admins.
-          </p>
+          </Body>
           <Button
             variant="destructive"
             onClick={() => toast.error('Account deletion flow', { description: 'Require confirmation and re-auth.' })}
@@ -36,9 +39,9 @@ export default function DangerPage() {
           <CardTitle>Workspace cleanup</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <p className="text-sm text-muted-foreground">
+          <Body as="p" tone="muted" size="sm">
             Org admins can archive a workspace or transfer ownership. This should require a fresh admin login and confirmation.
-          </p>
+          </Body>
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={() => toast.info('Archive workspace')}>
               Archive workspace
@@ -55,9 +58,9 @@ export default function DangerPage() {
           <CardTitle>Data export</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
-          <p className="text-sm text-muted-foreground">
+          <Body as="p" tone="muted" size="sm">
             Export your workspace data before deletion. We recommend running a fresh export for audit.
-          </p>
+          </Body>
           <Button onClick={() => toast.info('Export started')}>
             Start export
           </Button>

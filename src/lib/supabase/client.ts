@@ -1,9 +1,16 @@
 "use client"
 
 import { createBrowserClient } from "@supabase/ssr"
+import { supabaseGlobalOptions } from "./options"
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
 const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
+const sharedClientOptions = {
+  db: {
+    schema: 'public',
+  },
+  global: supabaseGlobalOptions,
+} as const
 
 // Returns a browser-side Supabase client configured for cookie-based auth
 export function getSupabaseBrowserClient() {
@@ -33,5 +40,5 @@ export function getSupabaseBrowserClient() {
       document.cookie = cookie
     },
   }
-  return createBrowserClient(url, anon, { cookies })
+  return createBrowserClient(url, anon, { ...sharedClientOptions, cookies })
 }

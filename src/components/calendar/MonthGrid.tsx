@@ -4,6 +4,7 @@ import React from 'react'
 import { CalendarEvent } from '@/types/calendar'
 import { format, endOfMonth, getDay, isSameDay, parseISO, startOfDay } from 'date-fns'
 import { Button } from '@/components/ui/button'
+import { Body, Label } from '@/ui/typography'
 
 type MonthGridProps = {
   currentDate: Date
@@ -141,15 +142,17 @@ export function MonthGrid({
   const today = new Date()
 
   return (
-    <div className="flex-1 flex flex-col bg-white">
+    <div className="flex flex-1 flex-col bg-white">
       {/* Day headers */}
       <div className="grid grid-cols-7 border-b border-gray-200">
         {daysOfWeek.map((day, i) => (
           <div
             key={i}
-            className="text-center py-2 text-xs font-medium text-gray-500 border-l border-gray-200 first:border-l-0"
+            className="border-l border-gray-200 py-2 text-center first:border-l-0"
           >
-            {day}
+            <Label as="span" size="xs" tone="muted" className="tracking-wide">
+              {day}
+            </Label>
           </div>
         ))}
       </div>
@@ -172,13 +175,21 @@ export function MonthGrid({
               `}
             >
               {/* Date number */}
-              <div
-                className={`text-sm mb-1 ${!day.isCurrentMonth ? 'text-gray-400' : isToday ? 'text-[#1a73e8] font-semibold' : 'text-gray-700'}`}
-              >
-                {isFirstOfMonth && !day.isCurrentMonth
-                  ? `${monthNames[day.month]} `
-                  : ''}
-                {day.day}
+              <div className="mb-1">
+                <Label
+                  as="span"
+                  size="sm"
+                  className={
+                    !day.isCurrentMonth
+                      ? 'text-muted-foreground'
+                      : isToday
+                        ? 'text-primary'
+                        : ''
+                  }
+                >
+                  {isFirstOfMonth && !day.isCurrentMonth ? `${monthNames[day.month]} ` : ''}
+                  {day.day}
+                </Label>
               </div>
 
               {/* All-day events */}
@@ -188,11 +199,13 @@ export function MonthGrid({
                   onClick={() => onEventClick(event)}
                   variant="ghost"
                   className={`
-                    w-full text-left text-xs text-white px-2 py-0.5 rounded mb-0.5 truncate h-auto
+                    mb-0.5 h-auto w-full truncate rounded px-2 py-0.5 text-left
                     ${getEventColor(event.color)} hover:opacity-90 transition-opacity
                   `}
                 >
-                  {event.title}
+                  <Body as="span" size="xs" className="text-white">
+                    {event.title}
+                  </Body>
                 </Button>
               ))}
 
@@ -208,11 +221,13 @@ export function MonthGrid({
                     onClick={() => onEventClick(event)}
                     variant="ghost"
                     className={`
-                    w-full text-left text-xs text-white px-2 py-0.5 rounded mb-0.5 truncate h-auto
+                    mb-0.5 h-auto w-full truncate rounded px-2 py-0.5 text-left
                     ${getEventColor(event.color)} hover:opacity-90 transition-opacity
                   `}
                   >
-                    {event.title}
+                    <Body as="span" size="xs" className="text-white">
+                      {event.title}
+                    </Body>
                   </Button>
                 ))}
 
@@ -223,21 +238,23 @@ export function MonthGrid({
                     key={event.id}
                     onClick={() => onEventClick(event)}
                     variant="ghost"
-                    className="w-full text-left flex items-center gap-1 text-xs text-gray-700 hover:bg-gray-100 rounded px-1 py-0.5 truncate h-auto"
+                    className="flex h-auto w-full items-center gap-1 truncate rounded px-1 py-0.5 text-left hover:bg-muted"
                   >
                     <span
-                      className={`w-2 h-2 rounded-full flex-shrink-0 ${getEventDotColor(event.color)}`}
+                      className={`h-2 w-2 flex-shrink-0 rounded-full ${getEventDotColor(event.color)}`}
                     ></span>
-                    <span className="text-gray-500">
+                    <Body as="span" tone="muted" size="xs">
                       {format(parseISO(event.start), 'ha')}
-                    </span>
-                    <span className="truncate">{event.title}</span>
+                    </Body>
+                    <Body as="span" size="xs" className="truncate">
+                      {event.title}
+                    </Body>
                   </Button>
                 ))}
                 {dayEvents.length > 3 && (
-                  <div className="text-xs text-gray-500 px-1">
+                  <Body as="div" tone="muted" size="xs" className="px-1">
                     +{dayEvents.length - 3} more
-                  </div>
+                  </Body>
                 )}
               </div>
             </div>

@@ -11,6 +11,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Body, Label } from '@/ui/typography'
 
 type BuildingSummary = {
   id: string
@@ -127,8 +128,12 @@ export default function BuildingsPage() {
         <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
           <Building2 className="h-8 w-8 text-destructive" />
           <div className="space-y-1">
-            <p className="text-sm font-semibold text-foreground">Unable to load buildings</p>
-            <p className="text-sm text-muted-foreground">{error}</p>
+            <Label as="p" size="sm">
+              Unable to load buildings
+            </Label>
+            <Body as="p" tone="muted" size="sm">
+              {error}
+            </Body>
           </div>
           <Button size="sm" onClick={() => void fetchBuildings()}>
             Try again
@@ -142,8 +147,12 @@ export default function BuildingsPage() {
         <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
           <Building2 className="h-10 w-10 text-muted-foreground" />
           <div className="space-y-1">
-            <p className="text-base font-semibold text-foreground">No buildings found</p>
-            <p className="text-sm text-muted-foreground">Adjust your search or borough filter.</p>
+            <Label as="p" size="sm">
+              No buildings found
+            </Label>
+            <Body as="p" tone="muted" size="sm">
+              Adjust your search or borough filter.
+            </Body>
           </div>
           <Button
             variant="outline"
@@ -162,18 +171,31 @@ export default function BuildingsPage() {
   } else {
     mainContent = (
       <Card className="overflow-hidden">
-        <div className="border-border/80 flex items-center justify-between border-b bg-card px-6 py-3 text-sm text-muted-foreground">
+        <Body
+          as="div"
+          size="sm"
+          tone="muted"
+          className="border-border/80 flex items-center justify-between border-b bg-card px-6 py-3"
+        >
           <span>{filtered.length} {filtered.length === 1 ? 'building' : 'buildings'}</span>
-        </div>
+        </Body>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead className="bg-muted/70 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <table className="min-w-full">
+              <thead className="bg-muted/70 text-left uppercase tracking-wide text-muted-foreground">
                 <tr>
-                  <th className="px-6 py-3 font-semibold">Building</th>
-                  <th className="px-6 py-3 font-semibold">Borough</th>
-                  <th className="px-6 py-3 font-semibold">Properties</th>
-                  <th className="px-6 py-3 font-semibold">Occupancy</th>
+                  <Label as="th" size="xs" tone="muted" className="px-6 py-3">
+                    Building
+                  </Label>
+                  <Label as="th" size="xs" tone="muted" className="px-6 py-3">
+                    Borough
+                  </Label>
+                  <Label as="th" size="xs" tone="muted" className="px-6 py-3">
+                    Properties
+                  </Label>
+                  <Label as="th" size="xs" tone="muted" className="px-6 py-3">
+                    Occupancy
+                  </Label>
                 </tr>
               </thead>
               <tbody className="bg-card">
@@ -189,24 +211,31 @@ export default function BuildingsPage() {
                     <tr key={building.id} className="border-b border-border/80 last:border-0 hover:bg-muted/40">
                       <td className="px-6 py-4 align-top">
                         <Stack gap="xs">
-                          <Link href={`/buildings/${building.id}`} className="font-semibold text-primary hover:underline">
+                          <Label
+                            as={Link}
+                            href={`/buildings/${building.id}`}
+                            size="sm"
+                            className="text-primary hover:underline"
+                          >
                             {building.streetAddress}
-                          </Link>
-                          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                          </Label>
+                          <Body as="div" size="xs" tone="muted" className="flex items-center gap-1">
                             <MapPin className="h-3 w-3" />
                             <span className="truncate">{location || 'Location pending'}</span>
-                          </div>
+                          </Body>
                           <div className="flex flex-wrap gap-2 pt-1">
                             {building.bbl ? <Badge variant="outline">BBL {building.bbl}</Badge> : null}
                             {building.bin ? <Badge variant="outline">BIN {building.bin}</Badge> : null}
                           </div>
                         </Stack>
                       </td>
-                      <td className="px-6 py-4 align-top text-sm text-foreground">
+                      <Body as="td" size="sm" className="px-6 py-4 align-top">
                         {building.borough || '—'}
-                      </td>
+                      </Body>
                       <td className="px-6 py-4 align-top">
-                        <div className="text-sm font-medium">{building.properties.length || '—'} linked</div>
+                        <Label as="div" size="sm">
+                          {building.properties.length || '—'} linked
+                        </Label>
                         <div className="mt-1 flex flex-wrap gap-1">
                           {propertyPreview.map((property) => (
                             <Badge key={property.id} variant="secondary" className="gap-1">
@@ -219,18 +248,22 @@ export default function BuildingsPage() {
                           ) : null}
                         </div>
                       </td>
-                      <td className="px-6 py-4 align-top text-sm text-foreground">
+                      <Body as="td" size="sm" className="px-6 py-4 align-top">
                         {totalUnits ? (
                           <div className="space-y-1">
-                            <div className="font-semibold">
+                            <Label as="div" size="sm">
                               {occupiedUnits}/{totalUnits} occupied
-                            </div>
-                            <div className="text-xs text-muted-foreground">{occupancyRate}% filled</div>
+                            </Label>
+                            <Body as="div" size="xs" tone="muted">
+                              {occupancyRate}% filled
+                            </Body>
                           </div>
                         ) : (
-                          <span className="text-muted-foreground">Units unavailable</span>
+                          <Body as="span" tone="muted" size="sm">
+                            Units unavailable
+                          </Body>
                         )}
-                      </td>
+                      </Body>
                     </tr>
                   )
                 })}

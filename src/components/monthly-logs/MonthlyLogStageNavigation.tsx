@@ -14,6 +14,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { cn } from '@/components/ui/utils';
 import type { MonthlyLogStage, MonthlyLogStatus } from './types';
+import { Label } from '@/ui/typography';
 
 interface MonthlyLogStageNavigationProps {
   stages: MonthlyLogStage[];
@@ -91,7 +92,7 @@ export default function MonthlyLogStageNavigation({
             size="sm"
             onClick={() => handleStageClick(stage)}
             className={cn(
-              'flex items-center gap-2 px-3 py-2 text-sm font-medium transition-colors',
+              'flex items-center gap-2 px-3 py-2 transition-colors',
               isActive
                 ? 'border border-blue-300 bg-blue-50 text-blue-700 shadow-sm'
                 : 'text-slate-700 hover:bg-slate-200 hover:text-slate-900',
@@ -100,12 +101,12 @@ export default function MonthlyLogStageNavigation({
             )}
           >
             <Icon className="h-4 w-4" />
-            <span className="flex items-center gap-1">
+            <Label as="span" className="flex items-center gap-1">
               {config.label}
               {isCompleted ? (
-                <Check className="h-3.5 w-3.5 text-[var(--color-action-600)]" />
+                <Check className="h-3.5 w-3.5 text-primary-600" />
               ) : null}
-            </span>
+            </Label>
           </Button>
         );
       })}

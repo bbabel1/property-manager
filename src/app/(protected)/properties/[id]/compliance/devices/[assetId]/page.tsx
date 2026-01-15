@@ -8,10 +8,11 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Loader2, ArrowLeft } from 'lucide-react'
 import type { ComplianceAssetWithRelations, ComplianceEvent } from '@/types/compliance'
-import { Label } from '@/components/ui/label'
+import { Label as FormLabel } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { toast } from 'sonner'
+import { Body, Heading, Label } from '@/ui/typography'
 
 const DEVICE_CATEGORY_OPTIONS = [
   'elevator',
@@ -37,11 +38,11 @@ function formatDate(val?: string | null) {
 function StatusPill({ value }: { value?: string | null }) {
   if (!value) return null
   const v = value.toLowerCase()
-  let className = 'bg-muted text-foreground border-muted-foreground/20'
-  if (v.includes('active')) className = 'bg-emerald-50 text-emerald-700 border-emerald-200'
-  if (v.includes('out')) className = 'bg-amber-50 text-amber-700 border-amber-200'
-  if (v.includes('retired') || v.includes('removed')) className = 'bg-slate-100 text-slate-700 border-slate-200'
-  return <Badge variant="outline" className={className + ' text-xs'}>{value}</Badge>
+  let variant: 'success' | 'warning' | 'danger' | 'info' = 'info'
+  if (v.includes('active')) variant = 'success'
+  if (v.includes('out')) variant = 'warning'
+  if (v.includes('retired') || v.includes('removed')) variant = 'danger'
+  return <Badge variant={variant} className="text-xs">{value}</Badge>
 }
 
 function DeviceInfo({ asset }: { asset: ComplianceAssetWithRelations }) {
@@ -82,8 +83,12 @@ function DeviceInfo({ asset }: { asset: ComplianceAssetWithRelations }) {
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
           {fields.map((f) => (
             <div key={f.label} className="space-y-1">
-              <div className="text-xs text-muted-foreground">{f.label}</div>
-              <div className="text-sm font-medium break-words">{f.value}</div>
+              <Label size="xs" tone="muted">
+                {f.label}
+              </Label>
+              <Body as="div" size="sm" className="font-medium break-words">
+                {f.value}
+              </Body>
             </div>
           ))}
         </div>
@@ -260,12 +265,14 @@ export default function ComplianceDevicePage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Normalization</CardTitle>
+          <Heading as="h2" size="h4">
+            Normalization
+          </Heading>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <div className="space-y-2">
-              <Label>Category</Label>
+              <FormLabel>Category</FormLabel>
               <Select
                 value={draft.device_category || UNSET}
                 onValueChange={(val) =>
@@ -286,7 +293,7 @@ export default function ComplianceDevicePage() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Technology</Label>
+              <FormLabel>Technology</FormLabel>
               <Select
                 value={draft.device_technology || UNSET}
                 onValueChange={(val) =>
@@ -307,7 +314,7 @@ export default function ComplianceDevicePage() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Subtype</Label>
+              <FormLabel>Subtype</FormLabel>
               <Select
                 value={draft.device_subtype || UNSET}
                 onValueChange={(val) =>
@@ -335,7 +342,7 @@ export default function ComplianceDevicePage() {
                 }
                 id="private_residence"
               />
-              <Label htmlFor="private_residence">Private residence</Label>
+              <FormLabel htmlFor="private_residence">Private residence</FormLabel>
             </div>
           </div>
           <Button

@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/components/ui/utils';
+import { Body } from '@/ui/typography';
 
 type BalanceBreakdownControlsProps = {
   asOf: string;
@@ -73,7 +74,7 @@ export default function BalanceBreakdownControls({
           variant="outline"
           size="sm"
           className={cn(
-            'rounded-md px-4 py-2 text-sm font-semibold shadow-none',
+            'rounded-md px-4 py-2 shadow-none',
             view === 'property' ? activeButtonClasses : inactiveButtonClasses,
           )}
           onClick={() => updateSearch({ view: 'property' })}
@@ -86,7 +87,7 @@ export default function BalanceBreakdownControls({
           variant="outline"
           size="sm"
           className={cn(
-            'rounded-md px-4 py-2 text-sm font-semibold shadow-none',
+            'rounded-md px-4 py-2 shadow-none',
             view === 'owner' ? activeButtonClasses : inactiveButtonClasses,
           )}
           onClick={() => updateSearch({ view: 'owner' })}
@@ -119,7 +120,9 @@ export default function BalanceBreakdownControls({
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">As of</span>
+            <Body as="span" size="sm" tone="muted">
+              As of
+            </Body>
             <div className="w-[150px]">
               <DatePicker value={asOf} onChange={(value) => updateSearch({ asOf: value })} />
             </div>

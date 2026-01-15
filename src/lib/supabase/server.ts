@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { cookies } from "next/headers"
 import type { Database } from "@/types/database"
+import { supabaseGlobalOptions } from "./options"
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
 const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
@@ -14,11 +15,7 @@ const sharedClientOptions = {
   db: {
     schema: 'public',
   },
-  global: {
-    headers: {
-      'x-client-info': 'property-manager@1.0.0',
-    },
-  },
+  global: supabaseGlobalOptions,
 } as const;
 
 type ServerSupabaseClient = SupabaseClient<Database>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Body, Heading, Label } from '@/ui/typography';
 
 interface FinancialSummaryCardProps {
   monthlyLogId: string;
@@ -66,7 +67,11 @@ export default function FinancialSummaryCard({ monthlyLogId }: FinancialSummaryC
     return (
       <Card className={floatingCardClass}>
         <CardHeader>
-          <CardTitle>Financial Summary</CardTitle>
+          <CardTitle>
+            <Heading as="h3" size="h5">
+              Financial Summary
+            </Heading>
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="animate-pulse space-y-3">
@@ -86,13 +91,19 @@ export default function FinancialSummaryCard({ monthlyLogId }: FinancialSummaryC
     return (
       <Card className={floatingCardClass}>
         <CardHeader>
-          <CardTitle>Financial Summary</CardTitle>
+          <CardTitle>
+            <Heading as="h3" size="h5">
+              Financial Summary
+            </Heading>
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="py-4 text-center text-slate-600">
+          <Body as="div" size="sm" tone="muted" className="py-4 text-center">
             <p>Unable to load financial summary</p>
-            <p className="mt-1 text-sm">Please check your connection and try again</p>
-          </div>
+            <Body as="p" size="sm" tone="muted" className="mt-1">
+              Please check your connection and try again
+            </Body>
+          </Body>
         </CardContent>
       </Card>
     );
@@ -101,88 +112,114 @@ export default function FinancialSummaryCard({ monthlyLogId }: FinancialSummaryC
   return (
     <Card className={floatingCardClass}>
       <CardHeader>
-        <CardTitle>Financial Summary</CardTitle>
+        <CardTitle>
+          <Heading as="h3" size="h5">
+            Financial Summary
+          </Heading>
+        </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">
+          <Label size="xs" tone="muted" className="uppercase tracking-wide">
             Lease Ledger
-          </p>
+          </Label>
           <div className="border-b border-slate-300" />
         </div>
 
         <div className="flex items-center justify-between">
-          <span className="text-slate-600">Total Charges</span>
-          <span className="font-semibold text-slate-900">
+          <Body as="span" size="sm" tone="muted">
+            Total Charges
+          </Body>
+          <Label as="span" size="sm">
             {formatCurrency(summary.totalCharges)}
-          </span>
+          </Label>
         </div>
 
         <div className="flex items-center justify-between">
-          <span className="text-slate-600">Total Credits</span>
-          <span className="font-semibold text-slate-900">
+          <Body as="span" size="sm" tone="muted">
+            Total Credits
+          </Body>
+          <Label as="span" size="sm">
             -{formatCurrency(summary.totalCredits)}
-          </span>
+          </Label>
         </div>
 
         <div className="flex items-center justify-between">
-          <span className="text-slate-600">Total Payments</span>
-          <span className="font-semibold text-slate-900">
+          <Body as="span" size="sm" tone="muted">
+            Total Payments
+          </Body>
+          <Label as="span" size="sm">
             {formatCurrency(summary.totalPayments)}
-          </span>
+          </Label>
         </div>
 
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">
+          <Label size="xs" tone="muted" className="uppercase tracking-wide">
             Unit Transactions
-          </p>
+          </Label>
           <div className="border-b border-slate-300" />
         </div>
 
         <div className="flex items-center justify-between">
-          <span className="text-slate-600">Total Bills</span>
-          <span className="font-semibold text-red-600">-{formatCurrency(summary.totalBills)}</span>
+          <Body as="span" size="sm" tone="muted">
+            Total Bills
+          </Body>
+          <Label as="span" size="sm" className="text-red-600">
+            -{formatCurrency(summary.totalBills)}
+          </Label>
         </div>
 
         <div className="flex items-center justify-between">
-          <span className="text-slate-600">Escrow</span>
-          <span className="font-semibold text-slate-900">
+          <Body as="span" size="sm" tone="muted">
+            Escrow
+          </Body>
+          <Label as="span" size="sm">
             {formatCurrency(summary.escrowAmount)}
-          </span>
+          </Label>
         </div>
 
         <div className="flex items-center justify-between">
-          <span className="text-slate-600">Management Fees</span>
-          <span className="font-semibold text-red-600">
+          <Body as="span" size="sm" tone="muted">
+            Management Fees
+          </Body>
+          <Label as="span" size="sm" className="text-red-600">
             -{formatCurrency(summary.managementFees)}
-          </span>
+          </Label>
         </div>
 
         <div className="border-t border-slate-300 pt-4">
-          <div className="flex items-center justify-between text-sm text-slate-600">
-            <span>Previous Balance</span>
-            <span className="font-semibold text-slate-900">
+          <div className="flex items-center justify-between">
+            <Body as="span" size="sm" tone="muted">
+              Previous Balance
+            </Body>
+            <Label as="span" size="sm">
               {formatCurrency(summary.previousBalance)}
-            </span>
+            </Label>
           </div>
         </div>
 
         <div>
           <div className="flex items-center justify-between">
-            <span className="font-semibold text-slate-900">Net to Owner</span>
-            <span
-              className={summary.netToOwner >= 0 ? 'text-lg font-semibold text-slate-900' : 'text-lg font-semibold text-red-600'}
+            <Label as="span" size="sm">
+              Net to Owner
+            </Label>
+            <Heading
+              as="span"
+              size="h5"
+              className={summary.netToOwner >= 0 ? '' : 'text-red-600'}
             >
               {formatCurrency(summary.netToOwner)}
-            </span>
+            </Heading>
           </div>
         </div>
 
         <div className="flex items-center justify-between">
-          <span className="text-slate-600">Balance</span>
-          <span className="font-semibold text-slate-900">
+          <Body as="span" size="sm" tone="muted">
+            Balance
+          </Body>
+          <Label as="span" size="sm">
             {formatCurrency(summary.balance)}
-          </span>
+          </Label>
         </div>
       </CardContent>
     </Card>

@@ -24,7 +24,6 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { TableRowLink } from '@/components/ui/table-row-link';
-import { cn } from '@/components/ui/utils';
 
 type VendorsTableProps = {
   vendors: VendorInsight[];
@@ -53,20 +52,18 @@ function formatInsurance(value?: string | null): string {
 const emptyPlaceholder = '—';
 
 const STATUS_PILL_STYLES = {
-  active:
-    'border-[var(--color-success-500)] bg-[var(--color-success-50)] text-[var(--color-success-700)]',
-  inactive:
-    'border-[var(--color-danger-400)] bg-[var(--color-danger-50)] text-[var(--color-danger-700)]',
+  active: 'status-pill-success',
+  inactive: 'status-pill-danger',
 };
 
-const COMPLIANCE_PILL_STYLES: Record<
+const COMPLIANCE_BADGE_VARIANT: Record<
   NonNullable<VendorInsight['complianceStatus']>,
-  string
+  'outline' | 'destructive' | null
 > = {
-  ok: '',
-  expiring: 'border-amber-200 bg-amber-50 text-amber-700',
-  expired: 'border-[var(--color-danger-400)] bg-[var(--color-danger-50)] text-[var(--color-danger-700)]',
-  missing: 'border-[var(--color-danger-200)] bg-[var(--color-danger-50)] text-[var(--color-danger-700)]',
+  ok: null,
+  expiring: 'outline',
+  expired: 'destructive',
+  missing: 'destructive',
 };
 
 export function VendorsTable({ vendors, categories }: VendorsTableProps) {
@@ -149,10 +146,12 @@ export function VendorsTable({ vendors, categories }: VendorsTableProps) {
               {filteredVendors.map((vendor) => {
                 const insurance = formatInsurance(vendor.insuranceExpirationDate);
                 const statusLabel = vendor.isActive ? 'Active' : 'Inactive';
-                const statusClass = vendor.isActive ? STATUS_PILL_STYLES.active : STATUS_PILL_STYLES.inactive;
-                const complianceTone =
+                const statusClass = vendor.isActive
+                  ? STATUS_PILL_STYLES.active
+                  : STATUS_PILL_STYLES.inactive;
+                const complianceVariant =
                   vendor.complianceStatus && vendor.complianceStatus !== 'ok'
-                    ? COMPLIANCE_PILL_STYLES[vendor.complianceStatus]
+                    ? COMPLIANCE_BADGE_VARIANT[vendor.complianceStatus]
                     : null;
 
                 return (
@@ -210,8 +209,15 @@ export function VendorsTable({ vendors, categories }: VendorsTableProps) {
                           <CalendarDays className="text-muted-foreground h-4 w-4" />
                           <span>{insurance}</span>
                         </div>
-                        {complianceTone ? (
-                          <Badge variant="outline" className={cn('w-max', complianceTone)}>
+                        {complianceVariant ? (
+                          <Badge
+                            variant={complianceVariant}
+                            className={`w-max ${
+                              vendor.complianceStatus === 'expiring'
+                                ? 'border-[var(--color-warning-600)] bg-[var(--color-warning-50)] text-[var(--color-warning-600)]'
+                                : ''
+                            }`}
+                          >
                             {vendor.complianceStatus === 'expiring'
                               ? 'Expiring'
                               : vendor.complianceStatus === 'expired'

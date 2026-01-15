@@ -1,6 +1,7 @@
 "use client"
 
 import { ReactNode } from "react"
+import { Heading } from "@/ui/typography"
 
 export default function RepeaterField({ title, header, children, onAdd, addLabel = 'Add row' }: {
   title?: string
@@ -11,7 +12,11 @@ export default function RepeaterField({ title, header, children, onAdd, addLabel
 }) {
   return (
     <div>
-      {title && <h4 className="text-sm font-medium text-foreground mb-2">{title}</h4>}
+      {title && (
+        <Heading as="h4" size="h6" className="mb-2 font-medium text-foreground">
+          {title}
+        </Heading>
+      )}
       {header}
       <div className="space-y-2">{children}</div>
       {onAdd && (
@@ -22,4 +27,3 @@ export default function RepeaterField({ title, header, children, onAdd, addLabel
     </div>
   )
 }
-

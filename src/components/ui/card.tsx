@@ -2,6 +2,8 @@
 
 import * as React from 'react';
 
+import { Body, Heading } from '@/ui/typography';
+import type { BodySize, HeadingSize } from '@/ui/typography';
 import { cn } from './utils';
 
 const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
@@ -22,22 +24,38 @@ const CardHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDiv
 );
 CardHeader.displayName = 'CardHeader';
 
-const CardTitle = React.forwardRef<HTMLParagraphElement, React.HTMLAttributes<HTMLHeadingElement>>(
-  ({ className, ...props }, ref) => (
-    <h3
-      ref={ref}
-      className={cn('text-lg leading-none font-semibold tracking-tight', className)}
+type CardTitleProps = React.HTMLAttributes<HTMLHeadingElement> & {
+  headingAs?: React.ElementType;
+  headingSize?: HeadingSize;
+};
+
+const CardTitle = React.forwardRef<HTMLDivElement, CardTitleProps>(
+  ({ className, headingAs = 'h3', headingSize = 'h4', children, ...props }, ref) => (
+    <Heading
+      ref={ref as React.Ref<HTMLHeadingElement>}
+      as={headingAs}
+      size={headingSize}
+      className={cn('leading-none tracking-tight', className)}
       {...props}
-    />
+    >
+      {children}
+    </Heading>
   ),
 );
 CardTitle.displayName = 'CardTitle';
 
 const CardDescription = React.forwardRef<
-  HTMLParagraphElement,
-  React.HTMLAttributes<HTMLParagraphElement>
->(({ className, ...props }, ref) => (
-  <p ref={ref} className={cn('text-muted-foreground text-sm', className)} {...props} />
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement> & {
+    bodySize?: BodySize;
+    tone?: 'default' | 'muted';
+  }
+>(({ className, bodySize = 'sm', tone = 'muted', children, ...props }, ref) => (
+  <div ref={ref} className={cn('text-left', className)} {...props}>
+    <Body as="div" size={bodySize} tone={tone}>
+      {children}
+    </Body>
+  </div>
 ));
 CardDescription.displayName = 'CardDescription';
 

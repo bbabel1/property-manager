@@ -24,6 +24,7 @@ import ActionButton from '@/components/ui/ActionButton';
 import TenantFileUploadDialog from '@/components/tenants/TenantFileUploadDialog';
 import type { TenantFileRow, TenantFileUploadDialogProps } from './tenant-file-types';
 import { fetchWithSupabaseAuth } from '@/lib/supabase/fetch';
+import { Body, Heading } from '@/ui/typography';
 
 type ListedFile = TenantFileRow & { href: string | null };
 type FileApiRow = {
@@ -153,7 +154,9 @@ export default function RecentFilesSection({
     <>
       <div className="space-y-4">
         <div className="flex items-center gap-2">
-          <h2 className="text-foreground text-lg font-semibold">Recent files</h2>
+          <Heading as="h2" size="h3">
+            Recent files
+          </Heading>
           <Button
             variant="link"
             className="h-auto px-2 py-0"
@@ -165,11 +168,11 @@ export default function RecentFilesSection({
         </div>
         <div className="border-border bg-background rounded-lg border shadow-sm">
           {loading ? (
-            <div className="text-muted-foreground px-4 py-6 text-center text-sm">
+            <Body tone="muted" size="sm" className="px-4 py-6 text-center">
               Loading files…
-            </div>
+            </Body>
           ) : files.length === 0 ? (
-            <div className="text-muted-foreground px-4 py-6 text-sm">
+            <Body tone="muted" size="sm" className="px-4 py-6">
               {emptyCopy}{' '}
               <Button
                 variant="link"
@@ -179,22 +182,26 @@ export default function RecentFilesSection({
               >
                 Upload your first file.
               </Button>
-            </div>
+            </Body>
           ) : (
-            <div className="divide-card divide-y">
+            <div className="divide-y divide-border-subtle">
               {files.map((file) => (
                 <div
                   key={file.id}
                   className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div className="flex-1 space-y-1">
-                    <div className="text-foreground text-sm font-semibold">{file.title}</div>
-                    <div className="text-muted-foreground text-sm">
+                    <Body as="div" size="sm" className="font-semibold">
+                      {file.title}
+                    </Body>
+                    <Body tone="muted" size="sm">
                       {file.category} · Uploaded {file.uploadedAt.toLocaleDateString()} by{' '}
                       {file.uploadedBy}
-                    </div>
+                    </Body>
                     {file.description ? (
-                      <div className="text-muted-foreground text-sm">{file.description}</div>
+                      <Body tone="muted" size="sm">
+                        {file.description}
+                      </Body>
                     ) : null}
                   </div>
                   <div className="flex items-center gap-2">

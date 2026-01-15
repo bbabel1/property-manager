@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { fetchWithSupabaseAuth } from '@/lib/supabase/fetch';
 import type { Database } from '@/types/database';
+import { Label } from '@/ui/typography';
 
 type Note = Database['public']['Tables']['tenant_notes']['Row'];
 
@@ -81,14 +82,14 @@ export default function AddNoteModal({
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="top-[35%] w-[680px] max-w-[680px] translate-y-[-35%]">
         <DialogHeader>
-          <DialogTitle className="text-foreground text-lg font-semibold">Add note</DialogTitle>
+          <DialogTitle>Add note</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
           <div>
-            <label className="text-muted-foreground mb-2 block text-xs font-medium tracking-wider uppercase">
+            <Label className="text-muted-foreground mb-2 block text-xs font-medium tracking-wider uppercase">
               NOTE
-            </label>
+            </Label>
             <Textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}

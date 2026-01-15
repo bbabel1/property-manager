@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/database';
+import { supabaseGlobalOptions } from './supabase/options';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -28,12 +29,7 @@ const sharedClientOptions = {
     // This reduces the need for per-connection catalog queries
     schema: 'public',
   },
-  global: {
-    // Headers that help with connection reuse
-    headers: {
-      'x-client-info': 'property-manager@1.0.0',
-    },
-  },
+  global: supabaseGlobalOptions,
   // Note: Supabase JS client uses PostgREST which handles connection pooling
   // at the infrastructure level. The client itself doesn't expose direct
   // connection pool configuration, but we can optimize by:

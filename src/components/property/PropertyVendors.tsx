@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { ArrowUpRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Body, Heading, Label } from '@/ui/typography'
 
 interface PropertyVendorsProps {
   propertyId: string
@@ -13,16 +14,24 @@ export function PropertyVendors({ propertyId }: PropertyVendorsProps) {
         <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
           Vendor automation available
         </div>
-        <h3 className="text-lg font-semibold text-foreground">Manage vendors from the centralized VMS hub</h3>
-        <p className="text-sm text-muted-foreground">
+        <Heading as="h3" size="h5" className="text-foreground">
+          Manage vendors from the centralized VMS hub
+        </Heading>
+        <Body tone="muted" size="sm">
           Source, engage, and monitor vendors with AI-powered recommendations, automated RFQs, compliance alerts, and Buildium-synced billing.
-        </p>
+        </Body>
         <div className="flex flex-wrap justify-center gap-2 text-xs text-muted-foreground">
-          <span>Property context preserved</span>
+          <Label as="span" size="xs" tone="muted">
+            Property context preserved
+          </Label>
           <span>•</span>
-          <span>Trigger RFQs directly from jobs</span>
+          <Label as="span" size="xs" tone="muted">
+            Trigger RFQs directly from jobs
+          </Label>
           <span>•</span>
-          <span>Track financials and documents</span>
+          <Label as="span" size="xs" tone="muted">
+            Track financials and documents
+          </Label>
         </div>
         <div className="flex flex-col items-center gap-2 sm:flex-row sm:justify-center">
           <Button asChild className="gap-2">

@@ -1,5 +1,6 @@
 import { AlertTriangle, Info, ShieldAlert } from 'lucide-react'
 import Link from 'next/link'
+import { Body, Heading, Label } from '@/ui/typography'
 
 type WarningLevel = 'critical' | 'warning' | 'info'
 
@@ -67,23 +68,33 @@ export function UndepositedFundsWarning({
         <div className="flex-1 space-y-2">
           <div className="flex items-center justify-between gap-2">
             <div>
-              <p className="text-foreground text-sm font-semibold">{headerForLevel(mostSevere)}</p>
-              <p className="text-muted-foreground text-xs">{descriptionForLevel(mostSevere)}</p>
+              <Heading as="p" size="h6">
+                {headerForLevel(mostSevere)}
+              </Heading>
+              <Body size="xs" tone="muted">
+                {descriptionForLevel(mostSevere)}
+              </Body>
             </div>
-            <Link href={depositUrl} className="text-primary text-xs font-semibold underline">
-              Record deposit
+            <Link href={depositUrl} className="text-primary underline">
+              <Label as="span" size="xs" className="text-primary">
+                Record deposit
+              </Label>
             </Link>
           </div>
           <div className="grid gap-2 md:grid-cols-2">
             {warnings.map((w) => (
               <div
                 key={w.org_id}
-                className="border-border/50 bg-background/60 rounded-md border p-3 text-xs shadow-xs"
+                className="border-border/50 bg-background/60 rounded-md border p-3 shadow-xs"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="font-semibold">Org: {w.org_id.slice(0, 8)}</span>
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                  <Label as="span" size="xs">
+                    Org: {w.org_id.slice(0, 8)}
+                  </Label>
+                  <Label
+                    as="span"
+                    size="xs"
+                    className={`rounded-full px-2 py-0.5 ${
                       w.warning_level === 'critical'
                         ? 'bg-destructive/10 text-destructive'
                         : w.warning_level === 'warning'
@@ -92,28 +103,46 @@ export function UndepositedFundsWarning({
                     }`}
                   >
                     {w.warning_level}
-                  </span>
+                  </Label>
                 </div>
-                <div className="mt-1 text-muted-foreground">
-                  <p>Payments: {w.payment_count}</p>
-                  <p>Total: ${Number(w.total_amount ?? 0).toLocaleString()}</p>
-                  <p>Max age: {Number(w.max_age_days ?? 0)} days</p>
+                <div className="mt-1">
+                  <Body size="xs" tone="muted">
+                    Payments: {w.payment_count}
+                  </Body>
+                  <Body size="xs" tone="muted">
+                    Total: ${Number(w.total_amount ?? 0).toLocaleString()}
+                  </Body>
+                  <Body size="xs" tone="muted">
+                    Max age: {Number(w.max_age_days ?? 0)} days
+                  </Body>
                 </div>
               </div>
             ))}
           </div>
           {payments?.length ? (
             <div className="border-border/50 bg-background/80 rounded-md border p-3">
-              <p className="mb-2 text-xs font-semibold text-foreground">Sample payments</p>
-              <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3 text-xs">
+              <Label as="p" size="xs" className="mb-2">
+                Sample payments
+              </Label>
+              <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3">
                 {payments.slice(0, 6).map((p) => (
                   <div key={p.transaction_id} className="rounded border border-border/40 p-2">
                     <div className="flex items-center justify-between">
-                      <span className="font-semibold">{p.transaction_type}</span>
-                      <span className="text-muted-foreground">{p.age_days}d</span>
+                      <Label as="span" size="xs">
+                        {p.transaction_type}
+                      </Label>
+                      <Body as="span" size="xs" tone="muted">
+                        {p.age_days}d
+                      </Body>
                     </div>
-                    <p className="text-muted-foreground">Amount: ${Number(p.total_amount ?? 0).toLocaleString()}</p>
-                    {p.memo ? <p className="line-clamp-2 text-muted-foreground">{p.memo}</p> : null}
+                    <Body size="xs" tone="muted">
+                      Amount: ${Number(p.total_amount ?? 0).toLocaleString()}
+                    </Body>
+                    {p.memo ? (
+                      <Body size="xs" tone="muted" className="line-clamp-2">
+                        {p.memo}
+                      </Body>
+                    ) : null}
                   </div>
                 ))}
               </div>

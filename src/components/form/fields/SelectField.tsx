@@ -1,6 +1,7 @@
 "use client"
 
 import { useFormContext } from "react-hook-form"
+import { Select } from "@/ui/select"
 
 type Option = { value: string; label: string }
 
@@ -20,11 +21,10 @@ export default function SelectField({ name, label, options, placeholder, disable
   return (
     <div>
       <label className="block text-xs font-medium text-muted-foreground mb-1">{label}</label>
-      <select {...register(name)} disabled={disabled}
-              className="w-full h-9 px-2 border border-border rounded-md bg-background text-foreground text-sm">
+      <Select {...register(name)} disabled={disabled} className="h-9 px-2 text-sm">
         {placeholder && <option value="">{placeholder}</option>}
         {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-      </select>
+      </Select>
       {err && <p className="text-xs text-destructive mt-1">{err}</p>}
     </div>
   )

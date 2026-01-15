@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { toast } from 'sonner';
+import { Body, Label } from '@/ui/typography';
 
 type UnitServiceRow = {
   unit_id: string | null;
@@ -69,7 +70,9 @@ export default function ManagementServiceUnitList({ propertyId }: { propertyId: 
     return (
       <Card>
         <CardContent className="py-6">
-          <p className="text-muted-foreground text-sm">Loading unit configurations…</p>
+          <Body tone="muted" size="sm">
+            Loading unit configurations…
+          </Body>
         </CardContent>
       </Card>
     );
@@ -79,7 +82,9 @@ export default function ManagementServiceUnitList({ propertyId }: { propertyId: 
     return (
       <Card>
         <CardContent className="py-6">
-          <p className="text-destructive text-sm">{error}</p>
+          <Body size="sm" className="text-destructive">
+            {error}
+          </Body>
           <Button variant="outline" size="sm" className="mt-3" onClick={load}>
             Retry
           </Button>
@@ -92,9 +97,9 @@ export default function ManagementServiceUnitList({ propertyId }: { propertyId: 
     return (
       <Card>
         <CardContent className="py-6">
-          <p className="text-muted-foreground text-sm">
+          <Body tone="muted" size="sm">
             No units found for this property. Add units to configure services.
-          </p>
+          </Body>
         </CardContent>
       </Card>
     );
@@ -107,10 +112,10 @@ export default function ManagementServiceUnitList({ propertyId }: { propertyId: 
           <CardHeader className="pb-3">
             <div className="flex items-start justify-between gap-2">
               <div>
-                <CardTitle className="text-base">
+                <CardTitle headingSize="h6">
                   Unit {unit.unit_number || unit.unit_id || '—'}
                 </CardTitle>
-                <CardDescription className="text-xs">
+                <CardDescription bodySize="xs">
                   Plan: {unit.service_plan || '—'}
                 </CardDescription>
               </div>
@@ -121,45 +126,55 @@ export default function ManagementServiceUnitList({ propertyId }: { propertyId: 
               ) : null}
             </div>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex flex-wrap gap-2">
-              {unit.active_services?.length ? (
-                unit.active_services.map((svc) => (
-                  <Badge key={svc} variant="secondary">
-                    {svc}
-                  </Badge>
-                ))
-              ) : (
-                <p className="text-muted-foreground text-sm">No services selected</p>
-              )}
-            </div>
-            <div className="grid gap-2 sm:grid-cols-2">
-              <div>
-                <p className="text-muted-foreground text-xs">Fee Amount</p>
-                <p className="text-foreground text-sm font-medium">
-                  {unit.fee_amount != null ? `$${unit.fee_amount}` : '—'}
-                </p>
+            <CardContent className="space-y-3">
+              <div className="flex flex-wrap gap-2">
+                {unit.active_services?.length ? (
+                  unit.active_services.map((svc) => (
+                    <Badge key={svc} variant="secondary">
+                      {svc}
+                    </Badge>
+                  ))
+                ) : (
+                  <Body tone="muted" size="sm">
+                    No services selected
+                  </Body>
+                )}
               </div>
-              <div>
-                <p className="text-muted-foreground text-xs">Fee Percent</p>
-                <p className="text-foreground text-sm font-medium">
-                  {unit.fee_percent != null ? `${unit.fee_percent}%` : '—'}
-                </p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <div>
+                  <Body tone="muted" size="xs">
+                    Fee Amount
+                  </Body>
+                  <Label as="p" size="sm">
+                    {unit.fee_amount != null ? `$${unit.fee_amount}` : '—'}
+                  </Label>
+                </div>
+                <div>
+                  <Body tone="muted" size="xs">
+                    Fee Percent
+                  </Body>
+                  <Label as="p" size="sm">
+                    {unit.fee_percent != null ? `${unit.fee_percent}%` : '—'}
+                  </Label>
+                </div>
+                <div>
+                  <Body tone="muted" size="xs">
+                    Billing Frequency
+                  </Body>
+                  <Label as="p" size="sm">
+                    {frequencyLabel(unit.billing_frequency)}
+                  </Label>
+                </div>
+                <div>
+                  <Body tone="muted" size="xs">
+                    Billing Notes
+                  </Body>
+                  <Label as="p" size="sm">
+                    {unit.bill_administration || '—'}
+                  </Label>
+                </div>
               </div>
-              <div>
-                <p className="text-muted-foreground text-xs">Billing Frequency</p>
-                <p className="text-foreground text-sm font-medium">
-                  {frequencyLabel(unit.billing_frequency)}
-                </p>
-              </div>
-              <div>
-                <p className="text-muted-foreground text-xs">Billing Notes</p>
-                <p className="text-foreground text-sm font-medium">
-                  {unit.bill_administration || '—'}
-                </p>
-              </div>
-            </div>
-          </CardContent>
+            </CardContent>
         </Card>
       ))}
     </div>

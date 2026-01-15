@@ -32,6 +32,8 @@ import Link from 'next/link';
 import FileThumbnail from '@/components/files/FileThumbnail';
 import { cn } from '@/components/ui/utils';
 import DestructiveActionModal from '@/components/common/DestructiveActionModal';
+import { Checkbox } from '@/ui/checkbox';
+import { Body, Heading, Label } from '@/ui/typography';
 
 interface FileRow {
   id: string;
@@ -215,7 +217,9 @@ export default function FilesTable({
         <div className={contentPadding}>
           <div className="text-muted-foreground py-12 text-center">
             <div className="border-primary mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-b-2" />
-            <p>Loading files...</p>
+            <Body as="p" tone="muted" size="sm">
+              Loading files...
+            </Body>
           </div>
         </div>
       </div>
@@ -228,12 +232,14 @@ export default function FilesTable({
         <div className={contentPadding}>
           <div className="py-12 text-center">
             <FileText className="text-muted-foreground mx-auto mb-4 h-12 w-12" />
-            <h3 className="text-foreground mb-2 text-lg font-medium">No files found</h3>
-            <p className="text-muted-foreground mb-4">
+            <Heading as="h3" size="h5" className="mb-2">
+              No files found
+            </Heading>
+            <Body as="p" tone="muted" size="sm" className="mb-4">
               {selectedFiles.size > 0
                 ? 'No files match your current filters'
                 : 'Get started by uploading your first file'}
-            </p>
+            </Body>
           </div>
         </div>
       </div>
@@ -244,30 +250,49 @@ export default function FilesTable({
     <>
       <div className={containerClass}>
         <div className="overflow-x-auto" role="region" aria-label="Files table">
-          <Table>
+          <Table density="comfortable">
             <TableHeader>
               <TableRow>
                 <TableHead className="w-12 px-6 py-3">
-                  <input
-                    type="checkbox"
-                    className="rounded border-gray-300"
+                  <Checkbox
                     aria-label="Select all files"
                     checked={selectedFiles.size === files.length && files.length > 0}
                     onChange={(e) => handleSelectAll(e.target.checked)}
                   />
                 </TableHead>
-                <TableHead className="px-6 py-3">Title</TableHead>
-                <TableHead className="px-6 py-3">Category</TableHead>
-                <TableHead className="px-6 py-3">Location</TableHead>
-                <TableHead className="px-6 py-3">Uploaded</TableHead>
-                <TableHead className="px-6 py-3 text-right">Actions</TableHead>
+                <TableHead className="px-6 py-3">
+                  <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                    Title
+                  </Label>
+                </TableHead>
+                <TableHead className="px-6 py-3">
+                  <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                    Category
+                  </Label>
+                </TableHead>
+                <TableHead className="px-6 py-3">
+                  <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                    Location
+                  </Label>
+                </TableHead>
+                <TableHead className="px-6 py-3">
+                  <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                    Uploaded
+                  </Label>
+                </TableHead>
+                <TableHead className="px-6 py-3 text-right">
+                  <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                    Actions
+                  </Label>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {files.map((file) => (
                 <TableRow
                   key={file.id}
-                  className="hover:bg-muted/50 cursor-pointer"
+                  density="comfortable"
+                  className="cursor-pointer"
                   onClick={() => handleRowClick(file)}
                   role="button"
                   tabIndex={0}
@@ -279,10 +304,12 @@ export default function FilesTable({
                     }
                   }}
                 >
-                  <TableCell className="px-6" onClick={(e) => e.stopPropagation()}>
-                    <input
-                      type="checkbox"
-                      className="rounded border-gray-300"
+                  <TableCell
+                    density="comfortable"
+                    className="px-6"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <Checkbox
                       aria-label={`Select file ${file.title || file.file_name}`}
                       checked={selectedFiles.has(file.id)}
                       onChange={(e) => {
@@ -291,7 +318,7 @@ export default function FilesTable({
                       }}
                     />
                   </TableCell>
-                  <TableCell className="px-6 py-4">
+                  <TableCell density="comfortable" className="px-6">
                     <div className="flex items-start gap-2">
                       <FileThumbnail
                         fileId={file.id}
@@ -301,41 +328,47 @@ export default function FilesTable({
                         className="shrink-0"
                       />
                       <div className="min-w-0 flex-1">
-                        <div className="text-foreground truncate font-medium">
+                        <Body as="div" size="sm" className="truncate">
                           {file.title || file.file_name}
-                        </div>
+                        </Body>
                         {file.description && (
-                          <div className="text-muted-foreground mt-0.5 truncate text-sm">
+                          <Body as="div" tone="muted" size="sm" className="mt-0.5 truncate">
                             {file.description}
-                          </div>
+                          </Body>
                         )}
                       </div>
                     </div>
                   </TableCell>
-                  <TableCell className="px-6 py-4">
-                    <Badge variant="outline" className="font-normal">
-                      {file.category_name}
-                    </Badge>
+                  <TableCell density="comfortable" className="px-6">
+                    <Badge variant="outline">{file.category_name}</Badge>
                   </TableCell>
-                  <TableCell className="px-6 py-4">
+                  <TableCell density="comfortable" className="px-6">
                     {file.entity_url ? (
                       <Link
                         href={file.entity_url}
                         onClick={(e) => e.stopPropagation()}
-                        className="text-primary block max-w-xs truncate text-sm hover:underline"
+                        className="text-primary block max-w-xs truncate"
                       >
-                        {file.location}
+                        <Body as="span" size="sm" className="text-primary">
+                          {file.location}
+                        </Body>
                       </Link>
                     ) : (
-                      <span className="text-muted-foreground block max-w-xs truncate text-sm">
+                      <Body as="span" tone="muted" size="sm" className="block max-w-xs truncate">
                         {file.location}
-                      </span>
+                      </Body>
                     )}
                   </TableCell>
-                  <TableCell className="px-6 py-4">
-                    <div className="text-foreground text-sm">{formatDateTime(file.created_at)}</div>
+                  <TableCell density="compact" className="px-6">
+                    <Body as="div" size="sm">
+                      {formatDateTime(file.created_at)}
+                    </Body>
                   </TableCell>
-                  <TableCell className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
+                  <TableCell
+                    density="comfortable"
+                    className="px-6 text-right"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <ActionButton aria-label="File actions" />

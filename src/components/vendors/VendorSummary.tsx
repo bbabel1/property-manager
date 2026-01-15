@@ -1,6 +1,7 @@
 import { ShieldAlert, Workflow, Users, CheckCircle, DollarSign } from 'lucide-react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import type { VendorDashboardData } from '@/lib/vendor-service'
+import { Body, Heading, Label } from '@/ui/typography'
 
 interface VendorSummaryProps {
   data: VendorDashboardData
@@ -58,15 +59,19 @@ export function VendorSummary({ data }: VendorSummaryProps) {
         >
           <CardHeader className="flex flex-row items-start justify-between space-y-0">
             <div>
-              <CardTitle className="text-sm font-medium text-muted-foreground">{card.label}</CardTitle>
-              <CardDescription className="text-xs text-muted-foreground/80">{card.helper}</CardDescription>
+              <Label as="p" tone="muted">
+                {card.label}
+              </Label>
+              <Body as="p" size="xs" tone="muted">
+                {card.helper}
+              </Body>
             </div>
             <card.icon className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-semibold tracking-tight">
+            <Heading as="div" size="h3" className="tracking-tight">
               {typeof card.value === 'number' ? card.value.toLocaleString() : card.value}
-            </div>
+            </Heading>
           </CardContent>
         </Card>
       ))}

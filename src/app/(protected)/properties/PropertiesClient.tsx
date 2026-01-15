@@ -18,7 +18,7 @@ import AddPropertyModal from '@/components/AddPropertyModal'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { Label as FormLabel } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/state'
 import {
@@ -35,6 +35,15 @@ import {
   PageShell,
   Stack,
 } from '@/components/layout/page-shell'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { Body, Label as TextLabel } from '@/ui/typography'
 
 interface Property {
   id: string
@@ -363,21 +372,22 @@ export default function PropertiesClient({
                   checked={showBankAccounts}
                   onCheckedChange={(checked) => setShowBankAccounts(Boolean(checked))}
                 />
-                <Label
+                <FormLabel
                   htmlFor="properties-show-bank-accounts"
-                  className="text-sm text-muted-foreground"
+                  size="sm"
+                  tone="muted"
                 >
                   Show bank accounts
-                </Label>
+                </FormLabel>
               </Cluster>
             </Cluster>
           </Stack>
         </div>
 
         <div className="border-border/80 flex items-center justify-between border-b bg-card px-6 py-3">
-          <p className="text-sm text-muted-foreground">
+          <Body as="p" size="sm" tone="muted">
             {total} {total === 1 ? 'match' : 'matches'}
-          </p>
+          </Body>
           <Button
             variant="ghost"
             size="sm"
@@ -394,10 +404,10 @@ export default function PropertiesClient({
 
         <CardContent className="p-0">
           <div className="overflow-x-auto">
-            <table className="min-w-full border-t border-border text-sm">
-              <thead className="bg-muted/70 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                <tr>
-                  <th className="px-6 py-3 font-semibold">
+            <Table density="comfortable" className="min-w-full border-t border-border">
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="px-6 py-3">
                     <span className="flex items-center gap-2">
                       <button
                         type="button"
@@ -406,26 +416,52 @@ export default function PropertiesClient({
                           setSortDir(next)
                           setPage(1)
                         }}
-                        className="flex items-center gap-1 text-left font-semibold text-foreground transition hover:text-primary"
+                        className="flex items-center gap-1 text-left text-foreground transition hover:text-primary"
                         aria-label="Sort by property name"
                       >
-                        Property
+                        <TextLabel as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                          Property
+                        </TextLabel>
                         <ArrowUpDown
                           className={`h-3.5 w-3.5 transition ${sortDir === 'asc' ? 'rotate-0' : 'rotate-180'} text-muted-foreground/70`}
                           aria-hidden="true"
                         />
                       </button>
                     </span>
-                  </th>
-                  <th className="px-6 py-3 font-semibold">Location</th>
-                  <th className="px-6 py-3 font-semibold">Rental owners</th>
-                  <th className="px-6 py-3 font-semibold">Manager</th>
-                  <th className="px-6 py-3 font-semibold">Type</th>
-                  <th className="px-6 py-3 font-semibold">Operating account</th>
-                  <th className="px-6 py-3 font-semibold">Deposit trust account</th>
-                </tr>
-              </thead>
-              <tbody className="bg-card">
+                  </TableHead>
+                  <TableHead className="px-6 py-3">
+                    <TextLabel as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                      Location
+                    </TextLabel>
+                  </TableHead>
+                  <TableHead className="px-6 py-3">
+                    <TextLabel as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                      Rental owners
+                    </TextLabel>
+                  </TableHead>
+                  <TableHead className="px-6 py-3">
+                    <TextLabel as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                      Manager
+                    </TextLabel>
+                  </TableHead>
+                  <TableHead className="px-6 py-3">
+                    <TextLabel as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                      Type
+                    </TextLabel>
+                  </TableHead>
+                  <TableHead className="px-6 py-3">
+                    <TextLabel as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                      Operating account
+                    </TextLabel>
+                  </TableHead>
+                  <TableHead className="px-6 py-3">
+                    <TextLabel as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                      Deposit trust account
+                    </TextLabel>
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody className="bg-card">
                 {properties.map((property) => {
                   const ownersCount = property.ownersCount ?? 0
                   const additionalOwners = ownersCount > 1 ? ownersCount - 1 : 0
@@ -442,105 +478,118 @@ export default function PropertiesClient({
                     const last4 = account?.last4 ? `•••• ${String(account.last4).slice(-4)}` : null
                     const displayLabel =
                       accountName || last4 ? [accountName, last4].filter(Boolean).join(' · ') : 'Configured'
-                    const textClass = hasAccount
-                      ? 'text-sm font-medium text-foreground'
-                      : 'text-sm font-medium text-primary'
                     return (
                       <Stack gap="xs">
                         {hasAccount && showBankAccounts ? (
                           <Cluster gap="xs" wrap={false}>
-                            <span className="rounded-full border border-border bg-card px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                            <TextLabel
+                              as="span"
+                              size="xs"
+                              tone="muted"
+                              className="rounded-full border border-border bg-card px-2 py-0.5 uppercase tracking-wide"
+                            >
                               EFT
-                            </span>
-                            <span className="rounded-full border border-border bg-card px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                            </TextLabel>
+                            <TextLabel
+                              as="span"
+                              size="xs"
+                              tone="muted"
+                              className="rounded-full border border-border bg-card px-2 py-0.5 uppercase tracking-wide"
+                            >
                               ACH
-                            </span>
+                            </TextLabel>
                           </Cluster>
                         ) : null}
-                        <span className={textClass}>{hasAccount ? displayLabel : 'Setup'}</span>
+                        <TextLabel as="span" size="sm" className={hasAccount ? undefined : 'text-primary'}>
+                          {hasAccount ? displayLabel : 'Setup'}
+                        </TextLabel>
                       </Stack>
                     )
                   }
 
                   return (
-                    <tr
+                    <TableRow
                       key={property.id}
-                      className="border-b border-border/80 last:border-0 transition-colors hover:bg-muted/40"
+                      density="comfortable"
+                      className="border-b border-border/80 last:border-0"
                     >
-                      <td className="px-6 py-5 align-top">
+                      <TableCell density="comfortable" className="px-6 align-top">
                         <div className="flex items-start gap-3">
                           <div className="mt-1.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
                             <Building2 className="h-4 w-4 text-primary" aria-hidden="true" />
                           </div>
                           <Stack gap="xs" className="min-w-0">
-                            <Link
-                              href={`/properties/${property.id}`}
-                              className="text-sm font-semibold text-primary hover:underline"
-                            >
+                            <TextLabel as={Link} href={`/properties/${property.id}`} size="sm" className="text-primary hover:underline">
                               {property.name}
-                            </Link>
-                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                            </TextLabel>
+                            <Body as="div" size="xs" tone="muted" className="flex items-center gap-1">
                               <MapPin className="h-3 w-3" aria-hidden="true" />
                               <span className="truncate">{property.addressLine1}</span>
-                            </div>
+                            </Body>
                           </Stack>
                         </div>
-                      </td>
-                      <td className="px-6 py-5 align-top text-sm text-muted-foreground">
-                        {formatLocation(property)}
-                      </td>
-                      <td className="px-6 py-5 align-top">
+                      </TableCell>
+                      <TableCell density="comfortable" className="px-6 align-top">
+                        <Body as="span" size="sm" tone="muted">
+                          {formatLocation(property)}
+                        </Body>
+                      </TableCell>
+                      <TableCell density="comfortable" className="px-6 align-top">
                         <Stack gap="xs">
-                          <span className="text-sm font-medium text-foreground">
+                          <TextLabel as="span" size="sm">
                             {property.primaryOwnerName ?? '—'}
-                          </span>
+                          </TextLabel>
                           {additionalOwners > 0 ? (
-                            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <Body as="span" size="xs" tone="muted" className="flex items-center gap-1">
                               <Users className="h-3 w-3" aria-hidden="true" />
                               +{additionalOwners} more
-                            </span>
+                            </Body>
                           ) : null}
                         </Stack>
-                      </td>
-                      <td className="px-6 py-5 align-top text-sm text-muted-foreground">
-                        {property.propertyManagerName || 'Not assigned'}
-                      </td>
-                      <td className="px-6 py-5 align-top text-sm text-muted-foreground">
-                        {property.propertyType ?? '—'}
-                      </td>
-                      <td className="px-6 py-5 align-top">
+                      </TableCell>
+                      <TableCell density="comfortable" className="px-6 align-top">
+                        <Body as="span" size="sm" tone="muted">
+                          {property.propertyManagerName || 'Not assigned'}
+                        </Body>
+                      </TableCell>
+                      <TableCell density="comfortable" className="px-6 align-top">
+                        <Body as="span" size="sm" tone="muted">
+                          {property.propertyType ?? '—'}
+                        </Body>
+                      </TableCell>
+                      <TableCell density="comfortable" className="px-6 align-top">
                         {renderAccountStatus({
                           id: property.operatingBankAccountId,
                           name: property.operatingBankAccountName,
                           last4: property.operatingBankAccountLast4,
                         })}
-                      </td>
-                      <td className="px-6 py-5 align-top">
+                      </TableCell>
+                      <TableCell density="comfortable" className="px-6 align-top">
                         {renderAccountStatus({
                           id: property.depositTrustAccountId,
                           name: property.depositTrustAccountName,
                           last4: property.depositTrustAccountLast4,
                         })}
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   )
                 })}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         </CardContent>
 
-        <div className="border-border/80 flex items-center justify-between border-t bg-card px-6 py-3 text-sm text-muted-foreground">
-          <span>
+        <div className="border-border/80 flex items-center justify-between border-t bg-card px-6 py-3">
+          <Body as="span" size="sm" tone="muted">
             Showing {rangeStart}-{rangeEnd} of {total} {total === 1 ? 'property' : 'properties'}
-          </span>
+          </Body>
           <Cluster gap="sm">
             <Button variant="outline" size="sm" onClick={() => handlePageChange(page - 1)} disabled={page <= 1}>
               Previous
             </Button>
-            <span className="text-xs">
+            <TextLabel as="span" size="xs" tone="muted">
               Page {page} of {pageCount}
-            </span>
+            </TextLabel>
             <Button
               variant="outline"
               size="sm"

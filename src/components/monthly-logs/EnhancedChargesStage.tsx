@@ -16,6 +16,7 @@ import { cn } from '@/components/ui/utils';
 import { toast } from 'sonner';
 import TransactionSkeleton from './TransactionSkeleton';
 import { useMonthlyLogData } from '@/hooks/useMonthlyLogData';
+import { Body, Heading, Label } from '@/ui/typography';
 
 interface ChargesStageProps {
   monthlyLogId: string;
@@ -266,12 +267,12 @@ export default function EnhancedChargesStage({
               Charges
             </div>
             <div className="text-right">
-              <div className="text-2xl font-bold text-slate-900">
+              <Heading as="div" size="h3">
                 {formatCurrency(totalCharges)}
-              </div>
-              <div className="text-sm text-slate-600">
+              </Heading>
+              <Body as="div" size="sm" tone="muted">
                 {assignedTransactions.length} transaction(s)
-              </div>
+              </Body>
             </div>
           </CardTitle>
         </CardHeader>
@@ -289,9 +290,9 @@ export default function EnhancedChargesStage({
             <div className="mb-4 flex items-center justify-between rounded-lg bg-blue-50 p-3">
               <div className="flex items-center gap-2">
                 <CheckCircle className="h-4 w-4 text-blue-600" />
-                <span className="text-sm font-medium text-blue-900">
+                <Label as="span" size="sm" className="text-blue-900">
                   {selectedAssigned.size} transaction(s) selected
-                </span>
+                </Label>
               </div>
               <div className="flex items-center gap-2">
                 <Button
@@ -331,20 +332,22 @@ export default function EnhancedChargesStage({
                     <div className="flex-1">
                       <div className="flex items-center gap-3">
                         <div className="flex items-center gap-2">
-                          <span className="font-medium text-slate-900">{transaction.memo}</span>
+                          <Label as="span" size="sm">
+                            {transaction.memo}
+                          </Label>
                         </div>
                       </div>
-                      <div className="mt-1 text-sm text-slate-600">
+                      <Body as="div" size="sm" tone="muted" className="mt-1">
                         {formatDate(transaction.date)}
-                      </div>
+                      </Body>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="text-right">
-                      <div className="font-semibold text-slate-900">
+                      <Heading as="div" size="h6">
                         {transaction.transaction_type === 'Charge' ? '+' : '-'}
                         {formatCurrency(Math.abs(transaction.total_amount))}
-                      </div>
+                      </Heading>
                     </div>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -376,10 +379,12 @@ export default function EnhancedChargesStage({
               <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100">
                 <AlertCircle className="h-6 w-6 text-slate-400" />
               </div>
-              <h3 className="mt-4 text-sm font-medium text-slate-900">No charges found</h3>
-              <p className="mt-2 text-sm text-slate-600">
+              <Heading as="h3" size="h6" className="mt-4">
+                No charges found
+              </Heading>
+              <Body as="p" size="sm" tone="muted" className="mt-2">
                 No charges have been assigned to this monthly log yet.
-              </p>
+              </Body>
             </div>
           )}
         </CardContent>
@@ -402,26 +407,32 @@ export default function EnhancedChargesStage({
                   )}
                 >
                   <div className="flex items-center gap-3">
-                    <Checkbox
-                      onCheckedChange={() => handleToggleUnassigned(transaction.id)}
-                      className="h-4 w-4"
-                      disabled={assigningTransaction === transaction.id}
-                    />
-                    <div>
-                      <div className="font-medium text-slate-900">{transaction.memo}</div>
-                      <div className="text-sm text-slate-600">{formatDate(transaction.date)}</div>
-                    </div>
-                  </div>
-                  <div className="font-semibold text-slate-900">
-                    {transaction.transaction_type === 'Charge' ? '+' : '-'}
-                    {formatCurrency(Math.abs(transaction.total_amount))}
+                  <Checkbox
+                    onCheckedChange={() => handleToggleUnassigned(transaction.id)}
+                    className="h-4 w-4"
+                    disabled={assigningTransaction === transaction.id}
+                  />
+                  <div>
+                    <Label as="div" size="sm">
+                      {transaction.memo}
+                    </Label>
+                    <Body as="div" size="sm" tone="muted">
+                      {formatDate(transaction.date)}
+                    </Body>
                   </div>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="py-8 text-center text-slate-600">No unassigned transactions found.</div>
-          )}
+                <Heading as="div" size="h6">
+                  {transaction.transaction_type === 'Charge' ? '+' : '-'}
+                  {formatCurrency(Math.abs(transaction.total_amount))}
+                </Heading>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <Body as="div" size="sm" tone="muted" className="py-8 text-center">
+            No unassigned transactions found.
+          </Body>
+        )}
         </CardContent>
       </Card>
     </div>

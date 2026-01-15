@@ -4,6 +4,8 @@ import * as React from 'react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { XIcon } from 'lucide-react';
 
+import { Body, Heading } from '@/ui/typography';
+import type { BodySize, HeadingSize } from '@/ui/typography';
 import { cn } from './utils';
 
 const Dialog = DialogPrimitive.Root;
@@ -40,35 +42,47 @@ const DialogOverlay = React.forwardRef<
 ));
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
+type DialogSize = 'md' | 'lg';
+
 type DialogContentProps = React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
   hideClose?: boolean;
+  size?: DialogSize;
+};
+
+const dialogSizeClasses: Record<DialogSize, string> = {
+  md: 'w-full max-w-[680px]',
+  lg: 'w-full max-w-[800px]',
 };
 
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   DialogContentProps
->(({ className, children, hideClose, ...props }, ref) => (
-  <DialogPortal>
-    <DialogOverlay />
-    <DialogPrimitive.Content
-      ref={ref}
-      data-slot="dialog-content"
-      className={cn(
-        'bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 grid max-h-[85vh] w-full max-w-[800px] translate-x-[-50%] translate-y-[-50%] gap-4 overflow-y-auto rounded-lg border p-6 shadow-lg duration-200 focus:outline-none focus-visible:outline-none',
-        className,
-      )}
-      {...props}
-    >
-      {children}
-      {!hideClose && (
-        <DialogPrimitive.Close className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground absolute top-4 right-4 rounded-xs opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4">
-          <XIcon />
-          <span className="sr-only">Close</span>
-        </DialogPrimitive.Close>
-      )}
-    </DialogPrimitive.Content>
-  </DialogPortal>
-));
+>(({ className, children, hideClose, size = 'md', ...props }, ref) => {
+  const sizeClasses = dialogSizeClasses[size] ?? dialogSizeClasses.md;
+  return (
+    <DialogPortal>
+      <DialogOverlay />
+      <DialogPrimitive.Content
+        ref={ref}
+        data-slot="dialog-content"
+        className={cn(
+          'bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 grid max-h-[85vh] translate-x-[-50%] translate-y-[-50%] gap-4 overflow-y-auto rounded-2xl border border-border/80 p-6 shadow-xl duration-200 focus:outline-none focus-visible:outline-none',
+          sizeClasses,
+          className,
+        )}
+        {...props}
+      >
+        {children}
+        {!hideClose && (
+          <DialogPrimitive.Close className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground absolute top-4 right-4 rounded-xs opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4">
+            <XIcon />
+            <span className="sr-only">Close</span>
+          </DialogPrimitive.Close>
+        )}
+      </DialogPrimitive.Content>
+    </DialogPortal>
+  );
+});
 DialogContent.displayName = DialogPrimitive.Content.displayName;
 
 const FullscreenDialogContent = React.forwardRef<
@@ -104,10 +118,8 @@ const LargeDialogContent = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogContent
     ref={ref}
-    className={cn(
-      'w-full max-w-[800px] overflow-x-visible p-0 focus:outline-none focus-visible:outline-none',
-      className,
-    )}
+    size="lg"
+    className={cn('overflow-x-visible p-0', className)}
     {...props}
   />
 ));
@@ -137,30 +149,71 @@ const DialogFooter = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLD
 );
 DialogFooter.displayName = 'DialogFooter';
 
-const DialogTitle = React.forwardRef<
-  React.ElementRef<typeof DialogPrimitive.Title>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Title>
->(({ className, ...props }, ref) => (
-  <DialogPrimitive.Title
-    ref={ref}
-    data-slot="dialog-title"
-    className={cn('text-lg leading-none font-semibold', className)}
-    {...props}
-  />
-));
+type DialogTitleProps = React.ComponentPropsWithoutRef<typeof DialogPrimitive.Title> & {
+  headingAs?: React.ElementType;
+  headingSize?: HeadingSize;
+};
+
+const DialogTitle = React.forwardRef<React.ElementRef<typeof DialogPrimitive.Title>, DialogTitleProps>(
+  ({ className, headingAs = 'h2', headingSize = 'h3', children, asChild: _asChild, ...props }, ref) => {
+    const childIsElement = React.isValidElement(children) && children.type !== React.Fragment;
+
+    const content = childIsElement ? (
+      children
+    ) : (
+      <Heading as={headingAs} size={headingSize} className="leading-tight">
+        {children}
+      </Heading>
+    );
+
+    return (
+      <DialogPrimitive.Title
+        ref={ref}
+        asChild
+        data-slot="dialog-title"
+        className={cn('text-left', className)}
+        {...props}
+      >
+        {content as React.ReactElement}
+      </DialogPrimitive.Title>
+    );
+  },
+);
 DialogTitle.displayName = DialogPrimitive.Title.displayName;
+
+type DialogDescriptionProps = React.ComponentPropsWithoutRef<typeof DialogPrimitive.Description> & {
+  bodySize?: BodySize;
+  tone?: 'default' | 'muted';
+};
 
 const DialogDescription = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Description>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Description>
->(({ className, ...props }, ref) => (
-  <DialogPrimitive.Description
-    ref={ref}
-    data-slot="dialog-description"
-    className={cn('text-muted-foreground text-sm', className)}
-    {...props}
-  />
-));
+  DialogDescriptionProps
+>(({ className, bodySize = 'md', tone = 'muted', children, ...props }, ref) => {
+  // Prevent consumer-provided asChild from disabling slot behavior
+  const { asChild: _asChild, ...rest } = props;
+  const childIsElement = React.isValidElement(children) && children.type !== React.Fragment;
+
+  const content = childIsElement ? (
+    children
+  ) : (
+    <Body as="p" size={bodySize} tone={tone} className="leading-relaxed">
+      {children}
+    </Body>
+  );
+
+  return (
+    <DialogPrimitive.Description
+      ref={ref}
+      asChild
+      data-slot="dialog-description"
+      className={cn('text-left', className)}
+      {...rest}
+    >
+      {content as React.ReactElement}
+    </DialogPrimitive.Description>
+  );
+});
 DialogDescription.displayName = DialogPrimitive.Description.displayName;
 
 export {

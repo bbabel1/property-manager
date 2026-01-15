@@ -38,6 +38,7 @@ import {
 import type { Database } from '@/types/database';
 import TaskWorkOrdersPanel, { type WorkOrderListItem } from '@/components/tasks/TaskWorkOrdersPanel';
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
+import { Body, Heading, Label } from '@/ui/typography';
 
 type TaskRow = Database['public']['Tables']['tasks']['Row'];
 type TaskHistoryRow = Database['public']['Tables']['task_history']['Row'];
@@ -337,32 +338,34 @@ export default async function TaskDetailsPage({ params, searchParams }: PageProp
   const hasLinkedTasks = false;
   const workOrders = await loadWorkOrdersForTask(db, task, propertyName, unitLabel);
   const statusBadgeTone: Record<TaskStatusKey, string> = {
-    new: 'border-[var(--color-warning-500)] bg-[var(--color-warning-50)] text-[var(--color-warning-600)]',
-    in_progress: 'border-[var(--color-action-200)] bg-[var(--color-action-50)] text-[var(--color-action-700)]',
-    completed: 'border-[var(--color-success-500)] bg-[var(--color-success-50)] text-[var(--color-success-700)]',
-    on_hold: 'border-[var(--color-gray-300)] bg-[var(--color-gray-50)] text-[var(--color-gray-700)]',
-    cancelled: 'border-[var(--color-gray-300)] bg-[var(--color-gray-50)] text-[var(--color-gray-600)]',
+    new: 'status-pill-warning',
+    in_progress: 'status-pill-info',
+    completed: 'status-pill-success',
+    on_hold: 'status-pill-warning',
+    cancelled: 'status-pill-danger',
   };
   const priorityTone: Record<TaskPriorityKey, string> = {
-    low: 'border border-[var(--color-gray-300)] bg-[var(--color-gray-100)] text-[var(--color-gray-800)]',
-    normal: 'border border-[var(--color-warning-500)] bg-[var(--color-warning-50)] text-[var(--color-warning-600)]',
-    high: 'border border-[var(--color-danger-500)] bg-[var(--color-danger-50)] text-[var(--color-danger-600)]',
-    urgent: 'border border-[var(--color-danger-600)] bg-[var(--color-danger-50)] text-[var(--color-danger-700)]',
+    low: 'status-pill-info',
+    normal: 'status-pill-warning',
+    high: 'status-pill-danger',
+    urgent: 'status-pill-danger',
   };
 
   return (
     <PageShell>
       <PageHeader
         eyebrow={
-          <div className="text-muted-foreground flex items-center gap-2 text-xs font-medium">
-            <Link href="/tasks" className="hover:text-foreground">
-              Tasks
-            </Link>
+          <Body as="div" size="xs" tone="muted" className="flex items-center gap-2">
+            <Link href="/tasks">Tasks</Link>
             <span aria-hidden>/</span>
             <span>{referenceLabel}</span>
-          </div>
+          </Body>
         }
-        title={<span className="text-foreground text-2xl font-semibold tracking-tight">{task.subject || 'Untitled task'}</span>}
+        title={
+          <Heading as="span" size="h3">
+            {task.subject || 'Untitled task'}
+          </Heading>
+        }
         description={`${kindLabel}${task.buildium_task_id ? ` • ${referenceLabel}` : ''}`}
         actions={
           <>
@@ -380,19 +383,19 @@ export default async function TaskDetailsPage({ params, searchParams }: PageProp
           </>
         }
       >
-        <Cluster gap="md" className="text-muted-foreground text-sm">
-          <span className="flex items-center gap-2">
+        <Cluster gap="md">
+          <Body as="span" size="sm" tone="muted" className="flex items-center gap-2">
             <CalendarDays className="size-4" aria-hidden />
             <span>Due {dueDateLabel}</span>
-          </span>
-          <span className="flex items-center gap-2">
+          </Body>
+          <Body as="span" size="sm" tone="muted" className="flex items-center gap-2">
             <Clock className="size-4" aria-hidden />
             <span>Created {createdLabel}</span>
-          </span>
-          <span>
+          </Body>
+          <Body as="span" size="sm" tone="muted">
             Last updated {updatedLabel}
             {updatedRelativeLabel ? ` (${updatedRelativeLabel})` : ''}
-          </span>
+          </Body>
         </Cluster>
       </PageHeader>
 
@@ -428,9 +431,9 @@ export default async function TaskDetailsPage({ params, searchParams }: PageProp
                       <CardContent className="space-y-6">
                         <div className="grid gap-6 sm:grid-cols-3">
                           <div>
-                            <label className="text-muted-foreground text-xs font-medium uppercase tracking-wider block mb-2">
+                            <Label size="xs" tone="muted" className="uppercase tracking-wider block mb-2">
                               Status
-                            </label>
+                            </Label>
                             <div>
                               <Badge
                                 className={`status-pill ${statusBadgeTone[statusMeta.key]}`}
@@ -442,35 +445,39 @@ export default async function TaskDetailsPage({ params, searchParams }: PageProp
                             </div>
                           </div>
                           <div>
-                            <label className="text-muted-foreground text-xs font-medium uppercase tracking-wider block mb-2">
-                              Priority
-                            </label>
-                            <div className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold">
-                              <span
-                                className={`rounded-full px-2 py-1 ${priorityTone[priorityMeta.key]}`}
-                                aria-label={`Task priority: ${priorityMeta.label}`}
-                              >
-                                {priorityMeta.label}
-                              </span>
-                            </div>
+                          <Label size="xs" tone="muted" className="uppercase tracking-wider block mb-2">
+                            Priority
+                          </Label>
+                          <div className="inline-flex items-center rounded-full px-3 py-1">
+                            <Label
+                              as="span"
+                              size="xs"
+                              className={`status-pill px-2 py-1 ${priorityTone[priorityMeta.key]}`}
+                              aria-label={`Task priority: ${priorityMeta.label}`}
+                            >
+                              {priorityMeta.label}
+                            </Label>
                           </div>
+                        </div>
                           <div>
-                            <label className="text-muted-foreground text-xs font-medium uppercase tracking-wider block mb-2">
+                            <Label size="xs" tone="muted" className="uppercase tracking-wider block mb-2">
                               Due date
-                            </label>
-                            <p className="text-foreground text-sm font-medium">{dueDateLabel}</p>
+                            </Label>
+                            <Body as="p" size="sm">
+                              {dueDateLabel}
+                            </Body>
                           </div>
                         </div>
 
                         <Separator />
 
-                        <div className="space-y-4 text-sm">
+                        <div className="space-y-4">
                           <div className="space-y-1">
-                            <p className="text-muted-foreground">
+                            <Body tone="muted">
                               {kindLabel} {unitLabel ? `• ${unitLabel}` : ''}
-                            </p>
+                            </Body>
                             {propertyName ? (
-                              <p className="flex flex-wrap items-center gap-2">
+                              <Body as="p" className="flex flex-wrap items-center gap-2">
                                 <Link
                                   href={`/properties/${property?.id}`}
                                   className="text-primary hover:underline"
@@ -483,49 +490,51 @@ export default async function TaskDetailsPage({ params, searchParams }: PageProp
                                     <span>{unitLabel}</span>
                                   </React.Fragment>
                                 ) : null}
-                              </p>
+                              </Body>
                             ) : (
-                              <p className="text-muted-foreground">No property linked</p>
+                              <Body tone="muted">No property linked</Body>
                             )}
                           </div>
                           <div className="space-y-1">
-                            <label className="text-muted-foreground text-xs font-medium uppercase tracking-wider block">
+                            <Label size="xs" tone="muted" className="uppercase tracking-wider block">
                               Category
-                            </label>
-                            <p className="text-sm">
+                            </Label>
+                            <Body as="p" size="sm">
                               {task.category || 'Uncategorized'}
                               {subcategoryName ? (
-                                <span className="text-muted-foreground"> {'>'} {subcategoryName}</span>
+                                <Body as="span" tone="muted">
+                                  {' > '} {subcategoryName}
+                                </Body>
                               ) : null}
-                            </p>
+                            </Body>
                           </div>
                         </div>
 
                         <div className="border-border/70 bg-muted/40 rounded-lg border border-dashed p-6">
-                          <label className="text-muted-foreground text-xs font-medium uppercase tracking-wider block mb-2">
+                          <Label size="xs" tone="muted" className="uppercase tracking-wider block mb-2">
                             Description
-                          </label>
-                          <p className="text-foreground text-sm leading-6">
+                          </Label>
+                          <Body className="leading-6">
                             {task.description?.trim() || 'No description provided for this task.'}
-                          </p>
+                          </Body>
                         </div>
                       </CardContent>
                     </Card>
 
-                    <Card className="border-border/70 shadow-sm">
-                      <CardHeader className="flex flex-row items-start justify-between border-b border-border/70 pb-4">
-                        <CardTitle>Custom fields</CardTitle>
-                        <Button variant="ghost" size="sm" className="gap-1 px-2" aria-label="Add custom field">
-                          Add custom field
-                        </Button>
-                      </CardHeader>
-                      <CardContent>
-                        <p className="text-muted-foreground text-sm">
-                          You do not have any custom fields created to track additional information
-                          for this task.
-                        </p>
-                      </CardContent>
-                    </Card>
+                  <Card className="border-border/70 shadow-sm">
+                    <CardHeader className="flex flex-row items-start justify-between border-b border-border/70 pb-4">
+                      <CardTitle>Custom fields</CardTitle>
+                      <Button variant="ghost" size="sm" className="gap-1 px-2" aria-label="Add custom field">
+                        Add custom field
+                      </Button>
+                    </CardHeader>
+                    <CardContent>
+                      <Body tone="muted">
+                        You do not have any custom fields created to track additional information
+                        for this task.
+                      </Body>
+                    </CardContent>
+                  </Card>
 
                     <Card className="border-border/70 shadow-sm">
                       <CardHeader className="flex flex-row items-start justify-between border-b border-border/70 pb-4">
@@ -538,7 +547,7 @@ export default async function TaskDetailsPage({ params, searchParams }: PageProp
                         {hasFiles ? (
                           <div>Files go here.</div>
                         ) : (
-                          <p className="text-muted-foreground text-sm">No files added yet.</p>
+                          <Body tone="muted">No files added yet.</Body>
                         )}
                       </CardContent>
                     </Card>
@@ -554,7 +563,7 @@ export default async function TaskDetailsPage({ params, searchParams }: PageProp
                         {hasLinkedTasks ? (
                           <div>Linked tasks go here.</div>
                         ) : (
-                          <p className="text-muted-foreground text-sm">No linked tasks yet.</p>
+                          <Body tone="muted">No linked tasks yet.</Body>
                         )}
                       </CardContent>
                     </Card>
@@ -584,13 +593,25 @@ export default async function TaskDetailsPage({ params, searchParams }: PageProp
                                 />
                               ) : null}
                               <div className="space-y-2">
-                                <p className="text-foreground text-sm font-medium">{entry.title}</p>
-                                <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
+                                <Body as="p" size="sm" className="font-medium">
+                                  {entry.title}
+                                </Body>
+                                <Body
+                                  as="div"
+                                  size="xs"
+                                  tone="muted"
+                                  className="flex flex-wrap items-center gap-2"
+                                >
                                   <time dateTime={entry.timestamp}>{entry.timestamp}</time>
                                   <span aria-hidden>•</span>
                                   <span>{entry.relative}</span>
-                                </div>
-                                <div className="text-muted-foreground flex flex-wrap items-center gap-3 text-xs">
+                                </Body>
+                                <Body
+                                  as="div"
+                                  size="xs"
+                                  tone="muted"
+                                  className="flex flex-wrap items-center gap-3"
+                                >
                                   <Badge
                                     variant="outline"
                                     className={`status-pill text-[11px] font-medium ${statusBadgeTone[entry.statusKey]}`}
@@ -601,7 +622,7 @@ export default async function TaskDetailsPage({ params, searchParams }: PageProp
                                   {entry.assignedTo ? (
                                     <span>Assigned to {entry.assignedTo}</span>
                                   ) : null}
-                                </div>
+                                </Body>
                               </div>
                             </div>
                           ))}
@@ -619,13 +640,15 @@ export default async function TaskDetailsPage({ params, searchParams }: PageProp
                       <CardContent className="space-y-4">
                         {propertyName ? (
                           <>
-                            <div className="space-y-1 text-sm">
-                              <p className="text-foreground font-semibold">{propertyName}</p>
+                            <div className="space-y-1">
+                              <Body as="p" className="font-semibold">
+                                {propertyName}
+                              </Body>
                               {unitLabel ? (
-                                <p className="text-muted-foreground">Unit {unitLabel}</p>
+                                <Body tone="muted">Unit {unitLabel}</Body>
                               ) : null}
                             </div>
-                            <div className="border-border/70 bg-muted/40 rounded-lg border border-dashed p-4 text-sm whitespace-pre-line">
+                            <div className="border-border/70 bg-muted/40 rounded-lg border border-dashed p-4 whitespace-pre-line">
                               {propertyAddress || 'No address on file.'}
                             </div>
                             <Button variant="outline" size="sm" className="w-full gap-2" aria-label="View property location on map">
@@ -634,7 +657,7 @@ export default async function TaskDetailsPage({ params, searchParams }: PageProp
                             </Button>
                           </>
                         ) : (
-                          <p className="text-muted-foreground text-sm">No location linked.</p>
+                          <Body tone="muted">No location linked.</Body>
                         )}
                       </CardContent>
                     </Card>
@@ -645,39 +668,60 @@ export default async function TaskDetailsPage({ params, searchParams }: PageProp
                         <CardDescription>Manage who’s responsible.</CardDescription>
                       </CardHeader>
                       <CardContent className="space-y-4">
-                        <div className="border-border/70 bg-muted/40 text-muted-foreground grid grid-cols-2 gap-2 rounded-lg border p-1 text-sm font-medium" role="tablist" aria-label="Assignee type">
-                          <div className="text-foreground rounded-md bg-white px-3 py-2 shadow-sm" role="tab" aria-selected="true" aria-label="Staff assignees">
+                        <div className="border-border/70 bg-muted/40 grid grid-cols-2 gap-2 rounded-lg border p-1" role="tablist" aria-label="Assignee type">
+                          <Label
+                            as="div"
+                            size="sm"
+                            className="text-foreground rounded-md bg-white px-3 py-2 shadow-sm"
+                            role="tab"
+                            aria-selected="true"
+                            aria-label="Staff assignees"
+                          >
                             Staff
-                          </div>
-                          <div className="rounded-md px-3 py-2" role="tab" aria-selected="false" aria-label="Vendor assignees">Vendors</div>
+                          </Label>
+                          <Label
+                            as="div"
+                            size="sm"
+                            className="rounded-md px-3 py-2"
+                            role="tab"
+                            aria-selected="false"
+                            aria-label="Vendor assignees"
+                            tone="muted"
+                          >
+                            Vendors
+                          </Label>
                         </div>
                         <div className="border-border/70 rounded-lg border bg-white p-4 shadow-sm">
                           {assignedTo ? (
                             <div className="flex items-center gap-3">
                               <Avatar className="border-border/70 size-10 border" aria-label={`Avatar for ${assignedTo}`}>
-                                <AvatarFallback className="bg-orange-100 text-sm font-medium text-orange-700">
+                                <AvatarFallback className="bg-orange-100 font-medium text-orange-700">
                                   {assignedInitials || '??'}
                                 </AvatarFallback>
                               </Avatar>
                               <div className="space-y-0.5">
-                                <p className="text-foreground text-sm font-medium">{assignedTo}</p>
-                                <p className="text-muted-foreground text-xs">Staff member</p>
+                                <Body as="p" size="sm" className="font-medium">
+                                  {assignedTo}
+                                </Body>
+                                <Body size="xs" tone="muted">
+                                  Staff member
+                                </Body>
                               </div>
-                              <Button variant="ghost" size="sm" className="ml-auto px-2 text-sm" aria-label={`Edit assignment for ${assignedTo}`}>
+                              <Button variant="ghost" size="sm" className="ml-auto px-2" aria-label={`Edit assignment for ${assignedTo}`}>
                                 Edit
                               </Button>
                             </div>
                           ) : (
-                            <div className="text-muted-foreground space-y-2 text-sm">
-                              <p>No staff assigned to this task.</p>
-                              <Button variant="ghost" size="sm" className="px-2 text-sm" aria-label="Add staff member to task">
+                            <div className="space-y-2">
+                              <Body tone="muted">No staff assigned to this task.</Body>
+                              <Button variant="ghost" size="sm" className="px-2" aria-label="Add staff member to task">
                                 Add staff
                               </Button>
                             </div>
                           )}
                         </div>
-                        <div className="border-border/70 text-muted-foreground rounded-lg border border-dashed p-4 text-sm">
-                          Add collaborators you want to notify.
+                        <div className="border-border/70 rounded-lg border border-dashed p-4">
+                          <Body tone="muted">Add collaborators you want to notify.</Body>
                         </div>
                         <Button variant="outline" size="sm" className="w-full" aria-label="Send email to assigned staff">
                           Email staff
@@ -692,18 +736,20 @@ export default async function TaskDetailsPage({ params, searchParams }: PageProp
                       </CardHeader>
                       <CardContent className="space-y-4">
                         <div className="border-border/70 rounded-lg border bg-white p-4 shadow-sm">
-                          <label className="text-muted-foreground text-xs font-medium uppercase tracking-wider block mb-2">
+                          <Label size="xs" tone="muted" className="uppercase tracking-wider block mb-2">
                             Requested by
-                          </label>
-                          <p className="text-foreground text-sm font-medium">
+                          </Label>
+                          <Body as="p" size="sm" className="font-medium">
                             {requestedByPrimary}
-                          </p>
+                          </Body>
                           {requestedBySecondary ? (
-                            <p className="text-muted-foreground text-xs mt-1">{requestedBySecondary}</p>
+                            <Body size="xs" tone="muted" className="mt-1">
+                              {requestedBySecondary}
+                            </Body>
                           ) : null}
                         </div>
-                        <div className="border-border/70 text-muted-foreground rounded-lg border border-dashed p-4 text-sm">
-                          Add owner or tenant contacts to message them quickly.
+                        <div className="border-border/70 rounded-lg border border-dashed p-4">
+                          <Body tone="muted">Add owner or tenant contacts to message them quickly.</Body>
                         </div>
                         <Button variant="outline" size="sm" className="w-full" aria-label="Send email to task contacts">
                           Email contacts

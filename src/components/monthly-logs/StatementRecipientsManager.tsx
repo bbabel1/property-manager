@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
+import { Body, Heading, Label } from '@/ui/typography';
 import {
   isValidRecipientEmail,
   type StatementRecipient,
@@ -111,11 +112,11 @@ export default function StatementRecipientsManager({
   return (
     <div className="space-y-3">
       {(error || actionError) && (
-        <div className="flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+        <div className="flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-rose-700">
           <AlertCircle className="mt-0.5 h-4 w-4" />
           <div className="space-y-1">
-            {error && <p>{error}</p>}
-            {actionError && !error && <p>{actionError}</p>}
+            {error && <Body as="p" size="sm">{error}</Body>}
+            {actionError && !error && <Body as="p" size="sm">{actionError}</Body>}
           </div>
         </div>
       )}
@@ -129,13 +130,17 @@ export default function StatementRecipientsManager({
               className={`flex items-center justify-between gap-3 px-3 py-2 ${index < recipients.length - 1 ? 'border-b border-slate-100' : ''}`}
             >
               <div className="min-w-0">
-                <div className="text-sm font-medium text-slate-900">{recipient.name}</div>
-                <div className="text-xs text-slate-600">{recipient.email}</div>
+                <Label as="div" size="sm">{recipient.name}</Label>
+                <Body as="div" size="xs" tone="muted">{recipient.email}</Body>
               </div>
               <div className="flex items-center gap-2">
-                <span className="status-pill border-slate-200 bg-slate-50 text-slate-700 px-2 py-1 text-[11px] font-medium">
+                <Label
+                  as="span"
+                  size="xs"
+                  className="status-pill status-pill-info px-2 py-1"
+                >
                   {recipient.role}
-                </span>
+                </Label>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -150,10 +155,10 @@ export default function StatementRecipientsManager({
           ))}
         </div>
       ) : (
-        <div className="flex items-center gap-2 text-sm text-slate-600">
+        <Body as="div" size="sm" tone="muted" className="flex items-center gap-2">
           <AlertCircle className="h-4 w-4 text-slate-400" />
           <span>No recipients added yet.</span>
-        </div>
+        </Body>
       )}
 
       {/* Add New Recipient Form */}
@@ -166,7 +171,7 @@ export default function StatementRecipientsManager({
                 placeholder="email@example.com"
                 value={newEmail}
                 onChange={(e) => setNewEmail(e.target.value)}
-                className="h-9 text-sm"
+                className="h-9"
                 disabled={isMutating}
               />
               <Input
@@ -174,7 +179,7 @@ export default function StatementRecipientsManager({
                 placeholder="Full name"
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
-                className="h-9 text-sm"
+                className="h-9"
                 disabled={isMutating}
               />
               <Input
@@ -182,7 +187,7 @@ export default function StatementRecipientsManager({
                 placeholder="Role (e.g., Owner)"
                 value={newRole}
                 onChange={(e) => setNewRole(e.target.value)}
-                className="h-9 text-sm"
+                className="h-9"
                 disabled={isMutating}
               />
             </div>
@@ -196,21 +201,28 @@ export default function StatementRecipientsManager({
               {isMutating ? 'Adding...' : 'Add recipient'}
             </Button>
           </div>
-          <div className="flex items-center gap-2 text-xs text-slate-500">
+          <Body as="div" size="xs" tone="muted" className="flex items-center gap-2">
             <Tooltip>
               <TooltipTrigger asChild>
                 <div className="flex cursor-default items-center gap-1">
                   <Info className="h-3.5 w-3.5 text-slate-400" />
-                  <span className="underline decoration-dotted underline-offset-2">
+                  <Body
+                    as="span"
+                    size="xs"
+                    tone="muted"
+                    className="underline decoration-dotted underline-offset-2"
+                  >
                     What gets sent
-                  </span>
+                  </Body>
                 </div>
               </TooltipTrigger>
-              <TooltipContent className="max-w-xs text-xs">
-                <p>Latest generated statement PDF with a summary in the email body.</p>
+              <TooltipContent className="max-w-xs">
+                <Body as="p" size="xs" tone="muted">
+                  Latest generated statement PDF with a summary in the email body.
+                </Body>
               </TooltipContent>
             </Tooltip>
-          </div>
+          </Body>
         </div>
       ) : (
         <div className="flex items-center gap-2">
@@ -225,10 +237,10 @@ export default function StatementRecipientsManager({
             <Plus className="mr-1 h-4 w-4" />
             Add recipient
           </Button>
-          <div className="flex items-center gap-1 text-xs text-slate-500">
+          <Body as="div" size="xs" tone="muted" className="flex items-center gap-1">
             <Info className="h-3.5 w-3.5 text-slate-400" />
             <span>Send latest PDF</span>
-          </div>
+          </Body>
         </div>
       )}
     </div>

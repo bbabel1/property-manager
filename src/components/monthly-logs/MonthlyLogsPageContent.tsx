@@ -16,11 +16,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { cn } from '@/components/ui/utils';
 import type { MonthlyLogCardRecord, MonthlyLogStatus } from '@/components/monthly-logs/types';
+import { Body, Heading } from '@/ui/typography';
 import CreateMonthlyLogDialog from '@/components/monthly-logs/CreateMonthlyLogDialog';
 import { Cluster, PageBody, PageHeader, PageShell, Stack } from '@/components/layout/page-shell';
 import RecurringTaskManagerDialog from '@/components/monthly-logs/RecurringTaskManagerDialog';
+import { Label } from '@/ui/typography';
 
 const currencyFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -29,19 +30,18 @@ const currencyFormatter = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 0,
 });
 
-const statusStyles: Record<MonthlyLogStatus, { label: string; className: string }> = {
+const statusStyles: Record<MonthlyLogStatus, { label: string; variant: 'warning' | 'info' | 'success' }> = {
   pending: {
     label: 'Pending',
-    className: 'bg-amber-50 text-amber-700 border border-amber-200',
+    variant: 'warning',
   },
   in_progress: {
     label: 'In Progress',
-    className: 'bg-blue-50 text-blue-700 border border-blue-200',
+    variant: 'info',
   },
   complete: {
     label: 'Complete',
-    className:
-      'bg-[var(--color-success-50)] text-[var(--color-success-700)] border border-[var(--color-success-500)]',
+    variant: 'success',
   },
 };
 
@@ -297,9 +297,14 @@ export default function MonthlyLogsPageContent({
                   </SelectContent>
                 </Select>
                 <div className="flex flex-col gap-1">
-                  <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                  <Label
+                    as="span"
+                    size="xs"
+                    tone="muted"
+                    className="tracking-wide uppercase"
+                  >
                     Month
-                  </span>
+                  </Label>
                   <Select value={selectedMonth} onValueChange={handleMonthFilterChange}>
                     <SelectTrigger className="w-40">
                       <SelectValue placeholder="Select month" />
@@ -314,9 +319,14 @@ export default function MonthlyLogsPageContent({
                   </Select>
                 </div>
                 <div className="flex flex-col gap-1">
-                  <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                  <Label
+                    as="span"
+                    size="xs"
+                    tone="muted"
+                    className="tracking-wide uppercase"
+                  >
                     Year
-                  </span>
+                  </Label>
                   <Select value={selectedYear} onValueChange={handleYearFilterChange}>
                     <SelectTrigger className="w-28">
                       <SelectValue placeholder="Select year" />
@@ -360,8 +370,12 @@ export default function MonthlyLogsPageContent({
                 <ChevronLeft className="h-4 w-4" aria-hidden />
               </Button>
               <div className="flex flex-col">
-                <span className="text-foreground text-sm font-medium">Period starting</span>
-                <span className="text-muted-foreground text-xs">{periodStartIso}</span>
+                <Label as="span" size="sm">
+                  Period starting
+                </Label>
+                <Body as="span" size="xs" tone="muted">
+                  {periodStartIso}
+                </Body>
               </div>
               <Button
                 type="button"
@@ -381,22 +395,22 @@ export default function MonthlyLogsPageContent({
               onValueChange={(value) => setActiveTab(value as TabKey)}
               className="w-full gap-0"
             >
-              <div className="border-border/80 bg-card border-b px-4 py-3 sm:px-6">
-                <TabsList className="flex w-full max-w-md gap-3 bg-transparent p-0">
-                  <TabsTrigger
-                    value="incomplete"
-                    className="data-[state=active]:text-foreground rounded-full bg-white px-6 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 data-[state=active]:bg-slate-200 data-[state=active]:shadow-sm"
-                  >
-                    Incomplete ({countsForTabs.incomplete})
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="complete"
-                    className="data-[state=active]:text-foreground rounded-full bg-white px-6 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 data-[state=active]:bg-slate-200 data-[state=active]:shadow-sm"
-                  >
-                    Complete ({countsForTabs.complete})
-                  </TabsTrigger>
-                </TabsList>
-              </div>
+          <div className="border-border/80 bg-card border-b px-4 py-3 sm:px-6">
+            <TabsList className="flex w-full max-w-md gap-3 bg-transparent p-0">
+              <TabsTrigger
+                value="incomplete"
+                className="data-[state=active]:text-foreground rounded-full bg-white px-6 py-2 transition-colors text-foreground/80 hover:bg-slate-100 data-[state=active]:bg-slate-200 data-[state=active]:shadow-sm"
+              >
+                Incomplete ({countsForTabs.incomplete})
+              </TabsTrigger>
+              <TabsTrigger
+                value="complete"
+                className="data-[state=active]:text-foreground rounded-full bg-white px-6 py-2 transition-colors text-foreground/80 hover:bg-slate-100 data-[state=active]:bg-slate-200 data-[state=active]:shadow-sm"
+              >
+                Complete ({countsForTabs.complete})
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
               <TabsContent value="incomplete" className="px-4 pt-0 pb-6 sm:px-6">
                 <MonthlyLogTable
@@ -448,8 +462,12 @@ function MonthlyLogTable({ records, emptyState }: MonthlyLogTableProps) {
       <div className="border-border/70 bg-card flex flex-col items-center gap-3 rounded-xl border border-dashed py-16 text-center">
         <Building2 className="text-muted-foreground h-12 w-12" aria-hidden />
         <div>
-          <h3 className="text-foreground text-base font-semibold">{emptyState.title}</h3>
-          <p className="text-muted-foreground mt-1 text-sm">{emptyState.description}</p>
+          <Heading as="h3" size="h6" className="text-foreground">
+            {emptyState.title}
+          </Heading>
+          <Body as="p" size="sm" tone="muted" className="mt-1">
+            {emptyState.description}
+          </Body>
         </div>
       </div>
     );
@@ -458,17 +476,53 @@ function MonthlyLogTable({ records, emptyState }: MonthlyLogTableProps) {
   return (
     <div className="overflow-x-auto">
       <table className="min-w-full text-sm">
-        <thead className="text-muted-foreground bg-gray-100 text-left text-xs font-semibold tracking-wide uppercase">
+        <thead className="bg-gray-100 text-left">
           <tr>
-            <th className="px-6 py-3 font-semibold">Unit</th>
-            <th className="px-6 py-3 font-semibold">Tenant</th>
-            <th className="px-6 py-3 text-right font-semibold">Charges</th>
-            <th className="px-6 py-3 text-right font-semibold">Payments</th>
-            <th className="px-6 py-3 text-right font-semibold">Bills</th>
-            <th className="px-6 py-3 text-right font-semibold">Escrow</th>
-            <th className="px-6 py-3 text-right font-semibold">Mgmt Fees</th>
-            <th className="px-6 py-3 text-right font-semibold">Owner Draw</th>
-            <th className="px-6 py-3 font-semibold">Status</th>
+            <th className="px-6 py-3">
+              <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                Unit
+              </Label>
+            </th>
+            <th className="px-6 py-3">
+              <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                Tenant
+              </Label>
+            </th>
+            <th className="px-6 py-3 text-right">
+              <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                Charges
+              </Label>
+            </th>
+            <th className="px-6 py-3 text-right">
+              <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                Payments
+              </Label>
+            </th>
+            <th className="px-6 py-3 text-right">
+              <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                Bills
+              </Label>
+            </th>
+            <th className="px-6 py-3 text-right">
+              <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                Escrow
+              </Label>
+            </th>
+            <th className="px-6 py-3 text-right">
+              <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                Mgmt Fees
+              </Label>
+            </th>
+            <th className="px-6 py-3 text-right">
+              <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                Owner Draw
+              </Label>
+            </th>
+            <th className="px-6 py-3">
+              <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                Status
+              </Label>
+            </th>
           </tr>
         </thead>
         <tbody className="bg-card">
@@ -496,39 +550,58 @@ function MonthlyLogTable({ records, emptyState }: MonthlyLogTableProps) {
               >
                 <td className="px-6 py-5 align-top">
                   <Stack gap="xs" className="min-w-0">
-                    <span className="text-primary text-sm font-semibold">
+                    <Heading as="span" size="h6" className="text-primary">
                       {record.unitTitle || 'Unit'}
-                    </span>
-                    <span className="text-muted-foreground text-xs">{record.propertyName}</span>
+                    </Heading>
+                    <Body as="span" size="xs" tone="muted">
+                      {record.propertyName}
+                    </Body>
                     {record.notes ? (
-                      <span className="text-muted-foreground text-xs">{record.notes}</span>
+                      <Body as="span" size="xs" tone="muted">
+                        {record.notes}
+                      </Body>
                     ) : null}
                   </Stack>
                 </td>
-                <td className="text-muted-foreground px-6 py-5 align-top text-sm">
-                  {record.tenantName ?? '—'}
+                <td className="px-6 py-5 align-top">
+                  <Body as="span" size="sm" tone="muted">
+                    {record.tenantName ?? '—'}
+                  </Body>
                 </td>
-                <td className="text-foreground px-6 py-5 text-right align-top font-semibold">
-                  {currencyFormatter.format(record.chargesAmount)}
+                <td className="px-6 py-5 text-right align-top">
+                  <Heading as="span" size="h6">
+                    {currencyFormatter.format(record.chargesAmount)}
+                  </Heading>
                 </td>
-                <td className="text-foreground px-6 py-5 text-right align-top font-semibold">
-                  {currencyFormatter.format(record.paymentsAmount)}
+                <td className="px-6 py-5 text-right align-top">
+                  <Heading as="span" size="h6">
+                    {currencyFormatter.format(record.paymentsAmount)}
+                  </Heading>
                 </td>
-                <td className="text-foreground px-6 py-5 text-right align-top font-semibold">
-                  {currencyFormatter.format(record.billsAmount)}
+                <td className="px-6 py-5 text-right align-top">
+                  <Heading as="span" size="h6">
+                    {currencyFormatter.format(record.billsAmount)}
+                  </Heading>
                 </td>
-                <td className="text-foreground px-6 py-5 text-right align-top font-semibold">
-                  {currencyFormatter.format(record.escrowAmount)}
+                <td className="px-6 py-5 text-right align-top">
+                  <Heading as="span" size="h6">
+                    {currencyFormatter.format(record.escrowAmount)}
+                  </Heading>
                 </td>
-                <td className="text-foreground px-6 py-5 text-right align-top font-semibold">
-                  {currencyFormatter.format(record.managementFeesAmount)}
+                <td className="px-6 py-5 text-right align-top">
+                  <Heading as="span" size="h6">
+                    {currencyFormatter.format(record.managementFeesAmount)}
+                  </Heading>
                 </td>
-                <td className="text-foreground px-6 py-5 text-right align-top font-semibold">
-                  {currencyFormatter.format(ownerDraw)}
+                <td className="px-6 py-5 text-right align-top">
+                  <Heading as="span" size="h6">
+                    {currencyFormatter.format(ownerDraw)}
+                  </Heading>
                 </td>
                 <td className="px-6 py-5 align-top">
                   <Badge
-                    className={cn('rounded-full px-3 py-1 text-xs font-medium', status.className)}
+                    variant={status.variant}
+                    className="rounded-full px-3 py-1 text-xs font-medium"
                   >
                     {status.label}
                   </Badge>

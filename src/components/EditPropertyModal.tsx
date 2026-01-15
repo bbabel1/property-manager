@@ -14,6 +14,8 @@ import { mapGoogleCountryToEnum } from '@/lib/utils';
 import { Listbox } from '@headlessui/react';
 import { Dropdown } from './ui/Dropdown';
 import { isDebugLoggingEnabled, logDebug, logError } from '@/shared/lib/logger';
+import { Checkbox } from '@/ui/checkbox';
+import { Body, Heading, Label } from '@/ui/typography';
 
 interface Owner {
   id: string;
@@ -498,30 +500,34 @@ export default function EditPropertyModal({
       <DialogContent className="max-h-[90vh] w-[680px] max-w-[680px] overflow-y-auto rounded-none border-0 bg-white p-0 shadow-[0_4px_12px_rgba(0,0,0,0.08)] sm:rounded-2xl">
         {/* Header */}
         <DialogHeader className="border-border border-b p-6">
-          <DialogTitle className="text-foreground text-xl font-semibold">
-            Edit Property Details
+          <DialogTitle>
+            <Heading as="h2" size="h4">
+              Edit Property Details
+            </Heading>
           </DialogTitle>
         </DialogHeader>
 
         {/* Error Message */}
         {error && (
           <div className="bg-destructive/10 border-destructive/20 mx-6 mt-4 rounded-md border p-4">
-            <p className="text-destructive text-sm">{error}</p>
+            <Body as="p" size="sm" className="text-destructive">
+              {error}
+            </Body>
           </div>
         )}
 
         {/* Form Content */}
         <form id="edit-property-form" onSubmit={handleSubmit} className="space-y-6 p-6">
-          {/* Basic Information */}
-          <div className="space-y-4">
-            <h4 className="text-foreground flex items-center gap-2 font-medium">
+        {/* Basic Information */}
+        <div className="space-y-4">
+            <Heading as="h3" size="h5" className="flex items-center gap-2">
               <Home className="h-4 w-4" />
               Basic Information
-            </h4>
+            </Heading>
 
             <div className="space-y-4">
               <div>
-                <label className="text-foreground mb-1 block text-sm font-medium">Status *</label>
+                <Label className="mb-1 block">Status *</Label>
                 <Dropdown
                   value={formData.status}
                   onChange={(value) => handleInputChange('status', value)}
@@ -531,23 +537,19 @@ export default function EditPropertyModal({
               </div>
 
               <div>
-                <label className="text-foreground mb-1 block text-sm font-medium">
-                  Property Name *
-                </label>
+                <Label className="mb-1 block">Property Name *</Label>
                 <input
                   type="text"
                   value={formData.name}
                   onChange={(e) => handleInputChange('name', e.target.value)}
-                  className="focus-visible:ring-primary w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus-visible:ring-2 focus-visible:outline-none"
+                  className="focus-visible:ring-primary w-full rounded-md border border-gray-200 px-3 py-2 focus-visible:ring-2 focus-visible:outline-none"
                   placeholder="e.g., Sunset Apartments"
                   required
                 />
               </div>
 
               <div>
-                <label className="text-foreground mb-1 block text-sm font-medium">
-                  Property Type *
-                </label>
+                <Label className="mb-1 block">Property Type *</Label>
                 <Dropdown
                   value={formData.property_type || ''}
                   onChange={(value) => handleInputChange('property_type', value)}
@@ -557,7 +559,7 @@ export default function EditPropertyModal({
               </div>
 
               <div>
-                <label className="text-foreground mb-1 block text-sm font-medium">Year Built</label>
+                <Label className="mb-1 block">Year Built</Label>
                 <input
                   type="number"
                   value={formData.year_built || ''}
@@ -567,7 +569,7 @@ export default function EditPropertyModal({
                       e.target.value ? parseInt(e.target.value) : null,
                     )
                   }
-                  className="focus-visible:ring-primary bg-background text-foreground w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus-visible:ring-2 focus-visible:outline-none"
+                  className="focus-visible:ring-primary bg-background text-foreground w-full rounded-md border border-gray-200 px-3 py-2 focus-visible:ring-2 focus-visible:outline-none"
                   placeholder="e.g., 2010"
                   min="1800"
                   max={new Date().getFullYear()}
@@ -575,33 +577,17 @@ export default function EditPropertyModal({
               </div>
 
               {/* Remove or comment out the Primary Owner field (lines 577-587) */}
-              {/*
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">
-                  Primary Owner
-                </label>
-                <input
-                  type="text"
-                                value=""
-              onChange={(e) => {}} // primary_owner removed - now determined from ownerships table
-                  className="w-full px-3 py-2 border border-gray-200 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-primary text-sm bg-background text-foreground"
-                  placeholder="e.g., John Smith"
-                />
-              </div>
-              */}
             </div>
           </div>
 
           {/* Address Information */}
           <div className="space-y-4">
-            <h4 className="text-foreground flex items-center gap-2 font-medium">
+            <Heading as="h3" size="h5" className="flex items-center gap-2">
               <MapPin className="h-4 w-4" />
               Property Address
-            </h4>
+            </Heading>
             <div>
-              <label className="text-foreground mb-1 block text-sm font-medium">
-                Street Address *
-              </label>
+              <Label className="mb-1 block">Street Address *</Label>
               <AddressAutocomplete
                 value={formData.address_line1}
                 onChange={(value) => handleInputChange('address_line1', value)}
@@ -622,23 +608,23 @@ export default function EditPropertyModal({
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-foreground mb-1 block text-sm font-medium">City *</label>
+                <Label className="mb-1 block">City *</Label>
                 <input
                   type="text"
                   value={formData.city}
                   onChange={(e) => handleInputChange('city', e.target.value)}
-                  className="focus-visible:ring-primary bg-background text-foreground h-9 w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus-visible:ring-2 focus-visible:outline-none"
+                  className="focus-visible:ring-primary bg-background text-foreground h-9 w-full rounded-md border border-gray-200 px-3 py-2 focus-visible:ring-2 focus-visible:outline-none"
                   placeholder="e.g., Los Angeles"
                   required
                 />
               </div>
               <div>
-                <label className="text-foreground mb-1 block text-sm font-medium">State *</label>
+                <Label className="mb-1 block">State *</Label>
                 <input
                   type="text"
                   value={formData.state}
                   onChange={(e) => handleInputChange('state', e.target.value)}
-                  className="focus-visible:ring-primary bg-background text-foreground h-9 w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus-visible:ring-2 focus-visible:outline-none"
+                  className="focus-visible:ring-primary bg-background text-foreground h-9 w-full rounded-md border border-gray-200 px-3 py-2 focus-visible:ring-2 focus-visible:outline-none"
                   placeholder="e.g., CA"
                   required
                 />
@@ -646,18 +632,18 @@ export default function EditPropertyModal({
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-foreground mb-1 block text-sm font-medium">ZIP Code *</label>
+                <Label className="mb-1 block">ZIP Code *</Label>
                 <input
                   type="text"
                   value={formData.postal_code}
                   onChange={(e) => handleInputChange('postal_code', e.target.value)}
-                  className="focus-visible:ring-primary bg-background text-foreground h-9 w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus-visible:ring-2 focus-visible:outline-none"
+                  className="focus-visible:ring-primary bg-background text-foreground h-9 w-full rounded-md border border-gray-200 px-3 py-2 focus-visible:ring-2 focus-visible:outline-none"
                   placeholder="e.g., 90210"
                   required
                 />
               </div>
               <div>
-                <label className="text-foreground mb-1 block text-sm font-medium">Country *</label>
+                <Label className="mb-1 block">Country *</Label>
                 <Dropdown
                   value={formData.country}
                   onChange={(value) => handleInputChange('country', value)}
@@ -681,16 +667,14 @@ export default function EditPropertyModal({
 
           {/* Ownership Information */}
           <div className="space-y-4">
-            <h4 className="text-foreground flex items-center gap-2 font-medium">
+            <Heading as="h3" size="h5" className="flex items-center gap-2">
               <Users className="h-4 w-4" />
               Ownership
-            </h4>
+            </Heading>
 
             <div className="space-y-4">
               <div>
-                <label className="text-foreground mb-1 block text-sm font-medium">
-                  Add Owners *
-                </label>
+                <Label className="mb-1 block">Add Owners *</Label>
                 <div className="relative">
                     <Listbox
                       value={''}
@@ -703,9 +687,9 @@ export default function EditPropertyModal({
                       }}
                     >
                       <Listbox.Button className="bg-background text-foreground focus-visible:ring-primary focus-visible:border-primary flex h-9 w-full appearance-none items-center justify-between rounded-md border border-gray-200 px-3 py-2 focus-visible:ring-2 focus-visible:outline-none">
-                      <span className="block truncate text-sm">
+                      <Body as="span" size="sm" className="block truncate">
                         {isLoadingOwners ? 'Loading owners…' : 'Choose owners to add...'}
-                      </span>
+                      </Body>
                       <svg
                         className="text-muted-foreground ml-2 h-5 w-5"
                         viewBox="0 0 20 20"
@@ -727,15 +711,13 @@ export default function EditPropertyModal({
                         <Listbox.Option
                           key={owner.id}
                           value={owner.id}
-                          className="focus:bg-accent focus:text-accent-foreground data-[state=checked]:bg-accent data-[state=checked]:text-accent-foreground relative flex w-full items-center rounded-sm py-1.5 pr-8 pl-2 text-sm outline-none select-none"
+                          className="focus:bg-accent focus:text-accent-foreground data-[state=checked]:bg-accent data-[state=checked]:text-accent-foreground relative flex w-full items-center rounded-sm py-1.5 pr-8 pl-2 outline-none select-none"
                         >
                           {({ selected }: { selected: boolean }) => (
                             <>
-                              <span
-                                className={`block truncate ${selected ? 'font-medium' : 'font-normal'}`}
-                              >
+                              <Body as="span" size="sm" className="block truncate">
                                 {owner.displayName}
-                              </span>
+                              </Body>
                               {selected ? (
                                 <span className="text-primary absolute inset-y-0 left-0 flex items-center pl-3">
                                   <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -753,11 +735,13 @@ export default function EditPropertyModal({
                       ))}
                       <Listbox.Option
                         value="create-new-owner"
-                        className="focus:bg-accent focus:text-accent-foreground data-[state=checked]:bg-accent data-[state=checked]:text-accent-foreground relative flex w-full items-center rounded-sm py-1.5 pr-8 pl-2 text-sm outline-none select-none"
+                        className="focus:bg-accent focus:text-accent-foreground data-[state=checked]:bg-accent data-[state=checked]:text-accent-foreground relative flex w-full items-center rounded-sm py-1.5 pr-8 pl-2 outline-none select-none"
                       >
                         {({ selected }: { selected: boolean }) => (
                           <>
-                            <span className="text-primary font-medium">+ Create New Owner</span>
+                            <Label as="span" className="text-primary">
+                              + Create New Owner
+                            </Label>
                             {selected ? (
                               <span className="text-primary absolute inset-y-0 left-0 flex items-center pl-3">
                                 <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -779,7 +763,9 @@ export default function EditPropertyModal({
 
               {formData.owners.length > 0 && (
                 <div className="border-border bg-muted rounded-lg border p-4">
-                  <h4 className="text-foreground mb-3 text-base font-medium">Selected Owners</h4>
+                  <Heading as="h4" size="h5" className="mb-3">
+                    Selected Owners
+                  </Heading>
                   <div className="space-y-3">
                     {formData.owners.map((owner) => (
                       <div
@@ -787,24 +773,30 @@ export default function EditPropertyModal({
                         className="border-border bg-card space-y-3 rounded-md border p-4"
                       >
                         <div className="flex items-center justify-between">
-                          <div className="text-foreground font-medium">{owner.name}</div>
-                          <button
+                          <Label as="div" className="text-foreground">
+                            {owner.name}
+                          </Label>
+                          <Button
                             type="button"
+                            variant="ghost"
+                            size="sm"
                             onClick={() => removeOwner(owner.id)}
-                            className="text-sm text-red-600 hover:text-red-800"
+                            className="text-destructive hover:text-destructive"
                           >
                             Remove
-                          </button>
+                          </Button>
                         </div>
 
                         <div className="grid grid-cols-3 gap-3">
                           <div>
-                            <label
+                            <Label
                               htmlFor={`ownership-${owner.id}`}
-                              className="text-muted-foreground mb-1 block text-xs"
+                              className="mb-1 block"
+                              tone="muted"
+                              size="xs"
                             >
                               Ownership %
-                            </label>
+                            </Label>
                             <input
                               id={`ownership-${owner.id}`}
                               type="number"
@@ -816,18 +808,20 @@ export default function EditPropertyModal({
                                   Number(e.target.value),
                                 )
                               }
-                              className="bg-background text-foreground h-8 w-full rounded border border-gray-200 px-2 py-1 text-sm"
+                              className="bg-background text-foreground h-8 w-full rounded border border-gray-200 px-2 py-1"
                               min="0"
                               max="100"
                             />
                           </div>
                           <div>
-                            <label
+                            <Label
                               htmlFor={`disbursement-${owner.id}`}
-                              className="text-muted-foreground mb-1 block text-xs"
+                              className="mb-1 block"
+                              tone="muted"
+                              size="xs"
                             >
                               Disbursement %
-                            </label>
+                            </Label>
                             <input
                               id={`disbursement-${owner.id}`}
                               type="number"
@@ -839,25 +833,21 @@ export default function EditPropertyModal({
                                   Number(e.target.value),
                                 )
                               }
-                              className="bg-background text-foreground h-8 w-full rounded border border-gray-200 px-2 py-1 text-sm"
+                              className="bg-background text-foreground h-8 w-full rounded border border-gray-200 px-2 py-1"
                               min="0"
                               max="100"
                             />
                           </div>
                           <div className="flex items-center space-x-2 pt-5">
-                            <input
-                              type="checkbox"
+                            <Checkbox
                               id={`primary-${owner.id}`}
                               checked={owner.primary}
                               onChange={(e) => setPrimaryOwner(owner.id, e.target.checked)}
                               className="mr-2"
                             />
-                            <label
-                              htmlFor={`primary-${owner.id}`}
-                              className="text-muted-foreground text-sm"
-                            >
+                            <Label htmlFor={`primary-${owner.id}`} tone="muted">
                               Primary
-                            </label>
+                            </Label>
                           </div>
                         </div>
                       </div>

@@ -5,6 +5,7 @@ import { Dropdown } from '@/components/ui/Dropdown';
 import CreateBankAccountModal from '@/components/CreateBankAccountModal';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import { Body, Heading, Label } from '@/ui/typography';
 
 type BankAccount = { id: string; name: string; account_number?: string | null; last4?: string | null };
 
@@ -38,10 +39,11 @@ type PropertyBanking = {
 const fieldFocusRing =
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-background';
 const fieldSurfaceClass = `inline-flex h-11 w-full items-center justify-between rounded-md border border-border bg-background px-3 text-left text-sm text-foreground transition-colors ${fieldFocusRing}`;
-const eyebrowLabelClass = 'eyebrow-label';
-const metricValueClass = 'text-base font-semibold text-foreground';
-const detailLabelClass = 'text-sm font-medium text-muted-foreground';
-const detailValueClass = 'text-sm font-medium text-foreground';
+const eyebrowLabelClass =
+  'text-xs font-medium uppercase tracking-[0.12em] leading-tight text-muted-foreground';
+const metricValueClass = 'text-base font-[var(--font-weight-semibold)] text-foreground';
+const detailLabelClass = 'text-sm font-[var(--font-weight-medium)] text-muted-foreground';
+const detailValueClass = 'text-sm font-[var(--font-weight-medium)] text-foreground';
 type CreateBankAccountResult =
   | BankAccount
   | {
@@ -235,7 +237,7 @@ export default function PropertyBankingAndServicesCard({
 
   const operatingAccount = useMemo(() => property.operating_account, [property]);
   const trustAccount = useMemo(() => property.deposit_trust_account, [property]);
-  const sectionLabelClass = 'eyebrow-label';
+  const sectionLabelClass = eyebrowLabelClass;
   const isEditing = showBanking && editingBanking;
 
   async function onSaveBanking() {
@@ -279,10 +281,12 @@ export default function PropertyBankingAndServicesCard({
       {showBanking && (
         <div>
           <div className="mb-4 flex flex-wrap items-center gap-2">
-            <h4 className="text-foreground text-lg font-semibold">Banking &amp; Financials</h4>
+            <Heading as="h4" size="h5">
+              Banking &amp; Financials
+            </Heading>
             <Button
               variant="link"
-              className="text-primary hover:text-primary/80 px-1 text-sm font-semibold"
+              className="text-primary hover:text-primary/80 px-1 text-sm font-[var(--font-weight-semibold)]"
               onClick={() => setEditingBanking(true)}
             >
               Edit
@@ -292,7 +296,7 @@ export default function PropertyBankingAndServicesCard({
           <div className="space-y-2.5 rounded-2xl bg-transparent p-1">
             <div className="space-y-1">
               <p className={eyebrowLabelClass}>Cash balance</p>
-              <p className={`${metricValueClass} text-[var(--color-brand-900)]`}>
+              <p className={`${metricValueClass} text-brand-900`}>
                 {formatCurrency(fin?.cash_balance ?? 0)}
               </p>
             </div>
@@ -340,7 +344,7 @@ export default function PropertyBankingAndServicesCard({
               </p>
             </div>
 
-            <div className="card-divider space-y-1 border-t pt-1 pb-1">
+            <div className="space-y-1 border-border-subtle border-t pb-1 pt-1">
               <div className="flex items-baseline justify-between gap-4">
                 <p className={detailLabelClass}>Operating account</p>
                 <p className={detailValueClass}>
@@ -377,14 +381,16 @@ export default function PropertyBankingAndServicesCard({
       )}
 
       {showServices && (
-        <div className="card-divider border-t pt-2">
+        <div className="border-border-subtle border-t pt-2">
           {/* Management Services Section */}
           <div className="mb-3 flex flex-wrap items-center gap-2">
-            <h4 className="text-foreground text-lg font-semibold">Management Services</h4>
+            <Heading as="h4" size="h5">
+              Management Services
+            </Heading>
             <Button
               asChild
               variant="link"
-              className="text-primary hover:text-primary/80 px-1 text-sm font-semibold"
+              className="text-primary hover:text-primary/80 px-1 text-sm font-[var(--font-weight-semibold)]"
             >
               <Link href={`/properties/${property.id}/services`}>Manage</Link>
             </Button>
@@ -393,23 +399,23 @@ export default function PropertyBankingAndServicesCard({
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <p className={sectionLabelClass}>Management Scope</p>
-              <p className="text-foreground mt-0.5 text-sm font-medium">
+              <Label as="p" size="sm" className="text-foreground mt-0.5">
                 {(management_scope as string) || '—'}
-              </p>
+              </Label>
             </div>
             <div>
               <p className={sectionLabelClass}>Service Assignment</p>
-              <p className="text-foreground mt-0.5 text-sm font-medium">
+              <Label as="p" size="sm" className="text-foreground mt-0.5">
                 {(service_assignment as string) || '—'}
-              </p>
+              </Label>
             </div>
             <div className="sm:col-span-2">
               <p className={sectionLabelClass}>Service Plan</p>
-              <p className="text-foreground mt-0.5 text-sm font-medium">
+              <Label as="p" size="sm" className="text-foreground mt-0.5">
                 {service_assignment === 'Unit Level'
                   ? 'Unit level (set per-unit)'
                   : assignedPlanName || '—'}
-              </p>
+              </Label>
             </div>
           </div>
         </div>
@@ -419,19 +425,21 @@ export default function PropertyBankingAndServicesCard({
 
   const editBanking = (
     <div className="relative space-y-4">
-      {error ? (
-        <div
-          role="alert"
-          className="rounded border border-red-300/80 bg-red-100 p-3 text-sm font-medium text-red-700 shadow-sm dark:border-red-800 dark:bg-red-900/40 dark:text-red-300"
-        >
-          {error}
-        </div>
-      ) : null}
+          {error ? (
+            <div
+              role="alert"
+              className="rounded border border-red-300/80 bg-red-100 p-3 text-sm font-[var(--font-weight-medium)] text-red-700 shadow-sm dark:border-red-800 dark:bg-red-900/40 dark:text-red-300"
+            >
+              {error}
+            </div>
+          ) : null}
 
       {/* Banking Edit Section */}
       <div className="space-y-4">
         <div className="mb-3 flex flex-wrap items-center gap-3">
-          <h4 className="text-foreground text-base font-semibold">Banking &amp; Financials</h4>
+          <Heading as="h4" size="h6">
+            Banking &amp; Financials
+          </Heading>
           <div className="ml-auto flex flex-wrap items-center gap-3 sm:flex-nowrap">
             <Button
               variant="ghost"
@@ -451,9 +459,9 @@ export default function PropertyBankingAndServicesCard({
 
         <div className="space-y-4">
           <div>
-            <label className="text-foreground mb-1 block text-sm font-medium">
+            <Label as="label" size="sm" className="text-foreground mb-1 block">
               Property Reserve ($)
-            </label>
+            </Label>
             <div className="relative">
               <span className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2">
                 $
@@ -471,9 +479,9 @@ export default function PropertyBankingAndServicesCard({
           </div>
 
           <div>
-            <label className="text-foreground mb-1 block text-sm font-medium">
+            <Label as="label" size="sm" className="text-foreground mb-1 block">
               Operating Bank Account
-            </label>
+            </Label>
             <Dropdown
               value={operatingId}
               onChange={(value) => {
@@ -497,9 +505,9 @@ export default function PropertyBankingAndServicesCard({
           </div>
 
           <div>
-            <label className="text-foreground mb-1 block text-sm font-medium">
+            <Label as="label" size="sm" className="text-foreground mb-1 block">
               Deposit Trust Account
-            </label>
+            </Label>
             <Dropdown
               value={trustId}
               onChange={(value) => {
@@ -529,7 +537,7 @@ export default function PropertyBankingAndServicesCard({
   return (
     <>
       <div
-        className={`surface-card surface-card--muted relative p-6 text-sm ${
+        className={`relative rounded-lg border border-primary/30 bg-primary/10 p-6 text-sm ${
           isEditing ? 'ring-primary/25 ring-2' : ''
         }`}
       >

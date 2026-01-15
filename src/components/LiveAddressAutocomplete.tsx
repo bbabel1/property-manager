@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { isDebugLoggingEnabled, logDebug, logError } from '@/shared/lib/logger'
 
 interface LiveAddressAutocompleteProps {
+  id?: string
   value: string
   onChange: (value: string) => void
   onPlaceSelect?: (place: {
@@ -44,6 +45,7 @@ interface NominatimResult {
 }
 
 export default function LiveAddressAutocomplete({
+  id,
   value,
   onChange,
   onPlaceSelect,
@@ -225,6 +227,7 @@ export default function LiveAddressAutocomplete({
   return (
     <div className="relative">
       <input
+        id={id}
         ref={inputRef}
         type="text"
         value={value}

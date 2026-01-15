@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -13,6 +13,7 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Edit } from 'lucide-react';
+import { Body, Heading, Label } from '@/ui/typography';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -494,7 +495,9 @@ export default function UsersRolesPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-foreground text-2xl font-bold">Users & Roles</h1>
+        <Heading as="h1" size="h3" className="font-bold">
+          Users & Roles
+        </Heading>
         <Button onClick={() => setShowInviteDialog(true)}>Invite User</Button>
       </div>
 
@@ -502,17 +505,25 @@ export default function UsersRolesPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Users</CardTitle>
+          <Heading as="h2" size="h4" className="leading-tight">
+            Users
+          </Heading>
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="text-muted-foreground">Loading...</div>
+            <Body tone="muted">Loading...</Body>
           ) : pageError ? (
-            <div className="text-destructive text-sm">{pageError}</div>
+            <Body tone="default" size="sm" className="text-destructive">
+              {pageError}
+            </Body>
           ) : users.length === 0 ? (
-            <div className="text-muted-foreground rounded-md border px-4 py-6 text-center text-sm">
+            <Body
+              tone="muted"
+              size="sm"
+              className="rounded-md border px-4 py-6 text-center"
+            >
               No users yet. Send an invite to get started.
-            </div>
+            </Body>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -533,56 +544,71 @@ export default function UsersRolesPage() {
                       <td className="py-2 pr-4">
                         {u.contact ? (
                           <div>
-                            <div className="font-medium">
+                            <Body as="div" size="sm" className="font-medium">
                               {u.contact.first_name} {u.contact.last_name}
-                            </div>
+                            </Body>
                             {u.contact.phone && (
-                              <div className="text-muted-foreground text-xs">{u.contact.phone}</div>
+                              <Label as="div" size="xs" tone="muted">
+                                {u.contact.phone}
+                              </Label>
                             )}
                           </div>
                         ) : (
-                          <span className="text-muted-foreground">No contact info</span>
+                          <Body as="span" tone="muted" size="sm">
+                            No contact info
+                          </Body>
                         )}
                       </td>
-                      <td className="py-2 pr-4">{u.email}</td>
+                      <td className="py-2 pr-4">
+                        <Body as="div" size="sm">
+                          {u.email}
+                        </Body>
+                      </td>
                       <td className="py-2 pr-4">
                         {(u.memberships || []).length === 0 ? (
-                          <span className="text-muted-foreground">None</span>
+                          <Body as="span" tone="muted" size="sm">
+                            None
+                          </Body>
                         ) : (
                           <div className="flex flex-col gap-1">
                             {u.memberships.map((m, idx) => (
-                              <span key={idx} className="text-sm">
+                              <Body as="span" size="sm" key={idx}>
                                 {m.org_name || m.org_id}
-                              </span>
+                              </Body>
                             ))}
                           </div>
                         )}
                       </td>
                       <td className="py-2 pr-4">
                         {(u.memberships || []).length === 0 ? (
-                          <span className="text-muted-foreground">None</span>
+                          <Body as="span" tone="muted" size="sm">
+                            None
+                          </Body>
                         ) : (
                           <div className="flex flex-col gap-1">
                             {u.memberships.map((m, idx) => {
                               const roles = m.roles && m.roles.length > 0 ? m.roles : ['org_staff'];
                               const labels = mapAppRolesToUiLabels(roles);
                               return (
-                                <span key={idx} className="text-sm">
+                                <Body as="span" size="sm" key={idx}>
                                   {labels.join(', ')}
-                                </span>
+                                </Body>
                               );
                             })}
                           </div>
                         )}
                       </td>
                       <td className="py-2 pr-4">
-                        {Array.isArray(u.app_metadata?.user_types) &&
-                        u.app_metadata?.user_types.length
-                          ? u.app_metadata.user_types.join(', ')
-                          : '—'}
+                        <Body as="div" size="sm">
+                          {Array.isArray(u.app_metadata?.user_types) && u.app_metadata?.user_types.length
+                            ? u.app_metadata.user_types.join(', ')
+                            : '—'}
+                        </Body>
                       </td>
                       <td className="py-2 pr-4">
-                        {u.last_sign_in_at ? new Date(u.last_sign_in_at).toLocaleString() : '-'}
+                        <Body as="div" size="sm">
+                          {u.last_sign_in_at ? new Date(u.last_sign_in_at).toLocaleString() : '-'}
+                        </Body>
                       </td>
                       <td className="py-2 pr-4">
                         <Button
@@ -611,7 +637,9 @@ export default function UsersRolesPage() {
           <div className="space-y-3">
             <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
               <div>
-                <label className="mb-1 block text-sm">Email</label>
+                <Label as="label" size="sm" className="mb-1 block">
+                  Email
+                </Label>
                 <Input
                   value={inviteEmail}
                   onChange={(e) => {
@@ -622,7 +650,9 @@ export default function UsersRolesPage() {
                 />
               </div>
               <div>
-                <label className="mb-1 block text-sm">Organization (optional)</label>
+                <Label as="label" size="sm" className="mb-1 block">
+                  Organization (optional)
+                </Label>
                 <Select value={selectedOrg} onValueChange={handleInviteOrgChange}>
                   <SelectTrigger aria-label="Select organization">
                     <SelectValue placeholder="Select organization" />
@@ -638,7 +668,9 @@ export default function UsersRolesPage() {
                 </Select>
               </div>
               <div>
-                <label className="mb-1 block text-sm">Initial Roles (optional)</label>
+                <Label as="label" size="sm" className="mb-1 block">
+                  Initial Roles (optional)
+                </Label>
                 <Select value="" onValueChange={handleRoleToggle}>
                   <SelectTrigger aria-label="Select roles">
                     <SelectValue
@@ -665,7 +697,9 @@ export default function UsersRolesPage() {
                 </Select>
               </div>
               <div>
-                <label className="mb-1 block text-sm">User Types</label>
+                <Label as="label" size="sm" className="mb-1 block">
+                  User Types
+                </Label>
                 <Select value="" onValueChange={handleInviteUserTypeToggle}>
                   <SelectTrigger aria-label="Select user types">
                     <SelectValue
@@ -697,16 +731,20 @@ export default function UsersRolesPage() {
                   onCheckedChange={(checked) => setInvitePlatformDev(Boolean(checked))}
                   id="platform-dev-invite"
                 />
-                <label htmlFor="platform-dev-invite" className="text-sm">
+                <Label as="label" htmlFor="platform-dev-invite" size="sm">
                   Platform Developer (all orgs, full access)
-                </label>
+                </Label>
               </div>
             </div>
             <div className="flex items-center gap-3">
               <Button disabled={inviting || !inviteEmailValid} onClick={invite}>
                 {inviting ? 'Inviting...' : 'Send Invite'}
               </Button>
-              {inviteErr && <span className="text-destructive text-sm">{inviteErr}</span>}
+              {inviteErr && (
+                <Body as="span" size="sm" className="text-destructive">
+                  {inviteErr}
+                </Body>
+              )}
             </div>
           </div>
         </DialogContent>
@@ -719,14 +757,20 @@ export default function UsersRolesPage() {
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <label className="mb-1 block text-sm">Name</label>
+              <Label as="label" size="sm" className="mb-1 block">
+                Name
+              </Label>
               <Input
                 value={newOrgName}
                 onChange={(e) => setNewOrgName(e.target.value)}
                 placeholder="Acme Property Co"
               />
             </div>
-            {createOrgErr && <div className="text-destructive text-sm">{createOrgErr}</div>}
+            {createOrgErr && (
+              <Body as="div" size="sm" className="text-destructive">
+                {createOrgErr}
+              </Body>
+            )}
             <div className="flex items-center gap-2">
               <Button onClick={createOrg} disabled={creatingOrg || !newOrgName.trim()}>
                 {creatingOrg ? 'Creating...' : 'Create'}
@@ -752,34 +796,42 @@ export default function UsersRolesPage() {
           <div className="space-y-4">
             {editingUser && (
               <div>
-                <p className="text-muted-foreground mb-4 text-sm">
+                <Body tone="muted" size="sm" className="mb-4">
                   Editing user: <span className="font-medium">{editingUser.email}</span>
-                </p>
-                <div className="mb-4 grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
+                </Body>
+                <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
                   <div>
-                    <div className="text-muted-foreground">Created</div>
-                    <div className="font-medium">
+                    <Label as="div" tone="muted">
+                      Created
+                    </Label>
+                    <Body as="div" size="sm" className="font-medium">
                       {editingUser.created_at
                         ? new Date(editingUser.created_at).toLocaleString()
                         : '-'}
-                    </div>
+                    </Body>
                   </div>
                   <div>
-                    <div className="text-muted-foreground">Last sign-in</div>
-                    <div className="font-medium">
+                    <Label as="div" tone="muted">
+                      Last sign-in
+                    </Label>
+                    <Body as="div" size="sm" className="font-medium">
                       {editingUser.last_sign_in_at
                         ? new Date(editingUser.last_sign_in_at).toLocaleString()
                         : '-'}
-                    </div>
+                    </Body>
                   </div>
                 </div>
 
                 {/* Contact Details Section */}
                 <div className="space-y-3">
-                  <h4 className="text-sm font-medium">Contact Details</h4>
+                  <Label as="h4" size="sm" className="font-medium">
+                    Contact Details
+                  </Label>
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <div>
-                      <label className="mb-1 block text-sm">First Name</label>
+                      <Label as="label" size="sm" className="mb-1 block">
+                        First Name
+                      </Label>
                       <Input
                         value={editFirstName}
                         onChange={(e) => setEditFirstName(e.target.value)}
@@ -787,7 +839,9 @@ export default function UsersRolesPage() {
                       />
                     </div>
                     <div>
-                      <label className="mb-1 block text-sm">Last Name</label>
+                      <Label as="label" size="sm" className="mb-1 block">
+                        Last Name
+                      </Label>
                       <Input
                         value={editLastName}
                         onChange={(e) => setEditLastName(e.target.value)}
@@ -795,7 +849,9 @@ export default function UsersRolesPage() {
                       />
                     </div>
                     <div className="md:col-span-2">
-                      <label className="mb-1 block text-sm">Phone</label>
+                      <Label as="label" size="sm" className="mb-1 block">
+                        Phone
+                      </Label>
                       <Input
                         value={editPhone}
                         onChange={(e) => setEditPhone(e.target.value)}
@@ -803,7 +859,9 @@ export default function UsersRolesPage() {
                       />
                     </div>
                     <div className="md:col-span-2">
-                      <label className="mb-1 block text-sm">Email (sign-in)</label>
+                      <Label as="label" size="sm" className="mb-1 block">
+                        Email (sign-in)
+                      </Label>
                       <Input
                         value={editEmail}
                         onChange={(e) => {
@@ -818,10 +876,14 @@ export default function UsersRolesPage() {
 
                 {/* Organization & Roles Section */}
                 <div className="space-y-3">
-                  <h4 className="text-sm font-medium">Organization & Roles</h4>
+                  <Label as="h4" size="sm" className="font-medium">
+                    Organization & Roles
+                  </Label>
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <div>
-                      <label className="mb-1 block text-sm">Organization</label>
+                      <Label as="label" size="sm" className="mb-1 block">
+                        Organization
+                      </Label>
                       <Select value={editSelectedOrg} onValueChange={handleEditOrgChange}>
                         <SelectTrigger>
                           <SelectValue placeholder="Select organization" />
@@ -837,7 +899,9 @@ export default function UsersRolesPage() {
                       </Select>
                     </div>
                     <div>
-                      <label className="mb-1 block text-sm">Roles</label>
+                      <Label as="label" size="sm" className="mb-1 block">
+                        Roles
+                      </Label>
                       <Select value="" onValueChange={handleEditRoleToggle}>
                         <SelectTrigger>
                           <SelectValue
@@ -864,7 +928,9 @@ export default function UsersRolesPage() {
                       </Select>
                     </div>
                     <div>
-                      <label className="mb-1 block text-sm">User Types</label>
+                      <Label as="label" size="sm" className="mb-1 block">
+                        User Types
+                      </Label>
                       <Select value="" onValueChange={handleEditUserTypeToggle}>
                         <SelectTrigger>
                           <SelectValue
@@ -896,14 +962,18 @@ export default function UsersRolesPage() {
                         onCheckedChange={(checked) => setEditPlatformDev(Boolean(checked))}
                         id="platform-dev-edit"
                       />
-                      <label htmlFor="platform-dev-edit" className="text-sm">
+                      <Label as="label" htmlFor="platform-dev-edit" size="sm">
                         Platform Developer (all orgs, full access)
-                      </label>
+                      </Label>
                     </div>
                   </div>
                 </div>
 
-                {editError && <div className="text-destructive text-sm">{editError}</div>}
+                {editError && (
+                  <Body as="div" size="sm" className="text-destructive">
+                    {editError}
+                  </Body>
+                )}
 
                 <div className="flex items-center gap-2 pt-4">
                   <Button

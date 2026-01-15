@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { DollarSign } from 'lucide-react'
+import { Body, Heading, Label } from '@/ui/typography'
 
 interface PropertyFinancialsProps {
   propertyId: string
@@ -42,7 +43,9 @@ export function PropertyFinancials({ propertyId, fin }: PropertyFinancialsProps)
 
       {/* Cash Balance Section */}
       <div className="bg-card rounded-lg border border-border p-6">
-        <h2 className="text-lg font-semibold text-foreground mb-4">Cash Balance</h2>
+        <Heading as="h2" size="h5" className="mb-4">
+          Cash Balance
+        </Heading>
         <div className="space-y-4">
           <div className="flex justify-between items-center">
             <span className="text-foreground">Cash balance:</span>
@@ -59,7 +62,9 @@ export function PropertyFinancials({ propertyId, fin }: PropertyFinancialsProps)
           <div className="border-t border-border pt-3">
             <div className="flex justify-between items-center">
               <span className="font-semibold text-foreground">Available:</span>
-              <span className="text-xl font-bold text-foreground">{fmt(financials?.available_balance)}</span>
+              <Heading as="span" size="h4">
+                {fmt(financials?.available_balance)}
+              </Heading>
             </div>
           </div>
         </div>
@@ -71,8 +76,12 @@ export function PropertyFinancials({ propertyId, fin }: PropertyFinancialsProps)
           {/* Income Statement */}
           <div className="bg-card rounded-lg border border-border">
             <div className="p-6 border-b border-border">
-              <h2 className="text-lg font-semibold text-foreground">Income Statement</h2>
-              <p className="text-sm text-muted-foreground">Last 30 days</p>
+              <Heading as="h2" size="h5">
+                Income Statement
+              </Heading>
+              <Body as="p" size="sm" tone="muted">
+                Last 30 days
+              </Body>
             </div>
             <div className="p-6 space-y-4">
               <div className="flex justify-between items-center">
@@ -100,9 +109,13 @@ export function PropertyFinancials({ propertyId, fin }: PropertyFinancialsProps)
                 </div>
               </div>
               <div className="border-t border-border pt-4">
-                <div className="flex justify-between items-center text-lg font-bold text-foreground">
-                  <span>Net Operating Income</span>
-                  <span>$0</span>
+                <div className="flex justify-between items-center text-foreground">
+                  <Heading as="span" size="h5">
+                    Net Operating Income
+                  </Heading>
+                  <Heading as="span" size="h5">
+                    $0
+                  </Heading>
                 </div>
               </div>
             </div>
@@ -111,8 +124,12 @@ export function PropertyFinancials({ propertyId, fin }: PropertyFinancialsProps)
           {/* Expense Breakdown */}
           <div className="bg-card rounded-lg border border-border">
             <div className="p-6 border-b border-border">
-              <h2 className="text-lg font-semibold text-foreground">Expense Breakdown</h2>
-              <p className="text-sm text-muted-foreground">Monthly expenses</p>
+              <Heading as="h2" size="h5">
+                Expense Breakdown
+              </Heading>
+              <Body as="p" size="sm" tone="muted">
+                Monthly expenses
+              </Body>
             </div>
             <div className="p-6 space-y-4">
               <div className="flex justify-between items-center">
@@ -154,8 +171,12 @@ export function PropertyFinancials({ propertyId, fin }: PropertyFinancialsProps)
       {!hasFinancialData && (
         <div className="text-center py-12">
           <DollarSign className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-foreground mb-2">No financial data available</h3>
-          <p className="text-muted-foreground mb-6">Financial data will appear here once you start tracking income, expenses, and property metrics.</p>
+          <Heading as="h3" size="h5" className="mb-2">
+            No financial data available
+          </Heading>
+          <Body as="p" tone="muted" className="mb-6">
+            Financial data will appear here once you start tracking income, expenses, and property metrics.
+          </Body>
         </div>
       )}
     </div>

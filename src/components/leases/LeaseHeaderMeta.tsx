@@ -4,6 +4,9 @@ import { useEffect, useState } from 'react';
 import InlineEditCard from '@/components/form/InlineEditCard';
 import EditLink from '@/components/ui/EditLink';
 import { DateInput } from '@/components/ui/date-input';
+import { Select } from '@/ui/select';
+import { Checkbox } from '@/ui/checkbox';
+import { Body, Heading, Label } from '@/ui/typography';
 
 function parseDateOnly(input?: string | null): Date | null {
   if (!input) return null;
@@ -134,13 +137,21 @@ export default function LeaseHeaderMeta({
       {!editing && (
         <div className="space-y-2">
           <div className="flex items-center gap-3">
-            <a data-lease-back-link href={backHref} className="text-sm text-primary underline">
+            <Body
+              as="a"
+              data-lease-back-link
+              href={backHref}
+              size="sm"
+              className="text-primary underline"
+            >
               Back to unit
-            </a>
+            </Body>
           </div>
-          <h1 className="text-foreground text-2xl font-bold">{titleText}</h1>
+          <Heading as="h1" size="h2">
+            {titleText}
+          </Heading>
           {/* Subtitle row */}
-          <div className="text-muted-foreground flex items-center gap-2 text-sm">
+          <Body as="div" size="sm" tone="muted" className="flex items-center gap-2">
             <span>{status ? `${status} lease` : 'Lease'}</span>
             {buildiumLeaseId ? <span>| {String(buildiumLeaseId).padStart(6, '0')}</span> : null}
             {type ? <span>| {type}</span> : null}
@@ -148,7 +159,7 @@ export default function LeaseHeaderMeta({
               | {formatDisplayDate(from || startDate)} – {formatDisplayDate(to || endDate)}
             </span>
             <EditLink onClick={() => setEditing(true)} />
-          </div>
+          </Body>
         </div>
       )}
 
@@ -174,10 +185,14 @@ export default function LeaseHeaderMeta({
               <div className="max-w-3xl">
                 <div className="flex flex-nowrap items-end gap-4">
                   <div className="w-40 min-w-[10rem] space-y-2">
-                    <label className="text-muted-foreground mb-1 block text-[11px] font-semibold uppercase tracking-wide">
+                    <Label
+                      tone="muted"
+                      size="xs"
+                      className="mb-1 block tracking-wide uppercase"
+                    >
                       Status
-                    </label>
-                    <select
+                    </Label>
+                    <Select
                       value={status}
                       onChange={(e) => setStatus(e.target.value)}
                       className="text-foreground bg-background h-9 w-full rounded-md border border-border px-2 text-sm"
@@ -195,13 +210,17 @@ export default function LeaseHeaderMeta({
                           {o.l}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                   </div>
                   <div className="w-40 min-w-[10rem] space-y-2">
-                    <label className="text-muted-foreground mb-1 block text-[11px] font-semibold uppercase tracking-wide">
+                    <Label
+                      tone="muted"
+                      size="xs"
+                      className="mb-1 block tracking-wide uppercase"
+                    >
                       Type
-                    </label>
-                    <select
+                    </Label>
+                    <Select
                       value={type}
                       onChange={(e) => setType(e.target.value)}
                       className="text-foreground bg-background h-9 w-full rounded-md border border-border px-2 text-sm"
@@ -214,12 +233,16 @@ export default function LeaseHeaderMeta({
                           </option>
                         ),
                       )}
-                    </select>
+                    </Select>
                   </div>
                   <div className="w-40 min-w-[10rem] space-y-2">
-                    <label className="text-muted-foreground mb-1 block text-[11px] font-semibold uppercase tracking-wide">
+                    <Label
+                      tone="muted"
+                      size="xs"
+                      className="mb-1 block tracking-wide uppercase"
+                    >
                       Start
-                    </label>
+                    </Label>
                     <DateInput
                       value={from}
                       onChange={setFrom}
@@ -229,9 +252,13 @@ export default function LeaseHeaderMeta({
                     />
                   </div>
                   <div className="w-40 min-w-[10rem] space-y-2">
-                    <label className="text-muted-foreground mb-1 block text-[11px] font-semibold uppercase tracking-wide">
+                    <Label
+                      tone="muted"
+                      size="xs"
+                      className="mb-1 block tracking-wide uppercase"
+                    >
                       End
-                    </label>
+                    </Label>
                     <DateInput
                       value={to}
                       onChange={setTo}
@@ -242,18 +269,21 @@ export default function LeaseHeaderMeta({
                   </div>
                 </div>
                 <div className="mt-3 flex items-center gap-2">
-                  <input
+                  <Checkbox
                     id="evict"
-                    type="checkbox"
                     checked={evictionPending}
                     onChange={(e) => setEvictionPending(e.target.checked)}
                     className="h-4 w-4"
                   />
-                  <label htmlFor="evict" className="text-sm">
+                  <Label as="label" htmlFor="evict" className="text-sm">
                     Eviction pending
-                  </label>
+                  </Label>
                 </div>
-                {error ? <p className="text-destructive mt-2 text-xs">{error}</p> : null}
+                {error ? (
+                  <Body size="sm" className="text-destructive mt-2">
+                    {error}
+                  </Body>
+                ) : null}
               </div>
             }
           />

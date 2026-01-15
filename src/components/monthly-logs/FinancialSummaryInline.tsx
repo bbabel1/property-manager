@@ -6,6 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/components/ui/utils';
 import type { MonthlyLogFinancialSummary } from '@/types/monthly-log';
+import { Body, Heading, Label } from '@/ui/typography';
 
 interface FinancialSummaryInlineProps {
   summary: MonthlyLogFinancialSummary | null;
@@ -67,22 +68,26 @@ export default function FinancialSummaryInline({ summary, loading }: FinancialSu
         <div className="space-y-3">
           {/* Header with Toggle */}
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-slate-900">Financial Summary</h3>
+            <Heading as="h3" size="h6">Financial Summary</Heading>
             <Button
               type="button"
               variant="ghost"
               size="sm"
-              className="h-7 gap-1 text-xs text-slate-600 hover:text-slate-900"
+              className="h-7 gap-1 hover:text-foreground"
               onClick={() => setIsExpanded(!isExpanded)}
             >
               {isExpanded ? (
                 <>
-                  <span className="hidden sm:inline">Collapse</span>
+                  <Body as="span" size="xs" tone="muted" className="hidden sm:inline">
+                    Collapse
+                  </Body>
                   <ChevronUp className="h-3.5 w-3.5" />
                 </>
               ) : (
                 <>
-                  <span className="hidden sm:inline">Expand</span>
+                  <Body as="span" size="xs" tone="muted" className="hidden sm:inline">
+                    Expand
+                  </Body>
                   <ChevronDown className="h-3.5 w-3.5" />
                 </>
               )}
@@ -92,37 +97,41 @@ export default function FinancialSummaryInline({ summary, loading }: FinancialSu
           {/* Key Metrics - Always Visible */}
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             <div className="space-y-1">
-              <p className="text-xs text-slate-600">Total Payments</p>
-              <p className="text-base font-semibold text-slate-900">
+              <Label size="xs" tone="muted">Total Payments</Label>
+              <Heading as="p" size="h6">
                 {formatCurrency(totalPayments)}
-              </p>
+              </Heading>
             </div>
             <div className="space-y-1">
-              <p className="text-xs text-slate-600">Total Bills</p>
-              <p className="text-base font-semibold text-red-600">-{formatCurrency(totalBills)}</p>
+              <Label size="xs" tone="muted">Total Bills</Label>
+              <Heading as="p" size="h6" className="text-red-600">
+                -{formatCurrency(totalBills)}
+              </Heading>
             </div>
             <div className="space-y-1">
-              <p className="text-xs text-slate-600">Previous Balance</p>
-              <p
+              <Label size="xs" tone="muted">Previous Balance</Label>
+              <Heading
+                as="p"
                 className={cn(
-                  'text-base font-semibold',
-                  previousBalance >= 0 ? 'text-slate-900' : 'text-red-600',
+                  previousBalance >= 0 ? 'text-foreground' : 'text-red-600',
                 )}
+                size="h6"
               >
                 {formatCurrency(previousBalance)}
-              </p>
+              </Heading>
             </div>
             <div className="space-y-1">
-              <p className="text-xs text-slate-600">Net to Owner</p>
+              <Label size="xs" tone="muted">Net to Owner</Label>
               <div className="flex items-center gap-1.5">
-                <p
+                <Heading
+                  as="p"
+                  size="h5"
                   className={cn(
-                    'text-lg font-bold',
-                    netToOwner >= 0 ? 'text-slate-900' : 'text-red-600',
+                    netToOwner >= 0 ? 'text-foreground' : 'text-red-600',
                   )}
                 >
                   {formatCurrency(netToOwner)}
-                </p>
+                </Heading>
                 {netToOwnerTrend && getTrendIcon(netToOwnerTrend)}
               </div>
             </div>
@@ -132,44 +141,44 @@ export default function FinancialSummaryInline({ summary, loading }: FinancialSu
           {isExpanded && (
             <div className="space-y-3 border-t border-slate-300 pt-3">
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-                <div className="space-y-1">
-                  <p className="text-xs text-slate-600">Total Charges</p>
-                  <p className="text-sm font-semibold text-slate-900">
-                    {formatCurrency(summary.totalCharges)}
-                    {summary.chargesTrend && (
-                      <span className="ml-1.5 inline-block">
-                        {getTrendIcon(summary.chargesTrend)}
-                      </span>
-                    )}
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-slate-600">Total Credits</p>
-                  <p className="text-sm font-semibold text-slate-900">
-                    -{formatCurrency(summary.totalCredits)}
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-slate-600">Escrow</p>
-                  <p className="text-sm font-semibold text-slate-900">
-                    {formatCurrency(summary.escrowAmount)}
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-slate-600">Management Fees</p>
-                  <p className="text-sm font-semibold text-red-600">
-                    -{formatCurrency(summary.managementFees)}
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-slate-600">Owner Draw</p>
-                  <p className="text-sm font-semibold text-red-600">
-                    -{formatCurrency(Math.abs(summary.ownerDraw ?? 0))}
-                  </p>
-                </div>
+              <div className="space-y-1">
+                <Label size="xs" tone="muted">Total Charges</Label>
+                <Heading as="p" size="h6">
+                  {formatCurrency(summary.totalCharges)}
+                  {summary.chargesTrend && (
+                    <span className="ml-1.5 inline-block">
+                      {getTrendIcon(summary.chargesTrend)}
+                    </span>
+                  )}
+                </Heading>
+              </div>
+              <div className="space-y-1">
+                <Label size="xs" tone="muted">Total Credits</Label>
+                <Heading as="p" size="h6">
+                  -{formatCurrency(summary.totalCredits)}
+                </Heading>
+              </div>
+              <div className="space-y-1">
+                <Label size="xs" tone="muted">Escrow</Label>
+                <Heading as="p" size="h6">
+                  {formatCurrency(summary.escrowAmount)}
+                </Heading>
+              </div>
+              <div className="space-y-1">
+                <Label size="xs" tone="muted">Management Fees</Label>
+                <Heading as="p" size="h6" className="text-red-600">
+                  -{formatCurrency(summary.managementFees)}
+                </Heading>
+              </div>
+              <div className="space-y-1">
+                <Label size="xs" tone="muted">Owner Draw</Label>
+                <Heading as="p" size="h6" className="text-red-600">
+                  -{formatCurrency(Math.abs(summary.ownerDraw ?? 0))}
+                </Heading>
               </div>
             </div>
-          )}
+          </div>
+        )}
         </div>
       </CardContent>
     </Card>

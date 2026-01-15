@@ -90,21 +90,21 @@ export function PortfolioComplianceTable({
                 <TableCell className="text-right">{property.asset_count}</TableCell>
                 <TableCell className="text-right">
                   {property.open_violations > 0 ? (
-                    <Badge variant="destructive">{property.open_violations}</Badge>
+                    <Badge variant="danger">{property.open_violations}</Badge>
                   ) : (
                     '0'
                   )}
                 </TableCell>
                 <TableCell className="text-right">
                   {property.overdue_items > 0 ? (
-                    <Badge variant="destructive">{property.overdue_items}</Badge>
+                    <Badge variant="danger">{property.overdue_items}</Badge>
                   ) : (
                     '0'
                   )}
                 </TableCell>
                 <TableCell className="text-right">
                   {property.items_due_next_30_days > 0 ? (
-                    <Badge variant="outline" className="border-warning text-warning">
+                    <Badge variant="warning">
                       {property.items_due_next_30_days}
                     </Badge>
                   ) : (

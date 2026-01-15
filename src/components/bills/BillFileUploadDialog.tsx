@@ -269,7 +269,7 @@ export default function BillFileUploadDialog({
               </div>
               <div className="bg-background grid grid-cols-12 items-center gap-3 border-t px-3 py-3">
                 <div className="col-span-12 flex items-center gap-3">
-                  <CheckCircle2 className="h-5 w-5 text-[var(--color-action-600)]" />
+                  <CheckCircle2 className="h-5 w-5 text-primary-600" />
                   <Input
                     id="bill-file-title"
                     value={title}

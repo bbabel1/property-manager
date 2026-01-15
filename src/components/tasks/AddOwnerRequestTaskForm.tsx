@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
+import { Body, Heading, Label } from '@/ui/typography';
 import {
   Select,
   SelectContent,
@@ -215,10 +215,12 @@ export default function AddOwnerRequestTaskForm({
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 p-6 pb-12">
       <div className="space-y-2">
-        <h1 className="text-3xl font-semibold text-foreground">Add rental owner request</h1>
-        <p className="text-muted-foreground text-sm">
+        <Heading as="h1" size="h2">
+          Add rental owner request
+        </Heading>
+        <Body as="p" tone="muted" size="sm">
           Capture the owner&apos;s request and coordinate the right follow-up within your team.
-        </p>
+        </Body>
       </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-8">
@@ -226,7 +228,7 @@ export default function AddOwnerRequestTaskForm({
           <CardContent className="space-y-8 p-8">
             <section className="space-y-4">
               <div className="space-y-2">
-                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <Label size="xs" tone="muted" className="uppercase tracking-wide">
                   Rental owner <span className="text-destructive">*</span>
                 </Label>
                 <Select
@@ -262,7 +264,12 @@ export default function AddOwnerRequestTaskForm({
               </div>
               <div className="grid gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="owner-task-subject" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  <Label
+                    htmlFor="owner-task-subject"
+                    size="xs"
+                    tone="muted"
+                    className="uppercase tracking-wide"
+                  >
                     Subject <span className="text-destructive">*</span>
                   </Label>
                   <Input
@@ -275,7 +282,12 @@ export default function AddOwnerRequestTaskForm({
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="owner-task-description" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  <Label
+                    htmlFor="owner-task-description"
+                    size="xs"
+                    tone="muted"
+                    className="uppercase tracking-wide"
+                  >
                     Description
                   </Label>
                   <Textarea
@@ -292,11 +304,14 @@ export default function AddOwnerRequestTaskForm({
                 <Button
                   type="button"
                   variant="link"
-                  className="px-0 text-sm font-medium"
+                  size="sm"
+                  className="px-0"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isSaving}
                 >
-                  + Add attachments...
+                  <Body as="span" size="sm">
+                    + Add attachments...
+                  </Body>
                 </Button>
                 <input
                   ref={fileInputRef}
@@ -308,17 +323,24 @@ export default function AddOwnerRequestTaskForm({
                 {attachments.length ? (
                   <div className="mt-3 space-y-2">
                     {attachments.map((file, index) => (
-                      <div key={`${file.name}-${index}`} className="flex items-center justify-between rounded-md border border-dashed border-border/70 px-3 py-2 text-sm">
-                        <span className="truncate pr-3 text-foreground">{file.name}</span>
+                      <div
+                        key={`${file.name}-${index}`}
+                        className="flex items-center justify-between rounded-md border border-dashed border-border/70 px-3 py-2"
+                      >
+                        <Body as="span" size="sm" className="truncate pr-3">
+                          {file.name}
+                        </Body>
                         <Button
                           type="button"
                           variant="ghost"
                           size="sm"
-                          className="text-muted-foreground hover:text-destructive px-2"
+                          className="px-2 text-muted-foreground hover:text-destructive"
                           onClick={() => handleRemoveAttachment(index)}
                           disabled={isSaving}
                         >
-                          Remove
+                          <Body as="span" size="sm">
+                            Remove
+                          </Body>
                         </Button>
                       </div>
                     ))}
@@ -329,7 +351,7 @@ export default function AddOwnerRequestTaskForm({
 
             <section className="grid gap-6 md:grid-cols-2">
               <div className="space-y-2">
-                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <Label size="xs" tone="muted" className="uppercase tracking-wide">
                   Category
                 </Label>
                 <Select
@@ -356,7 +378,7 @@ export default function AddOwnerRequestTaskForm({
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <Label size="xs" tone="muted" className="uppercase tracking-wide">
                   Property
                 </Label>
                 <Select
@@ -378,7 +400,7 @@ export default function AddOwnerRequestTaskForm({
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <Label size="xs" tone="muted" className="uppercase tracking-wide">
                   Assigned to <span className="text-destructive">*</span>
                 </Label>
                 <Select
@@ -405,7 +427,7 @@ export default function AddOwnerRequestTaskForm({
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <Label size="xs" tone="muted" className="uppercase tracking-wide">
                   Collaborators
                 </Label>
                 <DropdownMenu>
@@ -413,9 +435,9 @@ export default function AddOwnerRequestTaskForm({
                     <Button
                       type="button"
                       variant="outline"
-                      className="h-10 justify-between px-3 text-left font-normal"
-                      disabled={isSaving}
-                    >
+                          className="h-10 justify-between px-3 text-left"
+                          disabled={isSaving}
+                        >
                       <span className="truncate">{collaboratorLabels}</span>
                       <ChevronDown className="ml-2 size-4 shrink-0 text-muted-foreground" aria-hidden />
                     </Button>
@@ -451,7 +473,7 @@ export default function AddOwnerRequestTaskForm({
 
             <section className="grid gap-6 md:grid-cols-3">
               <div className="space-y-2">
-                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <Label size="xs" tone="muted" className="uppercase tracking-wide">
                   Status
                 </Label>
                 <Select
@@ -472,7 +494,7 @@ export default function AddOwnerRequestTaskForm({
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <Label size="xs" tone="muted" className="uppercase tracking-wide">
                   Due date
                 </Label>
                 <DatePicker
@@ -482,7 +504,7 @@ export default function AddOwnerRequestTaskForm({
                 />
               </div>
               <div className="space-y-2">
-                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <Label size="xs" tone="muted" className="uppercase tracking-wide">
                   Priority
                 </Label>
                 <Select
@@ -506,17 +528,19 @@ export default function AddOwnerRequestTaskForm({
 
             <section className="space-y-4">
               <div>
-                <Button type="button" variant="link" className="px-0 text-sm font-medium">
-                  + Add to project
+                <Button type="button" variant="link" size="sm" className="px-0">
+                  <Body as="span" size="sm">
+                    + Add to project
+                  </Body>
                 </Button>
               </div>
               <Card className="border border-border/70 bg-muted/40">
                 <CardContent className="space-y-4 p-5">
                   <div className="space-y-1">
-                    <p className="text-sm font-semibold text-foreground">Sharing</p>
-                    <p className="text-xs text-muted-foreground">
+                    <Label as="p">Sharing</Label>
+                    <Label as="p" size="xs" tone="muted">
                       Keep the right people informed by telling them what&apos;s changed.
-                    </p>
+                    </Label>
                   </div>
                   <div className="space-y-3">
                     <div
@@ -531,16 +555,18 @@ export default function AddOwnerRequestTaskForm({
                       />
                       <div className="flex-1 space-y-1">
                         <div className="flex items-center gap-2">
-                          <p className="text-sm font-medium text-foreground">Staff</p>
+                          <Label as="p" size="sm">
+                            Staff
+                          </Label>
                           {formState.sharingStaff ? (
                             <Badge variant="outline" className="border-primary/40 text-primary">
                               Enabled
                             </Badge>
                           ) : null}
                         </div>
-                        <p className="text-xs text-muted-foreground">
+                        <Label as="p" size="xs" tone="muted">
                           Email staff members who opted into task notifications.
-                        </p>
+                        </Label>
                       </div>
                     </div>
 
@@ -556,16 +582,18 @@ export default function AddOwnerRequestTaskForm({
                       />
                       <div className="flex-1 space-y-1">
                         <div className="flex items-center gap-2">
-                          <p className="text-sm font-medium text-foreground">Rental owner</p>
+                          <Label as="p" size="sm">
+                            Rental owner
+                          </Label>
                           {formState.sharingOwner ? (
                             <Badge variant="outline" className="border-primary/40 text-primary">
                               Enabled
                             </Badge>
                           ) : null}
                         </div>
-                        <p className="text-xs text-muted-foreground">
+                        <Label as="p" size="xs" tone="muted">
                           Display this update in the rental owner portal for the requesting owner.
-                        </p>
+                        </Label>
                       </div>
                     </div>
                   </div>

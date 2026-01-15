@@ -16,7 +16,6 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { cn } from '@/components/ui/utils';
 import { useAuth } from '@/components/providers';
 import type { AppRole } from '@/lib/auth/roles';
 
@@ -76,13 +75,13 @@ const formatAmount = (value: number | null) =>
 const statusBadge = (status: PreviewTransaction['status']) => {
   switch (status) {
     case 'matched':
-      return { label: 'Matched', className: 'bg-emerald-100 text-emerald-900' };
+      return { label: 'Matched', variant: 'success' as const };
     case 'mismatch':
-      return { label: 'Mismatch', className: 'bg-amber-100 text-amber-900' };
+      return { label: 'Mismatch', variant: 'warning' as const };
     case 'missing':
-      return { label: 'Missing', className: 'bg-destructive/15 text-destructive' };
+      return { label: 'Missing', variant: 'danger' as const };
     default:
-      return { label: status, className: '' };
+      return { label: status, variant: 'info' as const };
   }
 };
 
@@ -249,13 +248,13 @@ export function BuildiumTransactionsSyncButton({
         <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
           <div className="flex items-center gap-2">
             <Badge variant="secondary">Total {preview.summary.total}</Badge>
-            <Badge className="bg-emerald-100 text-emerald-900">
+            <Badge variant="success">
               Matched {preview.summary.matched}
             </Badge>
-            <Badge className="bg-amber-100 text-amber-900">
+            <Badge variant="warning">
               Mismatch {preview.summary.mismatch}
             </Badge>
-            <Badge className="bg-destructive/15 text-destructive">
+            <Badge variant="danger">
               Missing {preview.summary.missing}
             </Badge>
           </div>
@@ -381,7 +380,9 @@ export function BuildiumTransactionsSyncButton({
                       </TableCell>
                       <TableCell className="font-semibold">{formatAmount(tx.totalAmount)}</TableCell>
                       <TableCell>
-                        <Badge className={cn('font-normal', status.className)}>{status.label}</Badge>
+                        <Badge variant={status.variant} className="font-normal">
+                          {status.label}
+                        </Badge>
                         {tx.localTransactionId ? (
                           <div className="text-muted-foreground mt-1 text-[11px]">
                             Local ID {tx.localTransactionId.slice(0, 8)}…

@@ -11,6 +11,7 @@ import {
 } from '@/server/monthly-logs/transactions';
 import { listMonthlyLogTasks } from '@/server/monthly-logs/tasks';
 import type { MonthlyLogFinancialSummary, MonthlyLogTransaction } from '@/types/monthly-log';
+import { Body, Heading, Label } from '@/ui/typography';
 
 type MonthlyLogStatus = 'pending' | 'complete' | 'in_progress';
 type MonthlyLogRecord = {
@@ -132,17 +133,20 @@ export default async function MonthlyLogDetailPage({ params }: MonthlyLogDetailP
     if (!monthlyLog) {
       return (
         <div className="p-6 space-y-3">
-          <h1 className="text-xl font-semibold text-foreground">Monthly log not found</h1>
-          <p className="text-muted-foreground">
+          <Heading as="h1" size="h4">
+            Monthly log not found
+          </Heading>
+          <Body tone="muted">
             The monthly log you&apos;re looking for was deleted or no longer exists. Please select
             another log to continue.
-          </p>
-          <Link
+          </Body>
+          <Label
+            as={Link}
             href="/monthly-logs"
-            className="inline-flex w-fit items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+            className="inline-flex w-fit items-center gap-2 rounded-md bg-primary px-4 py-2 text-primary-foreground hover:bg-primary/90"
           >
             Back to monthly logs
-          </Link>
+          </Label>
         </div>
       );
     }
@@ -306,7 +310,7 @@ export default async function MonthlyLogDetailPage({ params }: MonthlyLogDetailP
       : [];
 
     return (
-      <Suspense fallback={<div className="p-6">Loading monthly log details...</div>}>
+      <Suspense fallback={<Body as="div" className="p-6">Loading monthly log details...</Body>}>
         <MonthlyLogDetailPageContent
           monthlyLog={safeMonthlyLog}
           tasks={safeTasks}
@@ -319,11 +323,15 @@ export default async function MonthlyLogDetailPage({ params }: MonthlyLogDetailP
     console.error('Error in MonthlyLogDetailPage:', error);
     return (
       <div className="p-6">
-        <h1 className="text-xl font-bold text-red-600">Error Loading Monthly Log</h1>
-        <p className="text-gray-600 mt-2">There was an error loading the monthly log details.</p>
-        <pre className="mt-4 p-4 bg-gray-100 rounded text-sm overflow-auto">
+        <Heading as="h1" size="h4" className="text-red-600">
+          Error Loading Monthly Log
+        </Heading>
+        <Body className="mt-2 text-gray-600">
+          There was an error loading the monthly log details.
+        </Body>
+        <Body as="pre" size="sm" className="mt-4 overflow-auto rounded bg-gray-100 p-4">
           {error instanceof Error ? error.message : 'Unknown error'}
-        </pre>
+        </Body>
       </div>
     );
   }

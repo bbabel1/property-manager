@@ -12,11 +12,11 @@ import { Button } from '@/components/ui/button';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { Loader2, Users, MapPin, AlignLeft } from 'lucide-react';
+import { Body, Heading, Label } from '@/ui/typography';
 
 type GuestOption = { name: string; email: string; photoUrl?: string };
 
@@ -132,7 +132,11 @@ export function AddEventModal({ open, onOpenChange, defaultDate, onCreated }: Ad
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[680px] max-w-[680px] gap-0 p-0">
         <DialogHeader className="border-b px-5 py-4">
-          <DialogTitle className="text-lg font-medium">Add event</DialogTitle>
+          <DialogTitle>
+            <Heading as="h3" size="h5">
+              Add event
+            </Heading>
+          </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 px-5 py-4">
@@ -140,19 +144,21 @@ export function AddEventModal({ open, onOpenChange, defaultDate, onCreated }: Ad
             placeholder="Add title"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="rounded-none border-0 border-b px-0 pb-2 text-lg font-medium focus-visible:ring-0"
+            className="rounded-none border-0 border-b px-0 pb-2 focus-visible:ring-0"
           />
 
-          <div className="flex flex-wrap gap-2 text-sm text-gray-700">
+          <div className="flex flex-wrap gap-2">
             <Badge variant="outline" className="border-blue-100 bg-blue-50 text-[#1a73e8]">
               Event
             </Badge>
             <Badge variant="outline">Task</Badge>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 text-sm">
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label className="text-xs text-gray-600">Date</Label>
+              <Label as="span" size="xs" tone="muted">
+                Date
+              </Label>
               <DatePicker
                 value={format(date, 'yyyy-MM-dd')}
                 onChange={(value) => {
@@ -165,18 +171,22 @@ export function AddEventModal({ open, onOpenChange, defaultDate, onCreated }: Ad
                 clearable={false}
               />
             </div>
-            <div className="flex items-center gap-2">
-              <div className="flex-1 space-y-1">
-                <Label className="text-xs text-gray-600">Start</Label>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 space-y-1">
+                  <Label as="span" size="xs" tone="muted">
+                    Start
+                  </Label>
                 <Input
                   type="time"
                   value={startTime}
                   onChange={(e) => setStartTime(e.target.value)}
                   disabled={allDay}
                 />
-              </div>
-              <div className="flex-1 space-y-1">
-                <Label className="text-xs text-gray-600">End</Label>
+                </div>
+                <div className="flex-1 space-y-1">
+                  <Label as="span" size="xs" tone="muted">
+                    End
+                  </Label>
                 <Input
                   type="time"
                   value={endTime}
@@ -186,15 +196,19 @@ export function AddEventModal({ open, onOpenChange, defaultDate, onCreated }: Ad
               </div>
               <div className="flex items-center gap-2 pt-6">
                 <Switch checked={allDay} onCheckedChange={setAllDay} />
-                <span className="text-xs text-gray-600">All day</span>
+                <Body as="span" tone="muted" size="xs">
+                  All day
+                </Body>
               </div>
             </div>
           </div>
 
           <div className="space-y-2">
-            <div className="flex items-center gap-2 text-sm text-gray-700">
+            <div className="flex items-center gap-2">
               <Users className="h-4 w-4 text-gray-500" />
-              <span>Add guests</span>
+              <Body as="span" size="sm">
+                Add guests
+              </Body>
             </div>
             <Input
               placeholder="Search people"
@@ -206,15 +220,23 @@ export function AddEventModal({ open, onOpenChange, defaultDate, onCreated }: Ad
                 {guestResults.map((g) => (
                   <button
                     key={g.email}
-                    className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm hover:bg-gray-50"
+                    className="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-muted"
                     onClick={() => handleAddGuest(g)}
                   >
-                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200 text-xs font-semibold text-gray-700">
+                    <Label
+                      as="span"
+                      size="xs"
+                      className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-muted-foreground"
+                    >
                       {g.name?.[0]?.toUpperCase() || g.email?.[0]?.toUpperCase()}
-                    </span>
+                    </Label>
                     <div>
-                      <div className="font-medium text-gray-800">{g.name || g.email}</div>
-                      <div className="text-xs text-gray-500">{g.email}</div>
+                      <Body as="div" size="sm">
+                        {g.name || g.email}
+                      </Body>
+                      <Body as="div" tone="muted" size="xs">
+                        {g.email}
+                      </Body>
                     </div>
                   </button>
                 ))}
@@ -238,8 +260,8 @@ export function AddEventModal({ open, onOpenChange, defaultDate, onCreated }: Ad
             )}
           </div>
 
-          <div className="space-y-3 text-sm">
-            <Label className="flex items-center gap-2 text-sm text-gray-700">
+          <div className="space-y-3">
+            <Label as="label" size="sm" className="flex items-center gap-2">
               <MapPin className="h-4 w-4 text-gray-500" />
               <span className="flex-1">
                 <Input
@@ -251,9 +273,11 @@ export function AddEventModal({ open, onOpenChange, defaultDate, onCreated }: Ad
             </Label>
 
             <div className="space-y-2">
-              <div className="flex items-center gap-2 text-sm text-gray-700">
+              <div className="flex items-center gap-2">
                 <AlignLeft className="h-4 w-4 text-gray-500" />
-                <span>Add description or attachments</span>
+                <Body as="span" size="sm">
+                  Add description or attachments
+                </Body>
               </div>
               <Textarea
                 placeholder="Description"

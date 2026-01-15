@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/components/ui/utils';
+import { Body, Heading, Label } from '@/ui/typography';
 import type { MonthlyLogStatus } from './types';
 
 interface RelatedLogOption {
@@ -61,10 +62,9 @@ const formatStatusLabel = (value: MonthlyLogStatus | string) =>
     .join(' ');
 
 const STATUS_BADGE_STYLES: Record<MonthlyLogStatus, string> = {
-  pending: 'bg-amber-100 text-amber-800 border border-amber-200',
-  in_progress: 'bg-blue-100 text-blue-800 border border-blue-200',
-  complete:
-    'bg-[var(--color-success-50)] text-[var(--color-success-700)] border border-[var(--color-success-500)]',
+  pending: 'status-pill-warning',
+  in_progress: 'status-pill-info',
+  complete: 'status-pill-success',
 };
 
 export default function EnhancedHeader({
@@ -92,7 +92,7 @@ export default function EnhancedHeader({
   );
   const hasManagementItems = managementItems.length > 0;
   const detailButtonClass =
-    'mt-1 inline-flex items-center gap-2 text-slate-700 hover:bg-slate-100 hover:text-slate-900';
+    'mt-1 inline-flex items-center gap-2 text-foreground hover:bg-slate-100';
 
   return (
     <div className="border-b border-slate-300 bg-white">
@@ -116,9 +116,13 @@ export default function EnhancedHeader({
                 <Building2 className="h-6 w-6 text-blue-600" />
               </div>
               <div className="flex-1">
-                <h1 className="text-2xl font-bold text-slate-900">{unitDisplayName}</h1>
-                <div className="mt-1.5 flex flex-wrap items-center gap-2 text-slate-700">
-                  <span>Monthly log for {periodDisplay}</span>
+                <Heading as="h1" size="h2" className="font-bold">
+                  {unitDisplayName}
+                </Heading>
+                <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                  <Body as="span" size="sm">
+                    Monthly log for {periodDisplay}
+                  </Body>
                   <Badge
                     className={cn(
                       'status-pill px-2.5 py-0.5',
@@ -128,16 +132,16 @@ export default function EnhancedHeader({
                     {formatStatusLabel(status)}
                   </Badge>
                   {tenantName && (
-                    <span className="inline-flex items-center gap-1 text-sm">
+                    <Body as="span" size="sm" className="inline-flex items-center gap-1">
                       <User className="h-3 w-3" />
                       {tenantName}
-                    </span>
+                    </Body>
                   )}
                 </div>
                 {periodStartDisplay && periodEndDisplay ? (
-                  <p className="mt-1 text-xs text-slate-600">
+                  <Body as="p" size="xs" tone="muted" className="mt-1">
                     Period: {periodStartDisplay} – {periodEndDisplay}
-                  </p>
+                  </Body>
                 ) : null}
               </div>
             </div>
@@ -150,9 +154,9 @@ export default function EnhancedHeader({
                   className="gap-1.5 border-slate-400 bg-slate-200 px-2.5 py-1"
                 >
                   <DollarSign className="h-3 w-3 text-slate-700" />
-                  <span className="text-xs font-medium text-slate-800">
+                  <Label as="span" size="xs">
                     {managementItems.length} service{managementItems.length !== 1 ? 's' : ''}
-                  </span>
+                  </Label>
                 </Badge>
               )}
               {leaseSummary && (
@@ -161,7 +165,9 @@ export default function EnhancedHeader({
                   className="gap-1.5 border-slate-400 bg-slate-200 px-2.5 py-1"
                 >
                   <Calendar className="h-3 w-3 text-slate-700" />
-                  <span className="text-xs font-medium text-slate-800">Lease active</span>
+                  <Label as="span" size="xs">
+                    Lease active
+                  </Label>
                 </Badge>
               )}
             </div>
@@ -170,10 +176,12 @@ export default function EnhancedHeader({
             {currentLogId ? (
               <div className="flex flex-wrap items-center gap-3">
                 {relatedLogsLoading ? (
-                  <div className="text-sm text-slate-600">Loading related logs…</div>
+                  <Body as="div" size="sm" tone="muted">
+                    Loading related logs…
+                  </Body>
                 ) : hasRelatedLogs ? (
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-slate-800">Switch to:</span>
+                    <Label as="span">Switch to:</Label>
                     <Select
                       value={currentLogId}
                       onValueChange={(value) => onRelatedLogSelect?.(value)}
@@ -188,7 +196,9 @@ export default function EnhancedHeader({
                             value={log.id}
                             disabled={log.id === currentLogId}
                           >
-                            <span className="truncate">{log.label}</span>
+                            <Body as="span" size="sm" className="truncate">
+                              {log.label}
+                            </Body>
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -221,17 +231,19 @@ export default function EnhancedHeader({
                               <DollarSign className="h-4 w-4 text-slate-700" />
                             </div>
                             <div className="flex-1">
-                              <h3 className="text-sm font-medium text-slate-900">
+                              <Heading as="h3" size="h6">
                                 Management services
-                              </h3>
-                              <ul className="mt-1 space-y-1 text-sm text-slate-700">
+                              </Heading>
+                              <ul className="mt-1 space-y-1">
                                 {managementItems.map((item) => (
-                                  <li key={`${item.label}-${item.value}`}>
-                                    <span className="font-medium text-slate-800">
+                                  <Body as="li" size="sm" key={item.label}>
+                                    <Label as="span">
                                       {item.label}:
-                                    </span>{' '}
-                                    {item.value}
-                                  </li>
+                                    </Label>{' '}
+                                    <Body as="span" size="sm">
+                                      {item.value}
+                                    </Body>
+                                  </Body>
                                 ))}
                               </ul>
                             </div>
@@ -242,17 +254,19 @@ export default function EnhancedHeader({
                       {leaseSummary && (
                         <Card className="border-slate-300 shadow-sm">
                           <CardContent className="flex items-start gap-3 p-4">
-                            <div className="flex h-8 w-8 items-center justify-center rounded bg-slate-200 shadow-sm">
-                              <Calendar className="h-4 w-4 text-slate-700" />
-                            </div>
-                            <div className="flex-1">
-                              <h3 className="text-sm font-medium text-slate-900">
-                                Lease information
-                              </h3>
-                              <p className="mt-1 text-sm text-slate-700">{leaseSummary}</p>
-                            </div>
-                          </CardContent>
-                        </Card>
+                          <div className="flex h-8 w-8 items-center justify-center rounded bg-slate-200 shadow-sm">
+                            <Calendar className="h-4 w-4 text-slate-700" />
+                          </div>
+                          <div className="flex-1">
+                            <Heading as="h3" size="h6">
+                              Lease information
+                            </Heading>
+                            <Body as="p" size="sm" className="mt-1">
+                              {leaseSummary}
+                            </Body>
+                          </div>
+                        </CardContent>
+                      </Card>
                       )}
                     </div>
                   </CollapsibleContent>

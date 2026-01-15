@@ -4,6 +4,7 @@ import React from 'react'
 import { Edit } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { Body, Heading, Label } from '@/ui/typography'
 
 export interface SectionDetailField {
   label: string
@@ -71,7 +72,9 @@ export function SectionDetail({
     <div className={className}>
       {/* Section Header */}
       <div className={`flex items-center gap-3 border-b border-border ${config.headerSpacing}`}>
-        <h2 className="text-lg font-semibold text-foreground">{title}</h2>
+        <Heading as="h2" size="h4" className="text-foreground">
+          {title}
+        </Heading>
         {!editing && onEdit && (
           <Button
             variant="ghost"
@@ -91,17 +94,22 @@ export function SectionDetail({
           {editing && <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-primary" />}
           
           {children || (
-            <div className={`grid ${gridClasses[columns]} ${config.fieldSpacing} text-sm`}>
+            <div className={`grid ${gridClasses[columns]} ${config.fieldSpacing}`}>
               {fields.map((field, index) => {
                 const spanClass = field.span ? `col-span-${field.span}` : ''
                 return (
                   <div key={index} className={`${spanClass} ${field.className || ''}`}>
-                    <div className={`text-xs font-medium text-muted-foreground uppercase ${config.labelSpacing}`}>
+                    <Label
+                      as="div"
+                      size="xs"
+                      tone="muted"
+                      className={`tracking-wide uppercase ${config.labelSpacing}`}
+                    >
                       {field.label}
-                    </div>
-                    <div className="text-foreground">
+                    </Label>
+                    <Body as="div" size="md" className="text-foreground">
                       {field.value || '—'}
-                    </div>
+                    </Body>
                   </div>
                 )
               })}

@@ -4,6 +4,7 @@ import { ReactNode } from "react"
 import { Button } from "@/components/ui/button"
 import { X, Save } from "lucide-react"
 import EditLink from "@/components/ui/EditLink"
+import { Heading } from "@/ui/typography"
 
 export default function InlineEditCard({
   title,
@@ -47,7 +48,7 @@ export default function InlineEditCard({
     ? `rounded-lg border border-transparent shadow-none ${hasBgOverride ? '' : 'bg-transparent'}`
     : `rounded-lg border border-border ${hasBgOverride ? '' : 'bg-card'}`
   const headerPad = size === 'compact' ? 'px-3 py-2' : 'px-4 py-3'
-  const headerDividerClass = divider ? 'border-b border-[var(--color-border-strong)]' : ''
+  const headerDividerClass = divider ? 'border-b border-border-strong' : ''
   const headerBase = `flex items-center gap-2 ${headerPad} ${headerDividerClass}`
   const contentPad = size === 'compact' ? 'p-3' : 'p-4'
   return (
@@ -57,9 +58,9 @@ export default function InlineEditCard({
           {titleHidden ? (
             <div />
           ) : (
-            <h2 className="text-lg font-semibold leading-tight tracking-tight text-foreground md:text-xl">
+            <Heading as="h2" size="h5" className="md:text-xl">
               {title}
-            </h2>
+            </Heading>
           )}
           {!editing ? (
             <EditLink onClick={onEdit} />

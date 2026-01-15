@@ -4,6 +4,7 @@ import * as React from "react";
 import * as MenubarPrimitive from "@radix-ui/react-menubar";
 import { CheckIcon, ChevronRightIcon, CircleIcon } from "lucide-react";
 
+import { Body } from "@/ui/typography";
 import { cn } from "./utils";
 
 function Menubar({
@@ -169,13 +170,12 @@ function MenubarLabel({
   inset?: boolean;
 }) {
   return (
-    <MenubarPrimitive.Label
+    <Body
+      as={MenubarPrimitive.Label}
+      size="sm"
+      className={cn("px-2 py-1.5 font-medium data-[inset]:pl-8", className)}
       data-slot="menubar-label"
       data-inset={inset}
-      className={cn(
-        "px-2 py-1.5 text-sm font-medium data-[inset]:pl-8",
-        className,
-      )}
       {...props}
     />
   );

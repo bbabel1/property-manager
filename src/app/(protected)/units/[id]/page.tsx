@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { Body, Heading, Label } from '@/ui/typography'
 
 type Unit = {
   id: string
@@ -60,11 +61,11 @@ export default function UnitDetailsPage({ params }: { params: Promise<{ id: stri
 
   const statusBadge = useMemo(() => {
     const status = (unit?.status || '').toLowerCase()
-    if (status === 'occupied') return { label: 'Occupied', cls: 'status-pill border-blue-800 bg-blue-100 text-blue-800' }
-    if (status === 'vacant') return { label: 'Vacant', cls: 'status-pill border-yellow-800 bg-yellow-100 text-yellow-800' }
-    if (status === 'active' || unit?.is_active) return { label: 'Active', cls: 'status-pill border-[var(--color-success-500)] bg-[var(--color-success-50)] text-[var(--color-success-700)]' }
-    if (unit?.is_active === false) return { label: 'Inactive', cls: 'status-pill border-gray-400 bg-gray-100 text-gray-700' }
-    return { label: unit?.status || 'Unknown', cls: 'status-pill border-gray-800 bg-gray-100 text-gray-800' }
+    if (status === 'occupied') return { label: 'Occupied', cls: 'status-pill status-pill-success' }
+    if (status === 'vacant') return { label: 'Vacant', cls: 'status-pill status-pill-warning' }
+    if (status === 'active' || unit?.is_active) return { label: 'Active', cls: 'status-pill status-pill-success' }
+    if (unit?.is_active === false) return { label: 'Inactive', cls: 'status-pill status-pill-danger' }
+    return { label: unit?.status || 'Unknown', cls: 'status-pill status-pill-info' }
   }, [unit])
 
   const currency = (n?: number | null) => n != null ? `$${Number(n).toLocaleString()}` : '-'
@@ -106,7 +107,11 @@ export default function UnitDetailsPage({ params }: { params: Promise<{ id: stri
           </Link>
         </div>
         <Card>
-          <CardContent className="p-6 text-center text-muted-foreground">{error || 'Unit not found'}</CardContent>
+          <CardContent className="p-6 text-center">
+            <Body size="sm" tone="muted">
+              {error || 'Unit not found'}
+            </Body>
+          </CardContent>
         </Card>
       </div>
     )
@@ -123,11 +128,13 @@ export default function UnitDetailsPage({ params }: { params: Promise<{ id: stri
           </Button>
         </Link>
         <div className="flex-1">
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+          <Heading as="h1" size="h3" className="flex items-center gap-2">
             <Building2 className="h-6 w-6" />
             Unit {unit.unit_number}
-          </h1>
-          <p className="text-muted-foreground">{propertyName || [unit.address_line1, unit.city, unit.state].filter(Boolean).join(' • ')}</p>
+          </Heading>
+          <Body tone="muted">
+            {propertyName || [unit.address_line1, unit.city, unit.state].filter(Boolean).join(' • ')}
+          </Body>
         </div>
         <Badge className={statusBadge.cls}>{statusBadge.label}</Badge>
         <DropdownMenu>
@@ -168,24 +175,54 @@ export default function UnitDetailsPage({ params }: { params: Promise<{ id: stri
             <Card>
               <CardHeader className="pb-3"><CardTitle>Unit Information</CardTitle></CardHeader>
               <CardContent className="grid grid-cols-2 gap-4">
-                <div><p className="text-sm text-muted-foreground">Unit Number</p><p className="font-medium">{unit.unit_number || '-'}</p></div>
-                <div><p className="text-sm text-muted-foreground">Status</p><Badge className={statusBadge.cls}>{statusBadge.label}</Badge></div>
-                <div><p className="text-sm text-muted-foreground">Bedrooms</p><p className="font-medium">{unit.unit_bedrooms ?? '-'}</p></div>
-                <div><p className="text-sm text-muted-foreground">Bathrooms</p><p className="font-medium">{unit.unit_bathrooms ?? '-'}</p></div>
-                <div><p className="text-sm text-muted-foreground">Square Feet</p><p className="font-medium">{unit.unit_size ?? '-'}</p></div>
-                <div><p className="text-sm text-muted-foreground">Market Rent</p><p className="font-medium">{currency(unit.market_rent)}</p></div>
+                <div>
+                  <Label size="xs" tone="muted">Unit Number</Label>
+                  <Label as="p" size="sm">{unit.unit_number || '-'}</Label>
+                </div>
+                <div>
+                  <Label size="xs" tone="muted">Status</Label>
+                  <Badge className={statusBadge.cls}>{statusBadge.label}</Badge>
+                </div>
+                <div>
+                  <Label size="xs" tone="muted">Bedrooms</Label>
+                  <Label as="p" size="sm">{unit.unit_bedrooms ?? '-'}</Label>
+                </div>
+                <div>
+                  <Label size="xs" tone="muted">Bathrooms</Label>
+                  <Label as="p" size="sm">{unit.unit_bathrooms ?? '-'}</Label>
+                </div>
+                <div>
+                  <Label size="xs" tone="muted">Square Feet</Label>
+                  <Label as="p" size="sm">{unit.unit_size ?? '-'}</Label>
+                </div>
+                <div>
+                  <Label size="xs" tone="muted">Market Rent</Label>
+                  <Label as="p" size="sm">{currency(unit.market_rent)}</Label>
+                </div>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="pb-3"><CardTitle>Management Details</CardTitle></CardHeader>
               <CardContent className="grid grid-cols-2 gap-4">
-                <div><p className="text-sm text-muted-foreground">Service Plan</p><p className="font-medium">Premium</p></div>
-                <div><p className="text-sm text-muted-foreground">Fee Structure</p><p className="font-medium">8% of rent</p></div>
-                <div><p className="text-sm text-muted-foreground">Monthly Fee</p><p className="font-medium">$240</p></div>
-                <div><p className="text-sm text-muted-foreground">Management Notes</p><p className="font-medium">Enter notes here.</p></div>
+                <div>
+                  <Label size="xs" tone="muted">Service Plan</Label>
+                  <Label as="p" size="sm">Premium</Label>
+                </div>
+                <div>
+                  <Label size="xs" tone="muted">Fee Structure</Label>
+                  <Label as="p" size="sm">8% of rent</Label>
+                </div>
+                <div>
+                  <Label size="xs" tone="muted">Monthly Fee</Label>
+                  <Label as="p" size="sm">$240</Label>
+                </div>
+                <div>
+                  <Label size="xs" tone="muted">Management Notes</Label>
+                  <Label as="p" size="sm">Enter notes here.</Label>
+                </div>
                 <div className="col-span-2">
-                  <p className="text-sm text-muted-foreground">Active Services</p>
+                  <Label size="xs" tone="muted">Active Services</Label>
                   <div className="mt-1 flex flex-wrap gap-2">
                     {['Property Management','Maintenance Coordination','Tenant Screening'].map(x=> (
                       <Badge key={x} className="bg-primary/10 text-primary">{x}</Badge>
@@ -199,42 +236,64 @@ export default function UnitDetailsPage({ params }: { params: Promise<{ id: stri
           {/* Lease History */}
           <Card>
             <CardHeader className="pb-3"><CardTitle>Lease History</CardTitle></CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-border">
-                  <thead className="bg-muted">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Tenant</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Start Date</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">End Date</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Monthly Rent</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-card divide-y divide-border">
-                    {leases.map((l) => (
-                      <tr key={l.id} className="hover:bg-muted/50">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-foreground">{l.tenant.name}</div>
-                          <div className="text-sm text-muted-foreground">{l.tenant.email}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">{new Date(l.start).toLocaleDateString()}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">{new Date(l.end).toLocaleDateString()}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">{currency(l.monthly)}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${l.status === 'Active' ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'}`}>
-                            {l.status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right">
-                          <Button variant="ghost" size="sm">View</Button>
-                        </td>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-border">
+                    <thead className="bg-muted">
+                      <tr>
+                        <Label as="th" size="xs" tone="muted" className="px-6 py-3 text-left uppercase tracking-wider">
+                          Tenant
+                        </Label>
+                        <Label as="th" size="xs" tone="muted" className="px-6 py-3 text-left uppercase tracking-wider">
+                          Start Date
+                        </Label>
+                        <Label as="th" size="xs" tone="muted" className="px-6 py-3 text-left uppercase tracking-wider">
+                          End Date
+                        </Label>
+                        <Label as="th" size="xs" tone="muted" className="px-6 py-3 text-left uppercase tracking-wider">
+                          Monthly Rent
+                        </Label>
+                        <Label as="th" size="xs" tone="muted" className="px-6 py-3 text-left uppercase tracking-wider">
+                          Status
+                        </Label>
+                        <Label as="th" size="xs" tone="muted" className="px-6 py-3 text-right uppercase tracking-wider">
+                          Actions
+                        </Label>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody className="bg-card divide-y divide-border">
+                      {leases.map((l) => (
+                        <tr key={l.id} className="hover:bg-muted/50">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <Label as="div" size="sm">
+                              {l.tenant.name}
+                            </Label>
+                            <Body as="div" size="sm" tone="muted">
+                              {l.tenant.email}
+                            </Body>
+                          </td>
+                          <Body as="td" size="sm" className="px-6 py-4 whitespace-nowrap">
+                            {new Date(l.start).toLocaleDateString()}
+                          </Body>
+                          <Body as="td" size="sm" className="px-6 py-4 whitespace-nowrap">
+                            {new Date(l.end).toLocaleDateString()}
+                          </Body>
+                          <Body as="td" size="sm" className="px-6 py-4 whitespace-nowrap">
+                            {currency(l.monthly)}
+                          </Body>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${l.status === 'Active' ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'}`}>
+                              {l.status}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right">
+                            <Button variant="ghost" size="sm">View</Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
             </CardContent>
           </Card>
 
@@ -243,10 +302,16 @@ export default function UnitDetailsPage({ params }: { params: Promise<{ id: stri
             <CardHeader className="pb-3"><CardTitle>Recent Activity</CardTitle></CardHeader>
             <CardContent>
               <div className="p-4 border rounded-lg flex items-start gap-3">
-                <span className="text-success">$</span>
+                <Body as="span" size="sm" className="text-success">
+                  $
+                </Body>
                 <div>
-                  <div className="text-sm font-medium text-foreground">Rent payment received</div>
-                  <div className="text-xs text-muted-foreground">Jan 31, 2024 at 10:30 AM</div>
+                  <Label as="div" size="sm">
+                    Rent payment received
+                  </Label>
+                  <Body as="div" size="xs" tone="muted">
+                    Jan 31, 2024 at 10:30 AM
+                  </Body>
                 </div>
               </div>
             </CardContent>
@@ -274,16 +339,16 @@ export default function UnitDetailsPage({ params }: { params: Promise<{ id: stri
                 return (
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="bg-card border rounded-lg p-4">
-                      <div className="text-sm text-muted-foreground">Balance</div>
-                      <div className="text-2xl font-bold text-foreground">{currency(balance)}</div>
+                      <Label size="sm" tone="muted">Balance</Label>
+                      <Heading as="div" size="h3">{currency(balance)}</Heading>
                     </div>
                     <div className="bg-card border rounded-lg p-4">
-                      <div className="text-sm text-muted-foreground">YTD Income</div>
-                      <div className="text-2xl font-bold text-success">{currency(totals.income)}</div>
+                      <Label size="sm" tone="muted">YTD Income</Label>
+                      <Heading as="div" size="h3" className="text-success">{currency(totals.income)}</Heading>
                     </div>
                     <div className="bg-card border rounded-lg p-4">
-                      <div className="text-sm text-muted-foreground">YTD Expenses</div>
-                      <div className="text-2xl font-bold text-destructive">{currency(totals.expense)}</div>
+                      <Label size="sm" tone="muted">YTD Expenses</Label>
+                      <Heading as="div" size="h3" className="text-destructive">{currency(totals.expense)}</Heading>
                     </div>
                   </div>
                 )
@@ -299,11 +364,21 @@ export default function UnitDetailsPage({ params }: { params: Promise<{ id: stri
                 <table className="min-w-full divide-y divide-border">
                   <thead className="bg-muted">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Date</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Description</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Type</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">Amount</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
+                      <Label as="th" size="xs" tone="muted" className="px-6 py-3 text-left uppercase tracking-wider">
+                        Date
+                      </Label>
+                      <Label as="th" size="xs" tone="muted" className="px-6 py-3 text-left uppercase tracking-wider">
+                        Description
+                      </Label>
+                      <Label as="th" size="xs" tone="muted" className="px-6 py-3 text-left uppercase tracking-wider">
+                        Type
+                      </Label>
+                      <Label as="th" size="xs" tone="muted" className="px-6 py-3 text-right uppercase tracking-wider">
+                        Amount
+                      </Label>
+                      <Label as="th" size="xs" tone="muted" className="px-6 py-3 text-left uppercase tracking-wider">
+                        Status
+                      </Label>
                     </tr>
                   </thead>
                   <tbody className="bg-card divide-y divide-border">
@@ -314,11 +389,25 @@ export default function UnitDetailsPage({ params }: { params: Promise<{ id: stri
                       { id: 't4', date: '2024-02-14', desc: 'Light Fixture Replacement', amount: -85, type: 'Expense', status: 'Posted' },
                     ].map((t) => (
                       <tr key={t.id} className="hover:bg-muted/50">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">{new Date(t.date).toLocaleDateString()}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">{t.desc}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">{t.type}</td>
-                        <td className={`px-6 py-4 whitespace-nowrap text-sm text-right ${t.amount >= 0 ? 'text-success' : 'text-destructive'}`}>{currency(t.amount)}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">{t.status}</td>
+                        <Body as="td" size="sm" className="px-6 py-4 whitespace-nowrap">
+                          {new Date(t.date).toLocaleDateString()}
+                        </Body>
+                        <Body as="td" size="sm" className="px-6 py-4 whitespace-nowrap">
+                          {t.desc}
+                        </Body>
+                        <Body as="td" size="sm" className="px-6 py-4 whitespace-nowrap">
+                          {t.type}
+                        </Body>
+                        <Body
+                          as="td"
+                          size="sm"
+                          className={`px-6 py-4 whitespace-nowrap text-right ${t.amount >= 0 ? 'text-success' : 'text-destructive'}`}
+                        >
+                          {currency(t.amount)}
+                        </Body>
+                        <Body as="td" size="sm" className="px-6 py-4 whitespace-nowrap">
+                          {t.status}
+                        </Body>
                       </tr>
                     ))}
                   </tbody>
@@ -334,9 +423,9 @@ export default function UnitDetailsPage({ params }: { params: Promise<{ id: stri
               <CardTitle>Monthly logs</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <p className="text-sm text-muted-foreground">
+              <Body size="sm" tone="muted">
                 View or create monthly logs for this unit to track rent and expenses.
-              </p>
+              </Body>
               <div className="flex gap-2">
                 <Link href={`/monthly-logs?unitId=${unit.id}`}>
                   <Button variant="outline" size="sm">Open monthly logs</Button>
@@ -354,10 +443,10 @@ export default function UnitDetailsPage({ params }: { params: Promise<{ id: stri
               <CardTitle>Inspections</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <p className="text-sm text-muted-foreground">
+              <Body size="sm" tone="muted">
                 Schedule or log inspections for this unit. Inspection scheduling will sync once the
                 calendar write API is available.
-              </p>
+              </Body>
               <Button variant="outline" size="sm" asChild>
                 <Link href={`/calendar?prefillUnit=${unit.id}`}>Go to calendar</Link>
               </Button>
@@ -370,9 +459,9 @@ export default function UnitDetailsPage({ params }: { params: Promise<{ id: stri
               <CardTitle>Appliances</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <p className="text-sm text-muted-foreground">
+              <Body size="sm" tone="muted">
                 Track appliances for this unit once the inventory module is connected.
-              </p>
+              </Body>
               <Button size="sm" variant="outline" disabled>
                 Inventory module pending
               </Button>

@@ -5,6 +5,7 @@ import { Wallet, AlertCircle, TrendingUp, TrendingDown, ListChecks } from 'lucid
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/components/ui/utils';
 import { toast } from 'sonner';
+import { Body, Heading, Label } from '@/ui/typography';
 
 interface OwnerDrawStageProps {
   monthlyLogId: string;
@@ -115,7 +116,9 @@ export default function OwnerDrawStage({ monthlyLogId }: OwnerDrawStageProps) {
         <CardContent>
           <div className="flex items-center gap-2 rounded-lg bg-red-50 p-4 text-red-600">
             <AlertCircle className="h-5 w-5" />
-            <p>{error || 'Failed to load owner draw data'}</p>
+            <Body as="p" size="sm">
+              {error || 'Failed to load owner draw data'}
+            </Body>
           </div>
         </CardContent>
       </Card>
@@ -151,24 +154,26 @@ export default function OwnerDrawStage({ monthlyLogId }: OwnerDrawStageProps) {
         <CardContent>
           <div className="space-y-6">
             <div className="rounded-lg bg-slate-100 p-4">
-              <p className="text-sm font-medium text-slate-700">
+              <Body as="p" size="sm" className="text-slate-700">
                 Total of transactions coded to the &ldquo;Owner Draw&rdquo; GL account.
-              </p>
-              <p className="mt-1 text-xs text-slate-600">
+              </Body>
+              <Body as="p" size="xs" tone="muted" className="mt-1">
                 Update the GL assignment on transaction lines to change this total.
-              </p>
+              </Body>
             </div>
 
             {/* Owner Draw Result */}
             <div className={cn('rounded-lg p-6', isPositiveDraw ? 'bg-green-50' : 'bg-red-50')}>
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-slate-700">Owner Draw</p>
-                  <p className="mt-1 text-xs text-slate-600">
+                  <Body as="p" size="sm" className="text-slate-700">
+                    Owner Draw
+                  </Body>
+                  <Body as="p" size="xs" tone="muted" className="mt-1">
                     {isPositiveDraw
                       ? 'Amount available for distribution'
                       : 'Additional funds needed'}
-                  </p>
+                  </Body>
                 </div>
                 <div className="flex items-center gap-2">
                   {isPositiveDraw ? (
@@ -176,14 +181,13 @@ export default function OwnerDrawStage({ monthlyLogId }: OwnerDrawStageProps) {
                   ) : (
                     <TrendingDown className="h-6 w-6 text-red-600" />
                   )}
-                  <p
-                    className={cn(
-                      'text-3xl font-bold',
-                      isPositiveDraw ? 'text-green-600' : 'text-red-600',
-                    )}
+                  <Heading
+                    as="p"
+                    size="h3"
+                    className={cn(isPositiveDraw ? 'text-green-600' : 'text-red-600')}
                   >
                     {formatCurrency(Math.abs(data.ownerDraw))}
-                  </p>
+                  </Heading>
                 </div>
               </div>
             </div>
@@ -192,35 +196,42 @@ export default function OwnerDrawStage({ monthlyLogId }: OwnerDrawStageProps) {
             <div className="space-y-3">
               <div className="flex items-center gap-2">
                 <ListChecks className="h-4 w-4 text-slate-600" />
-                <h4 className="text-sm font-semibold text-slate-700">Owner Draw Transactions</h4>
+                <Heading as="h4" size="h6" className="text-slate-700">
+                  Owner Draw Transactions
+                </Heading>
               </div>
 
               {data.transactions.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-slate-300 p-4 text-sm text-slate-600">
+                <Body
+                  as="div"
+                  size="sm"
+                  tone="muted"
+                  className="rounded-lg border border-dashed border-slate-300 p-4 text-slate-600"
+                >
                   No owner draw transactions have been assigned to this log.
-                </div>
+                </Body>
               ) : (
                 <div className="divide-y rounded-lg border border-slate-300">
                   {data.transactions.map((transaction) => (
                     <div
                       key={transaction.transactionLineId}
-                      className="flex items-center justify-between px-4 py-3 text-sm"
-                    >
-                      <div className="min-w-0">
-                        <p className="font-medium text-slate-700">
-                          {formatDate(transaction.date)}
-                        </p>
-                        <p className="truncate text-xs text-slate-600">
-                          {transaction.memo || 'Owner Draw'}
-                        </p>
-                      </div>
-                      <p className="font-semibold text-slate-900">
-                        {formatCurrency(transaction.amount)}
-                      </p>
+                    className="flex items-center justify-between px-4 py-3 text-sm"
+                  >
+                    <div className="min-w-0">
+                      <Label as="p" size="sm" className="text-slate-700">
+                        {formatDate(transaction.date)}
+                      </Label>
+                      <Body as="p" size="xs" tone="muted" className="truncate">
+                        {transaction.memo || 'Owner Draw'}
+                      </Body>
                     </div>
-                  ))}
-                </div>
-              )}
+                    <Heading as="p" size="h6">
+                      {formatCurrency(transaction.amount)}
+                    </Heading>
+                  </div>
+                ))}
+              </div>
+            )}
             </div>
           </div>
         </CardContent>
@@ -233,46 +244,48 @@ export default function OwnerDrawStage({ monthlyLogId }: OwnerDrawStageProps) {
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            <p className="text-sm text-slate-600">
+            <Body as="p" size="sm" tone="muted" className="text-slate-600">
               Calculated using the updated formula:
               <br />
-              <span className="font-semibold">
+              <Heading as="span" size="h6" className="text-foreground">
                 Previous Net to Owner + Payments – Bills – Escrow – Management Fees – Owner Draw
-              </span>
-            </p>
+              </Heading>
+            </Body>
 
             <div className="rounded-lg bg-slate-100 p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-slate-700">Net to Owner</p>
-                  <p className="mt-1 text-xs text-slate-600">
+                  <Body as="p" size="sm" className="text-slate-700">
+                    Net to Owner
+                  </Body>
+                  <Body as="p" size="xs" tone="muted" className="mt-1">
                     Reflects prior balance plus this month&apos;s activity.
-                  </p>
+                  </Body>
                 </div>
-                <p
-                  className={cn(
-                    'text-2xl font-bold',
-                    isPositiveNet ? 'text-green-600' : 'text-red-600',
-                  )}
+                <Heading
+                  as="p"
+                  size="h4"
+                  className={cn(isPositiveNet ? 'text-green-600' : 'text-red-600')}
                 >
                   {formatCurrency(Math.abs(data.netToOwner))}
-                </p>
+                </Heading>
               </div>
             </div>
 
-            <div className="space-y-2 rounded-lg border border-slate-100 p-4 text-sm">
+            <div className="space-y-2 rounded-lg border border-slate-100 p-4">
               {netBreakdown.map((item) => (
                 <div key={item.label} className="flex items-center justify-between">
-                  <span className="text-slate-600">{item.label}</span>
-                  <span
-                    className={cn(
-                      'font-medium',
-                      item.type === 'add' ? 'text-green-600' : 'text-red-600',
-                    )}
+                  <Body as="span" size="sm" tone="muted" className="text-slate-600">
+                    {item.label}
+                  </Body>
+                  <Heading
+                    as="span"
+                    size="h6"
+                    className={cn(item.type === 'add' ? 'text-green-600' : 'text-red-600')}
                   >
                     {item.type === 'add' ? '+' : '-'}
                     {formatCurrency(item.value)}
-                  </span>
+                  </Heading>
                 </div>
               ))}
             </div>

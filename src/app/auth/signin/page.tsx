@@ -7,6 +7,7 @@ import { useAuth } from '@/components/providers';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Body, Heading, Label } from '@/ui/typography';
 
 type OAuthProvider = 'github' | 'google';
 
@@ -17,9 +18,13 @@ const oauthProviderLabels: Record<OAuthProvider, string> = {
 
 function GoogleGlyph() {
   return (
-    <span className="mr-2 inline-flex h-5 w-5 items-center justify-center rounded border border-border bg-background text-sm font-semibold text-[#4285F4]">
+    <Label
+      as="span"
+      size="sm"
+      className="mr-2 inline-flex h-5 w-5 items-center justify-center rounded border border-border bg-background text-[#4285F4]"
+    >
       G
-    </span>
+    </Label>
   );
 }
 
@@ -106,7 +111,9 @@ function SignInForm() {
       <div className="bg-background flex min-h-screen items-center justify-center">
         <div className="text-center">
           <div className="border-primary mx-auto h-8 w-8 animate-spin rounded-full border-b-2"></div>
-          <p className="text-muted-foreground mt-2">Loading...</p>
+          <Body as="p" tone="muted" className="mt-2">
+            Loading...
+          </Body>
         </div>
       </div>
     );
@@ -116,17 +123,21 @@ function SignInForm() {
     <div className="bg-background flex min-h-screen items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
       <Card className="w-full max-w-md">
         <CardHeader className="pb-2">
-          <CardTitle className="text-center">Sign in to your account</CardTitle>
-          <p className="text-muted-foreground text-center text-sm">
+          <CardTitle>
+            <Heading as="h1" size="h3" className="text-center">
+              Sign in to your account
+            </Heading>
+          </CardTitle>
+          <Body as="p" size="sm" tone="muted" className="text-center">
             Welcome to Ora Property Management
-          </p>
+          </Body>
         </CardHeader>
         <CardContent>
           <form className="mt-6 space-y-4" onSubmit={handleCredentialsSubmit}>
             <div>
-              <label htmlFor="email" className="sr-only">
+              <Label htmlFor="email" className="sr-only">
                 Email address
-              </label>
+              </Label>
               <div className="relative">
                 <Input
                   id="email"
@@ -143,9 +154,9 @@ function SignInForm() {
             </div>
 
             <div>
-              <label htmlFor="password" className="sr-only">
+              <Label htmlFor="password" className="sr-only">
                 Password
-              </label>
+              </Label>
               <div className="relative">
                 <Input
                   id="password"
@@ -177,7 +188,9 @@ function SignInForm() {
                   messageType === 'success' ? 'text-success' : 'text-destructive'
                 }`}
               >
-                {message}
+                <Body as="p" size="sm" className="text-center">
+                  {message}
+                </Body>
               </div>
             )}
 
@@ -189,9 +202,14 @@ function SignInForm() {
           </form>
 
           <div className="bg-muted/50 mt-6 flex flex-col gap-2 rounded-md p-3">
-            <p className="text-muted-foreground text-center text-xs uppercase tracking-wide">
+            <Body
+              as="p"
+              size="sm"
+              tone="muted"
+              className="text-center uppercase tracking-wide"
+            >
               Or continue with
-            </p>
+            </Body>
             <div className="grid grid-cols-1 gap-2">
               <Button
                 type="button"
@@ -229,12 +247,12 @@ function SignInForm() {
           </div>
 
           <div className="mt-4 space-y-2 text-center">
-            <p className="text-muted-foreground text-sm">
-              Don't have an account?{' '}
+            <Body as="p" size="sm" tone="muted">
+              {"Don't have an account? "}
               <a href="/auth/signup" className="text-primary font-medium hover:underline">
                 Create one here
               </a>
-            </p>
+            </Body>
           </div>
         </CardContent>
       </Card>
@@ -249,7 +267,9 @@ export default function SignInPage() {
         <div className="bg-background flex min-h-screen items-center justify-center">
           <div className="text-center">
             <div className="border-primary mx-auto h-8 w-8 animate-spin rounded-full border-b-2"></div>
-            <p className="text-muted-foreground mt-2">Loading...</p>
+            <Body as="p" tone="muted" className="mt-2">
+              Loading...
+            </Body>
           </div>
         </div>
       }

@@ -7,12 +7,7 @@ import type { Database } from '@/types/database';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -32,6 +27,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { cn } from '@/components/ui/utils';
+import { Body, Heading } from '@/ui/typography';
 
 type GLAccount = Database['public']['Tables']['gl_accounts']['Row'];
 
@@ -411,12 +407,12 @@ export function ChartOfAccountsTable() {
                             </span>
                           ) : null}
                           {showInactive ? (
-                            <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
+                            <Badge variant="warning">
                               Inactive
                             </Badge>
                           ) : null}
                           {!showInactive && account.is_active ? (
-                            <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
+                            <Badge variant="success">
                               Active
                             </Badge>
                           ) : null}
@@ -503,14 +499,16 @@ export function ChartOfAccountsTable() {
             <>
               <DialogHeader>
                 <DialogTitle className="flex flex-col gap-1">
-                  <span className="text-xl font-semibold">{selectedAccount.name}</span>
-                  <span className="text-muted-foreground text-sm">
+                  <Heading as="p" size="h4">
+                    {selectedAccount.name}
+                  </Heading>
+                  <Body as="span" size="sm" tone="muted">
                     {selectedAccount.account_number ? `Acct #${selectedAccount.account_number} · ` : ''}
                     {normalizeType(selectedAccount.type)}
                     {selectedAccount.sub_type && selectedAccount.sub_type !== selectedAccount.type
                       ? ` • ${selectedAccount.sub_type}`
                       : ''}
-                  </span>
+                  </Body>
                 </DialogTitle>
               </DialogHeader>
 

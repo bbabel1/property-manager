@@ -3,6 +3,7 @@
 import React from 'react';
 import { Button, type ButtonProps } from './button';
 import { cn } from './utils';
+import { Label } from '@/ui/typography';
 
 type Props = Omit<ButtonProps, 'variant' | 'children'> & {
   label?: string;
@@ -23,11 +24,13 @@ export default function EditLink({
   return (
     <Button
       variant="link"
-      className={cn('px-1 text-sm font-semibold', className)}
+      className={cn('px-1', className)}
       aria-label={inferredAria}
       {...props}
     >
-      {content}
+      <Label as="span" size="sm">
+        {content}
+      </Label>
     </Button>
   );
 }

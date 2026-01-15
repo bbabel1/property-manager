@@ -16,6 +16,7 @@ import { Input } from '@/components/ui/input';
 import { DateInput } from '@/components/ui/date-input';
 import { Dropdown } from '@/components/ui/Dropdown';
 import { groupGlAccounts } from '@/lib/gl-accounts/grouping';
+import { Body, Heading, Label } from '@/ui/typography';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -1317,7 +1318,9 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
   return (
     <section className="relative">
       <div className="mb-2 flex items-center gap-2">
-        <h3 className="text-foreground text-base font-semibold">Leases</h3>
+        <Heading as="h3" size="h5">
+          Leases
+        </Heading>
         <AddLink onClick={navigateToAddLease} aria-label="Add lease" />
       </div>
       <Card>
@@ -1334,8 +1337,10 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
           <TableBody>
             {!leases || leases.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-muted-foreground text-sm">
-                  You don't have any leases for this unit right now.
+                <TableCell colSpan={5}>
+                  <Body as="div" size="sm" tone="muted">
+                    You don't have any leases for this unit right now.
+                  </Body>
                 </TableCell>
               </TableRow>
             ) : (
@@ -1347,23 +1352,31 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                     if (lease?.id != null) window.location.href = `/leases/${lease.id}`;
                   }}
                 >
-                  <TableCell className="text-foreground text-sm">{lease.status || '—'}</TableCell>
-                  <TableCell className="text-foreground text-sm">
-                    <span>
-                      {fmt(lease.lease_from_date)} – {fmt(lease.lease_to_date)}
-                    </span>
+                  <TableCell>
+                    <Body as="span" size="sm">
+                      {lease.status || '—'}
+                    </Body>
                   </TableCell>
-                  <TableCell className="text-foreground text-sm">
+                  <TableCell>
+                    <Body as="span" size="sm">
+                      {fmt(lease.lease_from_date)} – {fmt(lease.lease_to_date)}
+                    </Body>
+                  </TableCell>
+                  <TableCell>
                     {lease.tenant_name ? (
-                      <span className="text-foreground">{lease.tenant_name}</span>
+                      <Body as="span" size="sm">
+                        {lease.tenant_name}
+                      </Body>
                     ) : (
                       '—'
                     )}
                   </TableCell>
-                  <TableCell className="text-foreground text-sm">
-                    {fmtUsd(lease.rent_amount)}
+                  <TableCell>
+                    <Body as="span" size="sm">
+                      {fmtUsd(lease.rent_amount)}
+                    </Body>
                   </TableCell>
-                  <TableCell className="text-foreground text-sm">
+                  <TableCell>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <ActionButton onClick={(e) => e.stopPropagation()} />
@@ -1393,20 +1406,27 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                         {lease.buildium_lease_id && (
                           <>
                             <DropdownMenuSeparator />
-                            <div className="text-muted-foreground px-2 py-1.5 text-xs">
+                            <Body
+                              as="div"
+                              size="xs"
+                              tone="muted"
+                              className="px-2 py-1.5"
+                            >
                               Buildium ID: {lease.buildium_lease_id}
-                            </div>
+                            </Body>
                           </>
                         )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                     {leaseSyncError?.id === String(lease.id) ? (
-                      <p className="text-destructive mt-1 text-xs">{leaseSyncError.message}</p>
+                      <Body as="p" size="xs" className="mt-1 text-destructive">
+                        {leaseSyncError.message}
+                      </Body>
                     ) : null}
                     {lease.last_sync_error ? (
-                      <p className="text-destructive mt-1 text-xs">
+                      <Body as="p" size="xs" className="mt-1 text-destructive">
                         Last error: {lease.last_sync_error}
-                      </p>
+                      </Body>
                     ) : null}
                   </TableCell>
                 </TableRow>
@@ -1427,33 +1447,43 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
           <div className="flex flex-col gap-0">
             <div className="border-border flex flex-wrap items-center justify-between gap-3 border-b px-6 py-4">
               <div className="space-y-1">
-                <div className="text-xl font-semibold">Add lease</div>
+                <Heading as="div" size="h5">
+                  Add lease
+                </Heading>
                 {pendingCosigners.length > 0 && (
-                  <div className="text-muted-foreground text-xs">
+                  <Body as="div" size="xs" tone="muted">
                     {pendingCosigners.length} cosigner{pendingCosigners.length > 1 ? 's' : ''} added
-                  </div>
+                  </Body>
                 )}
               </div>
-              <label className="text-foreground mr-2 flex items-center gap-2 text-xs select-none">
+              <Label
+                as="label"
+                size="xs"
+                className="text-foreground mr-2 flex items-center gap-2 select-none"
+              >
                 <Checkbox
                   id="syncBuildiumOnSave"
                   checked={syncToBuildium}
                   onCheckedChange={(v) => setSyncToBuildium(Boolean(v))}
                 />
                 <span>Sync to Buildium on save</span>
-              </label>
+              </Label>
             </div>
             <div className="min-h-[320px] overflow-y-auto px-6 pb-8 pt-6">
               <div className="mx-auto max-w-5xl space-y-6">
             {/* Lease details (Property, Unit, Type, Dates) */}
             <div>
-              <h3 className="text-foreground mb-4 text-sm font-semibold">Lease details</h3>
+              <Heading as="h3" size="h6" className="mb-4">
+                Lease details
+              </Heading>
               <div className="w-full">
                 {/* Row 1: Property + Unit (compact widths) */}
                 {!hidePropertyUnitFields && (
                   <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-[minmax(20rem,40rem)_max-content]">
                     <div className="w-full sm:justify-self-start">
-                      <label className="mb-1 block text-xs">Property *</label>
+                      <Label as="label" size="xs" className="mb-1 block">
+                        Property *
+                      </Label>
                       <Dropdown
                         value={propertyId}
                         onChange={(v) => {
@@ -1471,7 +1501,9 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                       />
                     </div>
                     <div className="w-full sm:w-auto sm:justify-self-start">
-                      <label className="mb-1 block text-xs">Unit</label>
+                      <Label as="label" size="xs" className="mb-1 block">
+                        Unit
+                      </Label>
                       <Dropdown
                         value={unitId}
                         onChange={setUnitId}
@@ -1490,7 +1522,9 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                 {/* Row 2: Lease Type + Dates (compact date inputs) */}
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-[max-content_max-content_max-content]">
                   <div className="w-full sm:w-64">
-                    <label className="mb-1 block text-xs">Lease Type *</label>
+                    <Label as="label" size="xs" className="mb-1 block">
+                      Lease Type *
+                    </Label>
                     <Dropdown
                       value={leaseType}
                       onChange={setLeaseType}
@@ -1503,7 +1537,9 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                     />
                   </div>
                   <div className="w-full sm:w-fit sm:justify-self-start">
-                    <label className="mb-1 block text-xs">Start date *</label>
+                    <Label as="label" size="xs" className="mb-1 block">
+                      Start date *
+                    </Label>
                     <DateInput
                       value={from}
                       onChange={(nextValue) => {
@@ -1520,7 +1556,9 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                     />
                   </div>
                   <div className="w-full sm:w-fit sm:justify-self-start">
-                    <label className="mb-1 block text-xs">End date</label>
+                    <Label as="label" size="xs" className="mb-1 block">
+                      End date
+                    </Label>
                     <DateInput
                       value={to}
                       onChange={setTo}
@@ -1533,14 +1571,18 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
 
             {/* Lease contacts */}
             <div className="border-border bg-muted/30 rounded-md border p-4">
-              <h3 className="text-foreground mb-3 text-sm font-semibold">Lease Contacts</h3>
+              <Heading as="h3" size="h6" className="mb-3">
+                Lease Contacts
+              </Heading>
               <button
                 type="button"
-                className="text-primary inline-flex items-center gap-2 text-sm underline"
+                className="inline-flex items-center gap-2 underline"
                 onClick={() => setShowAddTenant(true)}
               >
                 <Plus className="text-muted-foreground h-4 w-4" />
-                Add tenant or cosigner
+                <Label as="span" size="sm" className="text-primary">
+                  Add tenant or cosigner
+                </Label>
               </button>
               {(pendingTenants.length > 0 || pendingCosigners.length > 0) && (
                 <div className="mt-3 space-y-2">
@@ -1550,28 +1592,36 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                       className="flex items-center justify-between rounded-md border px-4 py-3"
                     >
                       <div className="flex items-center gap-6">
-                        <div className="text-primary bg-muted flex h-8 w-8 items-center justify-center rounded-full border text-xs font-semibold">
-                          {(t.first_name?.[0] || '').toUpperCase()}
-                          {(t.last_name?.[0] || '').toUpperCase()}
+                        <div className="bg-muted flex h-8 w-8 items-center justify-center rounded-full border">
+                          <Label as="span" size="xs" className="font-semibold text-primary">
+                            {(t.first_name?.[0] || '').toUpperCase()}
+                            {(t.last_name?.[0] || '').toUpperCase()}
+                          </Label>
                         </div>
-                        <div className="grid grid-cols-3 gap-6 text-sm">
+                        <div className="grid grid-cols-3 gap-6">
                           <div>
-                            <div className="text-muted-foreground text-xs uppercase">Tenant</div>
-                            <div className="text-foreground">
+                            <Label size="xs" tone="muted" className="uppercase">
+                              Tenant
+                            </Label>
+                            <Body as="div" size="sm">
                               {t.first_name} {t.last_name}
-                            </div>
+                            </Body>
                           </div>
                           <div>
-                            <div className="text-muted-foreground text-xs uppercase">
+                            <Label size="xs" tone="muted" className="uppercase">
                               Email address
-                            </div>
-                            <div className="text-foreground">{t.email || '—'}</div>
+                            </Label>
+                            <Body as="div" size="sm">
+                              {t.email || '—'}
+                            </Body>
                           </div>
                           <div>
-                            <div className="text-muted-foreground text-xs uppercase">
+                            <Label size="xs" tone="muted" className="uppercase">
                               Mobile phone
-                            </div>
-                            <div className="text-foreground">{t.phone || '—'}</div>
+                            </Label>
+                            <Body as="div" size="sm">
+                              {t.phone || '—'}
+                            </Body>
                           </div>
                         </div>
                       </div>
@@ -1591,28 +1641,36 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                       className="flex items-center justify-between rounded-md border px-4 py-3"
                     >
                       <div className="flex items-center gap-6">
-                        <div className="text-primary bg-muted flex h-8 w-8 items-center justify-center rounded-full border text-xs font-semibold">
-                          {(t.first_name?.[0] || '').toUpperCase()}
-                          {(t.last_name?.[0] || '').toUpperCase()}
+                        <div className="bg-muted flex h-8 w-8 items-center justify-center rounded-full border">
+                          <Label as="span" size="xs" className="font-semibold text-primary">
+                            {(t.first_name?.[0] || '').toUpperCase()}
+                            {(t.last_name?.[0] || '').toUpperCase()}
+                          </Label>
                         </div>
-                        <div className="grid grid-cols-3 gap-6 text-sm">
+                        <div className="grid grid-cols-3 gap-6">
                           <div>
-                            <div className="text-muted-foreground text-xs uppercase">Cosigner</div>
-                            <div className="text-foreground">
+                            <Label size="xs" tone="muted" className="uppercase">
+                              Cosigner
+                            </Label>
+                            <Body as="div" size="sm">
                               {t.first_name} {t.last_name}
-                            </div>
+                            </Body>
                           </div>
                           <div>
-                            <div className="text-muted-foreground text-xs uppercase">
+                            <Label size="xs" tone="muted" className="uppercase">
                               Email address
-                            </div>
-                            <div className="text-foreground">{t.email || '—'}</div>
+                            </Label>
+                            <Body as="div" size="sm">
+                              {t.email || '—'}
+                            </Body>
                           </div>
                           <div>
-                            <div className="text-muted-foreground text-xs uppercase">
+                            <Label size="xs" tone="muted" className="uppercase">
                               Mobile phone
-                            </div>
-                            <div className="text-foreground">{t.phone || '—'}</div>
+                            </Label>
+                            <Body as="div" size="sm">
+                              {t.phone || '—'}
+                            </Body>
                           </div>
                         </div>
                       </div>
@@ -1634,16 +1692,21 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
 
             {/* Rent */}
             <div>
-              <h3 className="text-foreground mb-3 text-sm font-semibold">
-                Rent <span className="text-muted-foreground font-normal">(optional)</span>
-              </h3>
+              <Heading as="h3" size="h6" className="mb-3">
+                Rent{' '}
+                <Body as="span" size="xs" tone="muted">
+                  (optional)
+                </Body>
+              </Heading>
               {glAccountsError ? (
-                <p className="text-destructive mb-2 text-xs">
+                <Body as="p" size="xs" className="mb-2 text-destructive">
                   Failed to load GL accounts: {glAccountsError}
-                </p>
+                </Body>
               ) : null}
               <div className="mb-4 sm:w-64">
-                <label className="mb-1 block text-xs">Rent cycle</label>
+                <Label as="label" size="xs" className="mb-1 block">
+                  Rent cycle
+                </Label>
                 <Dropdown
                   value={rentCycle}
                   onChange={(value) => setRentCycle(value as RentFrequency)}
@@ -1660,7 +1723,9 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                 <div className="border-l-4 border-l-blue-500 px-4 py-3">
                   <div className={rentGridClass}>
                     <div>
-                      <label className="mb-1 block text-xs">Amount</label>
+                      <Label as="label" size="xs" className="mb-1 block">
+                        Amount
+                      </Label>
                       <Input
                         inputMode="decimal"
                         placeholder="$0.00"
@@ -1676,9 +1741,9 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                       />
                     </div>
                     <div>
-                      <label className="mb-1 block text-xs">
+                      <Label as="label" size="xs" className="mb-1 block">
                         {requiresRentAccount ? 'Account *' : 'Account (optional)'}
-                      </label>
+                      </Label>
                       <Dropdown
                         value={rentGlAccountId}
                         onChange={setRentGlAccountId}
@@ -1687,14 +1752,14 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                         className="sm:w-[12rem]"
                       />
                       {showRentAccountEmptyState ? (
-                        <p className="text-muted-foreground mt-1 text-xs">
+                        <Body as="p" size="xs" tone="muted" className="mt-1">
                           No income GL accounts available. Rent will be saved without linking an
                           account.
-                        </p>
+                        </Body>
                       ) : null}
                     </div>
                     <div className="w-full sm:w-fit sm:justify-self-start">
-                      <label className="mb-1 block text-xs">Next due date *</label>
+                      <Label as="label" size="xs" className="mb-1 block">Next due date *</Label>
                       <DateInput
                         value={nextDueDate}
                         onChange={setNextDueDate}
@@ -1703,7 +1768,7 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                       />
                     </div>
                     <div className="w-full sm:w-fit sm:justify-self-start">
-                      <label className="mb-1 block text-xs">Due day *</label>
+                      <Label as="label" size="xs" className="mb-1 block">Due day *</Label>
                       <Dropdown
                         value={paymentDueDay}
                         onChange={(value) => setPaymentDueDay(String(value))}
@@ -1713,7 +1778,7 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                       />
                     </div>
                     <div>
-                      <label className="mb-1 block text-xs">Memo</label>
+                      <Label as="label" size="xs" className="mb-1 block">Memo</Label>
                       <Input
                         placeholder={'If left blank, will show "Rent"'}
                         value={rentMemo}
@@ -1741,22 +1806,24 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
               if (!(rentNum > 0) || (!showFirst && !showLast)) return null;
               return (
                 <div className="border-border bg-muted/30 rounded-md border p-4">
-                  <h3 className="text-foreground mb-3 text-sm font-semibold">Rent proration</h3>
+                  <Heading as="h3" size="h6" className="mb-3">
+                    Rent proration
+                  </Heading>
                   <div className="flex items-start gap-10">
                     {showFirst && (
                       <div>
-                        <label className="flex items-center gap-2 text-sm">
+                        <Label as="label" size="sm" className="flex items-center gap-2">
                           <Checkbox
                             checked={prorateFirstMonth}
                             onCheckedChange={(v) => setProrateFirstMonth(Boolean(v))}
                           />
                           Prorate first month's rent
-                        </label>
+                        </Label>
                         {prorateFirstMonth && (
                           <div className="mt-3 sm:w-64">
-                            <label className="mb-1 block text-xs">
+                            <Label as="label" size="xs" className="mb-1 block">
                               First month's rent ({firstProrationDays} days)
-                            </label>
+                            </Label>
                             <Input
                               readOnly
                               value={
@@ -1769,18 +1836,18 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                     )}
                     {showLast && (
                       <div>
-                        <label className="flex items-center gap-2 text-sm">
+                        <Label as="label" size="sm" className="flex items-center gap-2">
                           <Checkbox
                             checked={prorateLastMonth}
                             onCheckedChange={(v) => setProrateLastMonth(Boolean(v))}
                           />
                           Prorate last month's rent
-                        </label>
+                        </Label>
                         {prorateLastMonth && (
                           <div className="mt-3 sm:w-64">
-                            <label className="mb-1 block text-xs">
+                            <Label as="label" size="xs" className="mb-1 block">
                               Last month's rent ({lastProrationDays} days)
-                            </label>
+                            </Label>
                             <Input
                               readOnly
                               value={lastProrationAmount != null ? fmtUsd(lastProrationAmount) : ''}
@@ -1798,15 +1865,17 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
 
             {/* Security deposit */}
             <div>
-              <h3 className="text-foreground mb-3 text-sm font-semibold">
+              <Heading as="h3" size="h6" className="mb-3">
                 Security deposit{' '}
-                <span className="text-muted-foreground font-normal">(optional)</span>
-              </h3>
+                <Body as="span" size="xs" tone="muted">
+                  (optional)
+                </Body>
+              </Heading>
               <div className="overflow-hidden rounded-lg border border-blue-200 bg-blue-50/30">
                 <div className="border-l-4 border-l-blue-500 px-4 py-3">
                   <div className={depositGridClass}>
                     <div>
-                      <label className="mb-1 block text-xs">Amount</label>
+                      <Label as="label" size="xs" className="mb-1 block">Amount</Label>
                       <Input
                         inputMode="decimal"
                         placeholder="$0.00"
@@ -1820,7 +1889,7 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                     </div>
                     {!hideDepositAccountMemoFields && (
                       <div>
-                        <label className="mb-1 block text-xs">Account *</label>
+                        <Label as="label" size="xs" className="mb-1 block">Account *</Label>
                         <Dropdown
                           value={depositGlAccountId}
                           onChange={setDepositGlAccountId}
@@ -1831,7 +1900,7 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                       </div>
                     )}
                     <div className="w-full sm:w-fit sm:justify-self-start">
-                      <label className="mb-1 block text-xs">Next due date *</label>
+                      <Label as="label" size="xs" className="mb-1 block">Next due date *</Label>
                       <DateInput
                         value={depositDate}
                         onChange={setDepositDate}
@@ -1841,7 +1910,7 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                     </div>
                     {!hideDepositAccountMemoFields && (
                       <div>
-                        <label className="mb-1 block text-xs">Memo</label>
+                        <Label as="label" size="xs" className="mb-1 block">Memo</Label>
                         <Input
                           placeholder="Optional memo"
                           value={depositMemo}
@@ -1852,28 +1921,33 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                   </div>
                 </div>
               </div>
-              <p className="text-muted-foreground mt-2 text-xs">
+              <Body as="p" size="xs" tone="muted" className="mt-2">
                 Don't forget to record the payment once you have collected the deposit.
-              </p>
+              </Body>
             </div>
 
             {/* Section separator removed – using bordered cards instead */}
 
             {/* Charges */}
             <div className="border-border bg-muted/30 rounded-md border p-4">
-              <h3 className="text-foreground mb-3 text-sm font-semibold">
-                Charges <span className="text-muted-foreground font-normal">(optional)</span>
-              </h3>
-              <p className="text-muted-foreground mb-4 text-sm">
+              <Heading as="h3" size="h6" className="mb-3">
+                Charges{' '}
+                <Body as="span" size="xs" tone="muted">
+                  (optional)
+                </Body>
+              </Heading>
+              <Body as="p" size="sm" tone="muted" className="mb-4">
                 Create charges for tenants that are part of this lease
-              </p>
+              </Body>
 
               <div className="space-y-3">
                 {extraRecurring.map((row, idx) => (
                   <div key={`rc-${idx}`} className="overflow-hidden rounded-md border">
                     <div className="border-l-4 border-l-blue-500 px-4 py-3">
                       <div className="flex items-start justify-between">
-                        <div className="text-foreground mb-2 text-sm font-medium">Recurring</div>
+                        <Label as="div" size="sm" className="mb-2 font-medium">
+                          Recurring
+                        </Label>
                         <button
                           type="button"
                           aria-label="Remove recurring charge"
@@ -1887,7 +1961,7 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                       </div>
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,16rem)_minmax(0,12rem)_minmax(0,9rem)_minmax(0,16rem)]">
                         <div>
-                          <label className="mb-1 block text-xs">Account *</label>
+                          <Label as="label" size="xs" className="mb-1 block">Account *</Label>
                           <Dropdown
                             value={row.gl_account_id}
                             onChange={(v) =>
@@ -1917,7 +1991,7 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                           />
                         </div>
                         <div>
-                          <label className="mb-1 block text-xs">Next due date *</label>
+                          <Label as="label" size="xs" className="mb-1 block">Next due date *</Label>
                           <DateInput
                             value={row.start_date}
                             onChange={(nextValue) =>
@@ -1930,7 +2004,7 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                           />
                         </div>
                         <div>
-                          <label className="mb-1 block text-xs">Amount</label>
+                          <Label as="label" size="xs" className="mb-1 block">Amount</Label>
                           <Input
                             placeholder="$0.00"
                             value={row.amount}
@@ -1944,7 +2018,7 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                           />
                         </div>
                         <div>
-                          <label className="mb-1 block text-xs">Memo</label>
+                          <Label as="label" size="xs" className="mb-1 block">Memo</Label>
                           <Input
                             placeholder="Optional memo"
                             value={row.memo}
@@ -1960,7 +2034,7 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                       </div>
                       <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,16rem)]">
                         <div>
-                          <label className="mb-1 block text-xs">Frequency *</label>
+                          <Label as="label" size="xs" className="mb-1 block">Frequency *</Label>
                           <Dropdown
                             value={row.frequency}
                             onChange={(v) =>
@@ -1991,7 +2065,9 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                   <div key={`ot-${idx}`} className="overflow-hidden rounded-md border">
                     <div className="border-l-4 border-l-blue-500 px-4 py-3">
                       <div className="flex items-start justify-between">
-                        <div className="text-foreground mb-2 text-sm font-medium">One-time</div>
+                        <Label as="div" size="sm" className="mb-2 font-medium">
+                          One-time
+                        </Label>
                         <button
                           type="button"
                           aria-label="Remove one-time charge"
@@ -2005,7 +2081,7 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                       </div>
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,16rem)_minmax(0,12rem)_minmax(0,9rem)_minmax(0,1fr)]">
                         <div>
-                          <label className="mb-1 block text-xs">Account *</label>
+                          <Label as="label" size="xs" className="mb-1 block">Account *</Label>
                           <Dropdown
                             value={row.gl_account_id}
                             onChange={(v) =>
@@ -2035,7 +2111,7 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                           />
                         </div>
                         <div>
-                          <label className="mb-1 block text-xs">Due date *</label>
+                          <Label as="label" size="xs" className="mb-1 block">Due date *</Label>
                           <DateInput
                             value={row.date}
                             onChange={(nextValue) =>
@@ -2046,7 +2122,7 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                           />
                         </div>
                         <div>
-                          <label className="mb-1 block text-xs">Amount</label>
+                          <Label as="label" size="xs" className="mb-1 block">Amount</Label>
                           <Input
                             placeholder="$0.00"
                             value={row.amount}
@@ -2060,7 +2136,7 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                           />
                         </div>
                         <div>
-                          <label className="mb-1 block text-xs">Memo</label>
+                          <Label as="label" size="xs" className="mb-1 block">Memo</Label>
                           <Input
                             placeholder="Optional memo"
                             value={row.memo}
@@ -2079,7 +2155,7 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                 ))}
               </div>
 
-              <div className="text-primary mt-3 flex items-center gap-4 text-sm">
+              <Body as="div" size="sm" className="text-primary mt-3 flex items-center gap-4">
                 <button
                   type="button"
                   className="underline"
@@ -2116,13 +2192,13 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                 >
                   + Add one-time charge
                 </button>
-              </div>
+              </Body>
               <div className="mt-4">
-                <label className="mb-1 block text-xs">Lease Charges</label>
+                <Label as="label" size="xs" className="mb-1 block">Lease Charges</Label>
                 <textarea
                   value={leaseCharges}
                   onChange={(e) => setLeaseCharges(e.target.value)}
-                  className="border-border bg-background text-foreground placeholder:text-muted-foreground focus-visible:ring-primary/40 min-h-[100px] w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:outline-none"
+                  className="border-border bg-background placeholder:text-muted-foreground focus-visible:ring-primary/40 min-h-[100px] w-full rounded-md border px-3 py-2 focus-visible:ring-2 focus-visible:outline-none"
                   placeholder="Describe recurring or one-time charges beyond base rent…"
                 />
               </div>
@@ -2134,20 +2210,22 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
             <div className="border-border bg-muted/30 rounded-md border p-4">
               <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <h3 className="text-foreground text-sm font-medium">
+                  <Heading as="h3" size="h6">
                     Lease documents{' '}
-                    <span className="text-muted-foreground font-normal">(optional)</span>
-                  </h3>
-                  <p className="text-muted-foreground text-xs">
+                    <Body as="span" size="xs" tone="muted">
+                      (optional)
+                    </Body>
+                  </Heading>
+                  <Body as="p" size="xs" tone="muted">
                     Upload up to 10 documents (PDF or images). Files upload automatically once the
                     lease is saved.
-                  </p>
+                  </Body>
                 </div>
                 {pendingLeaseFiles.length ? (
-                  <span className="text-muted-foreground text-xs">
+                  <Body as="span" size="xs" tone="muted">
                     {pendingLeaseFiles.length} file{pendingLeaseFiles.length === 1 ? '' : 's'}{' '}
                     attached
-                  </span>
+                  </Body>
                 ) : null}
               </div>
               <input
@@ -2176,12 +2254,12 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                   event.preventDefault();
                   handleLeaseFileSelection(event.dataTransfer.files);
                 }}
-                className={`border-muted-foreground/40 bg-muted/40 hover:border-primary hover:text-primary flex h-32 cursor-pointer flex-col items-center justify-center rounded-md border border-dashed text-sm transition ${pendingLeaseFiles.length ? 'bg-background' : ''}`}
+                className={`border-muted-foreground/40 bg-muted/40 hover:border-primary hover:text-primary flex h-32 cursor-pointer flex-col items-center justify-center rounded-md border border-dashed transition ${pendingLeaseFiles.length ? 'bg-background' : ''}`}
               >
                 <UploadCloud className="text-muted-foreground mb-2 h-6 w-6" />
-                <div className="text-muted-foreground text-center">
+                <Body as="div" size="sm" tone="muted" className="text-center">
                   Drag & drop files here or <span className="underline">Browse</span>
-                </div>
+                </Body>
               </label>
 
               {pendingLeaseFiles.length ? (
@@ -2189,11 +2267,13 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                   {pendingLeaseFiles.map((file) => (
                     <div
                       key={file.id}
-                      className="border-border bg-background flex items-start justify-between rounded-md border px-3 py-2 text-sm"
+                      className="border-border bg-background flex items-start justify-between rounded-md border px-3 py-2"
                     >
                       <div className="flex flex-col">
-                        <span className="text-foreground font-medium break-all">{file.name}</span>
-                        <span className="text-muted-foreground text-xs">
+                        <Body as="span" size="sm" className="font-medium break-all">
+                          {file.name}
+                        </Body>
+                        <Body as="span" size="xs" tone="muted">
                           {formatFileSize(file.size)}
                           {file.status === 'uploading' && ' • Uploading…'}
                           {file.status === 'uploaded' && ' • Uploaded'}
@@ -2205,7 +2285,7 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                               </span>
                             </>
                           )}
-                        </span>
+                        </Body>
                       </div>
                       <div className="flex items-center gap-2">
                         {file.status === 'uploading' ? (
@@ -2230,10 +2310,10 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                   ))}
                 </div>
               ) : (
-                <p className="text-muted-foreground mt-3 text-xs">
+                <Body as="p" size="xs" tone="muted" className="mt-3">
                   Supported formats include PDF and common image types. Maximum size 25 MB per
                   document.
-                </p>
+                </Body>
               )}
             </div>
 
@@ -2242,26 +2322,30 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
             {/* Welcome email toggle */}
             <div className="border-border bg-muted/30 rounded-md border p-4">
               <div className="mb-3 flex items-center justify-between">
-                <h3 className="text-foreground text-sm font-semibold">
+                <Heading as="h3" size="h6">
                   Resident Center Welcome Email
-                </h3>
+                </Heading>
                 <div className="flex items-center gap-2">
-                  <span className="text-muted-foreground text-xs select-none">
+                  <Body as="span" size="xs" tone="muted" className="select-none">
                     {sendWelcomeEmail ? 'ON' : 'OFF'}
-                  </span>
+                  </Body>
                   <Switch
                     checked={sendWelcomeEmail}
                     onCheckedChange={(v) => setSendWelcomeEmail(Boolean(v))}
                   />
                 </div>
               </div>
-              <p className="text-muted-foreground text-sm">
+              <Body as="p" size="sm" tone="muted">
                 We'll send a welcome email to anyone without Resident Center access. Once they sign
                 in, they can make online payments, view important documents, submit requests, and
                 more!
-              </p>
+              </Body>
                 </div>
-                {error ? <div className="text-destructive text-sm">{error}</div> : null}
+                {error ? (
+                  <Body as="div" size="sm" className="text-destructive">
+                    {error}
+                  </Body>
+                ) : null}
                 <div className="border-border flex flex-col gap-2 border-t pt-6 sm:flex-row sm:items-center sm:justify-start">
                   <Button variant="cancel" size="sm" onClick={closeLeaseDialog}>
                     Cancel
@@ -2298,13 +2382,13 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                       checked={chooseExisting}
                       onCheckedChange={(v) => setChooseExisting(Boolean(v))}
                     />
-                    <label htmlFor="existing" className="text-foreground text-sm">
+                    <Label as="label" htmlFor="existing" size="sm" className="text-foreground">
                       Choose existing tenant or applicant
-                    </label>
+                    </Label>
                   </div>
-                  <div className="text-muted-foreground text-xs">
+                  <Body as="div" size="xs" tone="muted">
                     {selectedExistingTenantIds.length} selected
-                  </div>
+                  </Body>
                 </div>
 
                 {chooseExisting && (
@@ -2327,8 +2411,10 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                         <TableBody>
                           {!results.length && (
                             <TableRow>
-                              <TableCell colSpan={4} className="text-muted-foreground text-sm">
-                                {searching ? 'Searching…' : 'No results'}
+                              <TableCell colSpan={4}>
+                                <Body as="div" size="sm" tone="muted">
+                                  {searching ? 'Searching…' : 'No results'}
+                                </Body>
                               </TableCell>
                             </TableRow>
                           )}
@@ -2356,11 +2442,17 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                                     }}
                                   />
                                 </TableCell>
-                                <TableCell className="text-primary text-sm underline">
-                                  {r.name}
+                                <TableCell className="underline">
+                                  <Label as="span" size="sm" className="text-primary">
+                                    {r.name}
+                                  </Label>
                                 </TableCell>
-                                <TableCell className="text-sm">{r.email || '—'}</TableCell>
-                                <TableCell className="text-sm">Tenant</TableCell>
+                                <TableCell>
+                                  <Body as="div" size="sm">{r.email || '—'}</Body>
+                                </TableCell>
+                                <TableCell>
+                                  <Body as="div" size="sm">Tenant</Body>
+                                </TableCell>
                               </TableRow>
                             );
                           })}
@@ -2384,13 +2476,13 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
 
                 {!chooseExisting && (
                   <div className="overflow-hidden rounded-md border">
-                    <div className="bg-muted px-4 py-2 text-sm font-medium">
+                    <Label as="div" size="sm" className="bg-muted px-4 py-2 font-medium">
                       Contact information
-                    </div>
+                    </Label>
                     <div className="space-y-3 p-4">
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                         <div>
-                          <label className="mb-1 block text-xs">First name *</label>
+                          <Label as="label" size="xs" className="mb-1 block">First name *</Label>
                           <Input
                             placeholder="First name"
                             value={tenantFirstName}
@@ -2398,7 +2490,7 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                           />
                         </div>
                         <div>
-                          <label className="mb-1 block text-xs">Last name *</label>
+                          <Label as="label" size="xs" className="mb-1 block">Last name *</Label>
                           <Input
                             placeholder="Last name"
                             value={tenantLastName}
@@ -2408,7 +2500,7 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                       </div>
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                         <div>
-                          <label className="mb-1 block text-xs">Mobile phone number</label>
+                          <Label as="label" size="xs" className="mb-1 block">Mobile phone number</Label>
                           <Input
                             placeholder="(555) 555-5555"
                             value={tenantPhone}
@@ -2420,13 +2512,13 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                             <button
                               type="button"
                               onClick={() => setShowAltPhone(true)}
-                              className="text-primary text-sm underline"
+                              className="text-primary underline"
                             >
-                              + Add alternate phone
+                              <Body as="span" size="sm">+ Add alternate phone</Body>
                             </button>
                           ) : (
                             <div className="w-full">
-                              <label className="mb-1 block text-xs">Alternate phone</label>
+                              <Label as="label" size="xs" className="mb-1 block">Alternate phone</Label>
                               <div className="flex items-center gap-2">
                                 <Input
                                   placeholder="(555) 555-1234"
@@ -2435,13 +2527,13 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                                 />
                                 <button
                                   type="button"
-                                  className="text-primary text-sm whitespace-nowrap underline"
+                                  className="text-primary whitespace-nowrap underline"
                                   onClick={() => {
                                     setShowAltPhone(false);
                                     setAltPhone('');
                                   }}
                                 >
-                                  × Remove
+                                  <Body as="span" size="sm">× Remove</Body>
                                 </button>
                               </div>
                             </div>
@@ -2450,7 +2542,7 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                       </div>
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                         <div>
-                          <label className="mb-1 block text-xs">Email</label>
+                          <Label as="label" size="xs" className="mb-1 block">Email</Label>
                           <Input
                             type="email"
                             placeholder="name@email.com"
@@ -2463,13 +2555,13 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                             <button
                               type="button"
                               onClick={() => setShowAltEmail(true)}
-                              className="text-primary text-sm underline"
+                              className="text-primary underline"
                             >
-                              + Add alternate email
+                              <Body as="span" size="sm">+ Add alternate email</Body>
                             </button>
                           ) : (
                             <div className="w-full">
-                              <label className="mb-1 block text-xs">Alternate email</label>
+                              <Label as="label" size="xs" className="mb-1 block">Alternate email</Label>
                               <div className="flex items-center gap-2">
                                 <Input
                                   type="email"
@@ -2479,13 +2571,13 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                                 />
                                 <button
                                   type="button"
-                                  className="text-primary text-sm whitespace-nowrap underline"
+                                  className="text-primary whitespace-nowrap underline"
                                   onClick={() => {
                                     setShowAltEmail(false);
                                     setAltEmail('');
                                   }}
                                 >
-                                  × Remove
+                                  <Body as="span" size="sm">× Remove</Body>
                                 </button>
                               </div>
                             </div>
@@ -2498,7 +2590,9 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
 
                 {!chooseExisting && (
                   <div className="overflow-hidden rounded-md border">
-                    <div className="bg-muted px-4 py-2 text-sm font-medium">Address *</div>
+                    <Label as="div" size="sm" className="bg-muted px-4 py-2 font-medium">
+                      Address *
+                    </Label>
                     <div className="space-y-3 p-4">
                       <div className="flex items-center gap-2">
                         <Checkbox
@@ -2506,14 +2600,14 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                           checked={sameAsUnitAddress}
                           onCheckedChange={(v) => setSameAsUnitAddress(Boolean(v))}
                         />
-                        <label htmlFor="sameaddr" className="text-sm">
+                        <Label as="label" htmlFor="sameaddr" size="sm">
                           Same as unit address
-                        </label>
+                        </Label>
                       </div>
                       {!sameAsUnitAddress && (
                         <div className="space-y-3">
                           <div>
-                            <label className="mb-1 block text-xs">Street Address *</label>
+                            <Label as="label" size="xs" className="mb-1 block">Street Address *</Label>
                             <Input
                               value={addr1}
                               onChange={(e) => setAddr1(e.target.value)}
@@ -2521,7 +2615,7 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                             />
                           </div>
                           <div>
-                            <label className="mb-1 block text-xs">Address Line 2 (Optional)</label>
+                            <Label as="label" size="xs" className="mb-1 block">Address Line 2 (Optional)</Label>
                             <Input
                               value={addr2}
                               onChange={(e) => setAddr2(e.target.value)}
@@ -2530,7 +2624,7 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                           </div>
                           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                             <div>
-                              <label className="mb-1 block text-xs">City *</label>
+                              <Label as="label" size="xs" className="mb-1 block">City *</Label>
                               <Input
                                 value={cityField}
                                 onChange={(e) => setCityField(e.target.value)}
@@ -2538,7 +2632,7 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                               />
                             </div>
                             <div>
-                              <label className="mb-1 block text-xs">State *</label>
+                              <Label as="label" size="xs" className="mb-1 block">State *</Label>
                               <Input
                                 value={stateField}
                                 onChange={(e) => setStateField(e.target.value)}
@@ -2548,7 +2642,7 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                           </div>
                           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                             <div>
-                              <label className="mb-1 block text-xs">ZIP Code *</label>
+                              <Label as="label" size="xs" className="mb-1 block">ZIP Code *</Label>
                               <Input
                                 value={postalField}
                                 onChange={(e) => setPostalField(e.target.value)}
@@ -2556,7 +2650,7 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                               />
                             </div>
                             <div>
-                              <label className="mb-1 block text-xs">Country *</label>
+                              <Label as="label" size="xs" className="mb-1 block">Country *</Label>
                               <Dropdown
                                 value={countryField}
                                 onChange={setCountryField}
@@ -2573,23 +2667,23 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                       )}
                       {!showAltAddress && (
                         <button
-                          className="text-primary text-sm underline"
+                          className="text-primary underline"
                           type="button"
                           onClick={() => setShowAltAddress(true)}
                         >
-                          + Add alternate address
+                          <Body as="span" size="sm">+ Add alternate address</Body>
                         </button>
                       )}
 
                       {showAltAddress && (
                         <div className="mt-3 space-y-3 border-t pt-3">
                           <div className="flex items-center justify-between">
-                            <div className="text-foreground text-sm font-medium">
+                            <Label as="div" size="sm" className="font-medium">
                               Alternate address
-                            </div>
+                            </Label>
                             <button
                               type="button"
-                              className="text-primary inline-flex items-center gap-1 text-sm underline"
+                              className="text-primary inline-flex items-center gap-1 underline"
                               onClick={() => {
                                 setShowAltAddress(false);
                                 setAltAddr1('');
@@ -2600,25 +2694,27 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                                 setAltCountry('');
                               }}
                             >
-                              <span className="text-muted-foreground">×</span>
-                              Remove alternate address
+                              <Body as="span" size="sm" tone="muted">
+                                ×
+                              </Body>
+                              <Body as="span" size="sm">Remove alternate address</Body>
                             </button>
                           </div>
                           <div>
-                            <label className="mb-1 block text-xs">Street Address</label>
+                            <Label as="label" size="xs" className="mb-1 block">Street Address</Label>
                             <Input value={altAddr1} onChange={(e) => setAltAddr1(e.target.value)} />
                           </div>
                           <div>
-                            <label className="mb-1 block text-xs">Address Line 2 (Optional)</label>
+                            <Label as="label" size="xs" className="mb-1 block">Address Line 2 (Optional)</Label>
                             <Input value={altAddr2} onChange={(e) => setAltAddr2(e.target.value)} />
                           </div>
                           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                             <div>
-                              <label className="mb-1 block text-xs">City</label>
+                              <Label as="label" size="xs" className="mb-1 block">City</Label>
                               <Input value={altCity} onChange={(e) => setAltCity(e.target.value)} />
                             </div>
                             <div>
-                              <label className="mb-1 block text-xs">State</label>
+                              <Label as="label" size="xs" className="mb-1 block">State</Label>
                               <Input
                                 value={altState}
                                 onChange={(e) => setAltState(e.target.value)}
@@ -2627,14 +2723,14 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                           </div>
                           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                             <div>
-                              <label className="mb-1 block text-xs">ZIP Code</label>
+                              <Label as="label" size="xs" className="mb-1 block">ZIP Code</Label>
                               <Input
                                 value={altPostal}
                                 onChange={(e) => setAltPostal(e.target.value)}
                               />
                             </div>
                             <div>
-                              <label className="mb-1 block text-xs">Country</label>
+                              <Label as="label" size="xs" className="mb-1 block">Country</Label>
                               <Dropdown
                                 value={altCountry}
                                 onChange={setAltCountry}
@@ -2664,18 +2760,18 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                         <div className="space-y-3 p-2">
                           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                             <div className="w-full sm:w-fit sm:justify-self-start">
-                              <label className="mb-1 block text-xs">Date of birth</label>
+                              <Label as="label" size="xs" className="mb-1 block">Date of birth</Label>
                               <DateInput containerClassName="sm:w-fit sm:max-w-[12rem] sm:min-w-[9.5rem]" />
                             </div>
                             <div>
-                              <label className="mb-1 block text-xs">Taxpayer ID</label>
+                              <Label as="label" size="xs" className="mb-1 block">Taxpayer ID</Label>
                               <Input placeholder="" />
                             </div>
                           </div>
                           <div>
-                            <label className="mb-1 block text-xs">Comments</label>
+                            <Label as="label" size="xs" className="mb-1 block">Comments</Label>
                             <textarea
-                              className="border-border bg-background text-foreground min-h-[96px] w-full rounded-md border p-3 text-sm"
+                              className="border-border bg-background text-foreground min-h-[96px] w-full rounded-md border p-3"
                               placeholder="Enter comments..."
                               aria-label="Comments"
                             />
@@ -2691,21 +2787,21 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                         <div className="space-y-3 p-2">
                           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                             <div>
-                              <label className="mb-1 block text-xs">Contact name</label>
+                              <Label as="label" size="xs" className="mb-1 block">Contact name</Label>
                               <Input />
                             </div>
                             <div>
-                              <label className="mb-1 block text-xs">Relationship to tenant</label>
+                              <Label as="label" size="xs" className="mb-1 block">Relationship to tenant</Label>
                               <Input />
                             </div>
                           </div>
                           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                             <div>
-                              <label className="mb-1 block text-xs">Email</label>
+                              <Label as="label" size="xs" className="mb-1 block">Email</Label>
                               <Input type="email" />
                             </div>
                             <div>
-                              <label className="mb-1 block text-xs">Phone</label>
+                              <Label as="label" size="xs" className="mb-1 block">Phone</Label>
                               <Input />
                             </div>
                           </div>
@@ -2770,11 +2866,13 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
               </TabsContent>
               <TabsContent value="cosigner" className="space-y-4">
                 <div className="overflow-hidden rounded-md border">
-                  <div className="bg-muted px-4 py-2 text-sm font-medium">Contact information</div>
+                  <Label as="div" size="sm" className="bg-muted px-4 py-2 font-medium">
+                    Contact information
+                  </Label>
                   <div className="space-y-3 p-4">
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <div>
-                        <label className="mb-1 block text-xs">First name *</label>
+                        <Label as="label" size="xs" className="mb-1 block">First name *</Label>
                         <Input
                           placeholder="First name"
                           value={coFirstName}
@@ -2782,7 +2880,7 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                         />
                       </div>
                       <div>
-                        <label className="mb-1 block text-xs">Last name *</label>
+                        <Label as="label" size="xs" className="mb-1 block">Last name *</Label>
                         <Input
                           placeholder="Last name"
                           value={coLastName}
@@ -2792,7 +2890,7 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                     </div>
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <div>
-                        <label className="mb-1 block text-xs">Mobile phone number</label>
+                        <Label as="label" size="xs" className="mb-1 block">Mobile phone number</Label>
                         <Input
                           placeholder="(555) 555-5555"
                           value={coPhone}
@@ -2800,41 +2898,41 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                         />
                       </div>
                       <div className="flex items-end">
-                        {!coShowAltPhone ? (
-                          <button
-                            type="button"
-                            onClick={() => setCoShowAltPhone(true)}
-                            className="text-primary text-sm underline"
-                          >
-                            + Add alternate phone
-                          </button>
-                        ) : (
-                          <div className="w-full">
-                            <label className="mb-1 block text-xs">Alternate phone</label>
-                            <div className="flex items-center gap-2">
-                              <Input
-                                placeholder="(555) 555-1234"
+                          {!coShowAltPhone ? (
+                            <button
+                              type="button"
+                              onClick={() => setCoShowAltPhone(true)}
+                              className="text-primary underline"
+                            >
+                              <Body as="span" size="sm">+ Add alternate phone</Body>
+                            </button>
+                          ) : (
+                            <div className="w-full">
+                              <Label as="label" size="xs" className="mb-1 block">Alternate phone</Label>
+                              <div className="flex items-center gap-2">
+                                <Input
+                                  placeholder="(555) 555-1234"
                                 value={coAltPhone}
                                 onChange={(e) => setCoAltPhone(e.target.value)}
-                              />
-                              <button
-                                type="button"
-                                className="text-primary text-sm whitespace-nowrap underline"
-                                onClick={() => {
-                                  setCoShowAltPhone(false);
-                                  setCoAltPhone('');
-                                }}
-                              >
-                                × Remove
-                              </button>
+                                />
+                                <button
+                                  type="button"
+                                  className="text-primary whitespace-nowrap underline"
+                                  onClick={() => {
+                                    setCoShowAltPhone(false);
+                                    setCoAltPhone('');
+                                  }}
+                                >
+                                  <Body as="span" size="sm">× Remove</Body>
+                                </button>
+                              </div>
                             </div>
-                          </div>
-                        )}
+                          )}
                       </div>
                     </div>
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <div>
-                        <label className="mb-1 block text-xs">Email</label>
+                        <Label as="label" size="xs" className="mb-1 block">Email</Label>
                         <Input
                           type="email"
                           placeholder="name@email.com"
@@ -2843,44 +2941,46 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                         />
                       </div>
                       <div className="flex items-end">
-                        {!coShowAltEmail ? (
-                          <button
-                            type="button"
-                            onClick={() => setCoShowAltEmail(true)}
-                            className="text-primary text-sm underline"
-                          >
-                            + Add alternate email
-                          </button>
-                        ) : (
-                          <div className="w-full">
-                            <label className="mb-1 block text-xs">Alternate email</label>
-                            <div className="flex items-center gap-2">
-                              <Input
-                                type="email"
+                          {!coShowAltEmail ? (
+                            <button
+                              type="button"
+                              onClick={() => setCoShowAltEmail(true)}
+                              className="text-primary underline"
+                            >
+                              <Body as="span" size="sm">+ Add alternate email</Body>
+                            </button>
+                          ) : (
+                            <div className="w-full">
+                              <Label as="label" size="xs" className="mb-1 block">Alternate email</Label>
+                              <div className="flex items-center gap-2">
+                                <Input
+                                  type="email"
                                 placeholder="alt@email.com"
                                 value={coAltEmail}
                                 onChange={(e) => setCoAltEmail(e.target.value)}
-                              />
-                              <button
-                                type="button"
-                                className="text-primary text-sm whitespace-nowrap underline"
-                                onClick={() => {
-                                  setCoShowAltEmail(false);
-                                  setCoAltEmail('');
-                                }}
-                              >
-                                × Remove
-                              </button>
+                                />
+                                <button
+                                  type="button"
+                                  className="text-primary whitespace-nowrap underline"
+                                  onClick={() => {
+                                    setCoShowAltEmail(false);
+                                    setCoAltEmail('');
+                                  }}
+                                >
+                                  <Body as="span" size="sm">× Remove</Body>
+                                </button>
+                              </div>
                             </div>
-                          </div>
-                        )}
+                          )}
                       </div>
                     </div>
                   </div>
                 </div>
 
                 <div className="overflow-hidden rounded-md border">
-                  <div className="bg-muted px-4 py-2 text-sm font-medium">Address *</div>
+                  <Label as="div" size="sm" className="bg-muted px-4 py-2 font-medium">
+                    Address *
+                  </Label>
                   <div className="space-y-3 p-4">
                     <div className="flex items-center gap-2">
                       <Checkbox
@@ -2888,14 +2988,14 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                         checked={coSameAsUnitAddress}
                         onCheckedChange={(v) => setCoSameAsUnitAddress(Boolean(v))}
                       />
-                      <label htmlFor="cosameaddr" className="text-sm">
+                      <Label as="label" htmlFor="cosameaddr" size="sm">
                         Same as unit address
-                      </label>
+                      </Label>
                     </div>
                     {!coSameAsUnitAddress && (
                       <div className="space-y-3">
                         <div>
-                          <label className="mb-1 block text-xs">Street Address *</label>
+                          <Label as="label" size="xs" className="mb-1 block">Street Address *</Label>
                           <Input
                             value={coAddr1}
                             onChange={(e) => setCoAddr1(e.target.value)}
@@ -2903,7 +3003,7 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                           />
                         </div>
                         <div>
-                          <label className="mb-1 block text-xs">Address Line 2 (Optional)</label>
+                          <Label as="label" size="xs" className="mb-1 block">Address Line 2 (Optional)</Label>
                           <Input
                             value={coAddr2}
                             onChange={(e) => setCoAddr2(e.target.value)}
@@ -2912,7 +3012,7 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                         </div>
                         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                           <div>
-                            <label className="mb-1 block text-xs">City *</label>
+                            <Label as="label" size="xs" className="mb-1 block">City *</Label>
                             <Input
                               value={coCity}
                               onChange={(e) => setCoCity(e.target.value)}
@@ -2920,7 +3020,7 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                             />
                           </div>
                           <div>
-                            <label className="mb-1 block text-xs">State *</label>
+                            <Label as="label" size="xs" className="mb-1 block">State *</Label>
                             <Input
                               value={coState}
                               onChange={(e) => setCoState(e.target.value)}
@@ -2930,7 +3030,7 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                         </div>
                         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                           <div>
-                            <label className="mb-1 block text-xs">ZIP Code *</label>
+                            <Label as="label" size="xs" className="mb-1 block">ZIP Code *</Label>
                             <Input
                               value={coPostal}
                               onChange={(e) => setCoPostal(e.target.value)}
@@ -2938,7 +3038,7 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                             />
                           </div>
                           <div>
-                            <label className="mb-1 block text-xs">Country *</label>
+                            <Label as="label" size="xs" className="mb-1 block">Country *</Label>
                             <Dropdown
                               value={coCountry}
                               onChange={setCoCountry}
@@ -2955,23 +3055,23 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                     )}
                     {!coShowAltAddress && (
                       <button
-                        className="text-primary text-sm underline"
+                        className="text-primary underline"
                         type="button"
                         onClick={() => setCoShowAltAddress(true)}
                       >
-                        + Add alternate address
+                        <Body as="span" size="sm">+ Add alternate address</Body>
                       </button>
                     )}
 
                     {coShowAltAddress && (
                       <div className="mt-3 space-y-3 border-t pt-3">
                         <div className="flex items-center justify-between">
-                          <div className="text-foreground text-sm font-medium">
+                          <Label as="div" size="sm" className="font-medium">
                             Alternate address
-                          </div>
+                          </Label>
                           <button
                             type="button"
-                            className="text-primary inline-flex items-center gap-1 text-sm underline"
+                            className="text-primary inline-flex items-center gap-1 underline"
                             onClick={() => {
                               setCoShowAltAddress(false);
                               setCoAltAddr1('');
@@ -2982,19 +3082,21 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                               setCoAltCountry('');
                             }}
                           >
-                            <span className="text-muted-foreground">×</span>
-                            Remove alternate address
+                            <Body as="span" size="sm" tone="muted">
+                              ×
+                            </Body>
+                            <Body as="span" size="sm">Remove alternate address</Body>
                           </button>
                         </div>
                         <div>
-                          <label className="mb-1 block text-xs">Street Address</label>
+                          <Label as="label" size="xs" className="mb-1 block">Street Address</Label>
                           <Input
                             value={coAltAddr1}
                             onChange={(e) => setCoAltAddr1(e.target.value)}
                           />
                         </div>
                         <div>
-                          <label className="mb-1 block text-xs">Address Line 2 (Optional)</label>
+                          <Label as="label" size="xs" className="mb-1 block">Address Line 2 (Optional)</Label>
                           <Input
                             value={coAltAddr2}
                             onChange={(e) => setCoAltAddr2(e.target.value)}
@@ -3002,14 +3104,14 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                         </div>
                         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                           <div>
-                            <label className="mb-1 block text-xs">City</label>
+                            <Label as="label" size="xs" className="mb-1 block">City</Label>
                             <Input
                               value={coAltCity}
                               onChange={(e) => setCoAltCity(e.target.value)}
                             />
                           </div>
                           <div>
-                            <label className="mb-1 block text-xs">State</label>
+                            <Label as="label" size="xs" className="mb-1 block">State</Label>
                             <Input
                               value={coAltState}
                               onChange={(e) => setCoAltState(e.target.value)}
@@ -3018,14 +3120,14 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                         </div>
                         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                           <div>
-                            <label className="mb-1 block text-xs">ZIP Code</label>
+                            <Label as="label" size="xs" className="mb-1 block">ZIP Code</Label>
                             <Input
                               value={coAltPostal}
                               onChange={(e) => setCoAltPostal(e.target.value)}
                             />
                           </div>
                           <div>
-                            <label className="mb-1 block text-xs">Country</label>
+                            <Label as="label" size="xs" className="mb-1 block">Country</Label>
                             <Dropdown
                               value={coAltCountry}
                               onChange={setCoAltCountry}

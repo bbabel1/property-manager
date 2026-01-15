@@ -11,7 +11,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Label as FormLabel } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -39,6 +39,7 @@ import type {
   UndepositedPaymentRow,
   UnitOption,
 } from '@/types/record-deposit';
+import { Body, Heading, Label } from '@/ui/typography';
 
 type OtherDepositItem = {
   id: string;
@@ -387,9 +388,9 @@ export default function RecordDepositForm(props: {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-1">
           <div className="flex items-end justify-between gap-3">
-            <Label htmlFor="record-deposit-bank-account" className="text-xs font-semibold tracking-wide">
+            <FormLabel htmlFor="record-deposit-bank-account" className="text-xs font-semibold tracking-wide">
               BANK ACCOUNT <span className="text-destructive">*</span>
-            </Label>
+            </FormLabel>
             <span className="text-xs text-muted-foreground">
               Balance:{' '}
               <span className="text-foreground">{formatCurrency(Number(selectedBank?.balance ?? 0))}</span>
@@ -410,16 +411,16 @@ export default function RecordDepositForm(props: {
         </div>
 
         <div>
-          <Label htmlFor="record-deposit-date" className="text-xs font-semibold tracking-wide">
+          <FormLabel htmlFor="record-deposit-date" className="text-xs font-semibold tracking-wide">
             DATE <span className="text-destructive">*</span>
-          </Label>
+          </FormLabel>
           <DatePicker id="record-deposit-date" value={date} onChange={(value) => setDate(value ?? '')} />
         </div>
 
         <div className="sm:col-span-2">
-          <Label htmlFor="record-deposit-memo" className="text-xs font-semibold tracking-wide">
+          <FormLabel htmlFor="record-deposit-memo" className="text-xs font-semibold tracking-wide">
             MEMO
-          </Label>
+          </FormLabel>
           <Textarea
             id="record-deposit-memo"
             value={memo}
@@ -433,25 +434,27 @@ export default function RecordDepositForm(props: {
       <Card>
         <CardContent className="flex flex-col gap-6 py-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+            <Label as="div" size="xs" tone="muted" className="font-semibold uppercase tracking-widest">
               Total deposit amount
-            </div>
-            <div className="mt-1 text-2xl font-semibold text-foreground">
+            </Label>
+            <Heading as="div" size="h3" className="mt-1 font-semibold text-foreground">
               {formatCurrency(totalDepositAmount)}
-            </div>
+            </Heading>
           </div>
-          <label className="flex items-center gap-3 text-sm">
+          <Label as="label" className="flex items-center gap-3">
             <Checkbox
               checked={printDepositSlips}
               onCheckedChange={(checked) => setPrintDepositSlips(Boolean(checked))}
             />
             Print deposit slips
-          </label>
+          </Label>
         </CardContent>
       </Card>
 
       <div className="space-y-3">
-        <div className="text-sm font-semibold">Other deposit items</div>
+        <Heading as="div" size="h5" className="font-semibold">
+          Other deposit items
+        </Heading>
         <Button type="button" variant="ghost" className="w-fit px-2" onClick={addOtherItem}>
           <Plus className="mr-2 h-4 w-4" aria-hidden />
           Add another
@@ -575,7 +578,9 @@ export default function RecordDepositForm(props: {
       </div>
 
       <div className="space-y-3">
-        <div className="text-sm font-semibold">{undepositedPaymentsTitle}</div>
+        <Label as="div" size="sm">
+          {undepositedPaymentsTitle}
+        </Label>
         <div className="overflow-x-auto rounded-md border">
           <Table className="min-w-[980px]">
             <TableHeader>
@@ -647,7 +652,9 @@ export default function RecordDepositForm(props: {
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <div className="text-sm font-semibold">Attachments</div>
+            <Label as="div" size="sm">
+              Attachments
+            </Label>
             <div className="text-xs text-muted-foreground">1 file up to 1000kb</div>
           </div>
           <Button type="button" size="sm" variant="outline" onClick={() => setIsUploadDialogOpen(true)}>

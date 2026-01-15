@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Body, Heading, Label } from '@/ui/typography'
 import {
   mapDisplayLabelToFrequency,
   mapFrequencyToDisplayLabel,
@@ -227,16 +228,18 @@ export function RecurringBillSettings({
       <CardContent className="space-y-6 p-6">
         <div className="flex items-center justify-between">
           <div className="space-y-1">
-            <h3 className="text-lg font-semibold text-foreground">Recurring Billing</h3>
-            <p className="text-muted-foreground text-sm">
+            <Heading as="h3" size="h5">
+              Recurring Billing
+            </Heading>
+            <Body as="p" size="sm" tone="muted">
               Set up automatic bill generation on a schedule
-            </p>
+            </Body>
           </div>
           {!isApproved && (
             <div className="flex items-center gap-2">
-              <span className="text-muted-foreground text-sm">
+              <Body as="span" size="sm" tone="muted">
                 {isRecurring ? 'Enabled' : 'Disabled'}
-              </span>
+              </Body>
               <Button
                 type="button"
                 variant={isRecurring ? 'default' : 'outline'}
@@ -254,9 +257,9 @@ export function RecurringBillSettings({
           <div className="space-y-6">
             {/* Frequency Selection */}
             <div className="space-y-2">
-              <label className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">
+              <Label size="xs" tone="muted" className="uppercase tracking-wide">
                 Frequency *
-              </label>
+              </Label>
               <Select
                 value={frequency}
                 onValueChange={(value) => {
@@ -294,11 +297,11 @@ export function RecurringBillSettings({
 
               {/* Local-only warning for Weekly/Every2Weeks */}
               {isWeeklyEvery2Weeks && (
-                <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-amber-900">
                   <AlertCircle className="h-4 w-4 flex-none mt-0.5" />
-                  <span>
+                  <Body as="span" size="sm">
                     Weekly and Biweekly recurrence is local-only and will not sync to Buildium.
-                  </span>
+                  </Body>
                 </div>
               )}
             </div>
@@ -307,9 +310,9 @@ export function RecurringBillSettings({
             {isMonthlyQuarterlyYearly && (
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <label className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">
+                  <Label size="xs" tone="muted" className="uppercase tracking-wide">
                     Day of Month *
-                  </label>
+                  </Label>
                   <Input
                     type="number"
                     min={1}
@@ -324,9 +327,9 @@ export function RecurringBillSettings({
 
                 {(frequency === 'Quarterly' || frequency === 'Yearly') && (
                   <div className="space-y-2">
-                    <label className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">
+                    <Label size="xs" tone="muted" className="uppercase tracking-wide">
                       Month *
-                    </label>
+                    </Label>
                     <Select
                       value={schedule.month?.toString() || ''}
                       onValueChange={(value) =>
@@ -349,9 +352,9 @@ export function RecurringBillSettings({
                 )}
 
                 <div className="space-y-2 sm:col-span-2">
-                  <label className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">
+                  <Label size="xs" tone="muted" className="uppercase tracking-wide">
                     Rollover Policy
-                  </label>
+                  </Label>
                   <Select
                     value={('rollover_policy' in schedule ? (schedule as any).rollover_policy : null) || 'last_day'}
                     onValueChange={(value) =>
@@ -370,9 +373,9 @@ export function RecurringBillSettings({
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="text-muted-foreground text-xs">
+                  <Body as="p" size="xs" tone="muted">
                     What to do when the day doesn't exist in a month (e.g., Feb 30)
-                  </p>
+                  </Body>
                 </div>
               </div>
             )}
@@ -380,9 +383,9 @@ export function RecurringBillSettings({
             {/* Conditional Fields: Weekly/Every2Weeks */}
             {isWeeklyEvery2Weeks && (
               <div className="space-y-2">
-                <label className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">
+                <Label size="xs" tone="muted" className="uppercase tracking-wide">
                   Day of Week *
-                </label>
+                </Label>
                 <Select
                   value={normalizedDayOfWeek?.toString() || ''}
                   onValueChange={(value) =>
@@ -401,31 +404,31 @@ export function RecurringBillSettings({
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="text-muted-foreground text-xs">
+                <Body as="p" size="xs" tone="muted">
                   Billing day is anchored to the start date
-                </p>
+                </Body>
               </div>
             )}
 
             {/* Start/End Dates */}
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <label className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">
+                <Label size="xs" tone="muted" className="uppercase tracking-wide">
                   Start Date *
-                </label>
+                </Label>
                 <DatePicker
                   value={schedule.start_date || billDate}
                   onChange={(value) => handleScheduleChange('start_date', value)}
                   disabled={isApproved}
                   minDate={billDate ? new Date(`${billDate}T00:00:00Z`) : undefined}
                 />
-                <p className="text-muted-foreground text-xs">Date-only (YYYY-MM-DD)</p>
+                <Body as="p" size="xs" tone="muted">Date-only (YYYY-MM-DD)</Body>
               </div>
 
               <div className="space-y-2">
-                <label className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">
+                <Label size="xs" tone="muted" className="uppercase tracking-wide">
                   End Date (Optional)
-                </label>
+                </Label>
                 <DatePicker
                   value={schedule.end_date || ''}
                   onChange={(value) => handleScheduleChange('end_date', value || null)}
@@ -438,36 +441,36 @@ export function RecurringBillSettings({
                         : undefined
                   }
                 />
-                <p className="text-muted-foreground text-xs">Leave blank for ongoing</p>
+                <Body as="p" size="xs" tone="muted">Leave blank for ongoing</Body>
               </div>
             </div>
 
             {/* Server-owned fields (read-only) */}
             {schedule.next_run_date && (
               <div className="space-y-2">
-                <label className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">
+                <Label size="xs" tone="muted" className="uppercase tracking-wide">
                   Next Billing Date (Computed)
-                </label>
+                </Label>
                 <Input value={schedule.next_run_date} disabled readOnly />
-                <p className="text-muted-foreground text-xs">
+                <Body as="p" size="xs" tone="muted">
                   This is automatically computed and cannot be edited
-                </p>
+                </Body>
               </div>
             )}
 
             {schedule.last_generated_at && (
               <div className="space-y-2">
-                <label className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">
+                <Label size="xs" tone="muted" className="uppercase tracking-wide">
                   Last Generated (Computed)
-                </label>
+                </Label>
                 <Input
                   value={new Date(schedule.last_generated_at).toLocaleString()}
                   disabled
                   readOnly
                 />
-                <p className="text-muted-foreground text-xs">
+                <Body as="p" size="xs" tone="muted">
                   This is automatically updated and cannot be edited
-                </p>
+                </Body>
               </div>
             )}
 
@@ -524,19 +527,19 @@ export function RecurringBillSettings({
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
                 <Card className="w-full max-w-md">
                   <CardContent className="p-6 space-y-4">
-                    <h3 className="text-lg font-semibold">
+                    <Heading as="h3" size="h5">
                       {showConfirmDialog === 'pause' && 'Pause Recurring Billing?'}
                       {showConfirmDialog === 'resume' && 'Resume Recurring Billing?'}
                       {showConfirmDialog === 'disable' && 'Disable Recurring Billing?'}
-                    </h3>
-                    <p className="text-sm text-muted-foreground">
+                    </Heading>
+                    <Body as="p" size="sm" tone="muted">
                       {showConfirmDialog === 'pause' &&
                         'This will pause bill generation. You can resume later.'}
                       {showConfirmDialog === 'resume' &&
                         'This will resume bill generation from the next scheduled date.'}
                       {showConfirmDialog === 'disable' &&
                         'This will permanently disable recurring billing. Existing generated bills will remain.'}
-                    </p>
+                    </Body>
                     <div className="flex justify-end gap-2">
                       <Button
                         variant="outline"
@@ -565,10 +568,10 @@ export function RecurringBillSettings({
         {!isRecurring && !isApproved && (
           <div className="flex items-start gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">
             <Info className="h-4 w-4 flex-none mt-0.5" />
-            <span>
+            <Body as="span">
               Enable recurring billing to automatically generate bills on a schedule. All dates are
               stored as date-only (YYYY-MM-DD) and calculations use your organization's timezone.
-            </span>
+            </Body>
           </div>
         )}
       </CardContent>

@@ -34,6 +34,8 @@ import TransactionFileUploadDialog, {
 } from '@/components/files/TransactionFileUploadDialog';
 import { cn } from '@/components/ui/utils';
 import DestructiveActionModal from '@/components/common/DestructiveActionModal';
+import { Checkbox } from '@/ui/checkbox';
+import { Body, Label as TextLabel } from '@/ui/typography';
 
 export type BankAccountOption = {
   id: string;
@@ -537,7 +539,9 @@ export default function EditCheckForm(props: {
 
       {formError && (
         <div className="border-destructive/20 bg-destructive/10 rounded-md border p-4">
-          <p className="text-destructive text-sm">{formError}</p>
+          <Body size="sm" className="text-destructive">
+            {formError}
+          </Body>
         </div>
       )}
 
@@ -595,15 +599,15 @@ export default function EditCheckForm(props: {
               onChange={(e) => setFormValue('checkNumber', e.target.value)}
             />
           </div>
-          <label className="flex items-center gap-2 pb-1 text-sm">
-            <input
-              type="checkbox"
+          <TextLabel htmlFor="edit-check-queue" className="flex items-center gap-2 pb-1">
+            <Checkbox
+              id="edit-check-queue"
               className="h-4 w-4"
               checked={Boolean(form.queueForPrinting)}
               onChange={(e) => setFormValue('queueForPrinting', e.target.checked)}
             />
             Queue check(s) for printing
-          </label>
+          </TextLabel>
         </div>
 
         <div
@@ -708,7 +712,9 @@ export default function EditCheckForm(props: {
 
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-3">
-          <div className="text-sm font-semibold">Allocations</div>
+          <Body as="div" size="sm" className="font-semibold">
+            Allocations
+          </Body>
           <Button
             type="button"
             variant="ghost"
@@ -725,24 +731,19 @@ export default function EditCheckForm(props: {
           <Table className="min-w-[1080px]">
             <TableHeader>
               <TableRow className="bg-muted/40">
-                <TableHead className="text-muted-foreground text-xs font-semibold tracking-widest uppercase">
-                  Property or company
-                </TableHead>
-                <TableHead className="text-muted-foreground text-xs font-semibold tracking-widest uppercase">
-                  Unit
-                </TableHead>
-                <TableHead className="text-muted-foreground text-xs font-semibold tracking-widest uppercase">
-                  Account
-                </TableHead>
-                <TableHead className="text-muted-foreground text-xs font-semibold tracking-widest uppercase">
-                  Description
-                </TableHead>
-                <TableHead className="text-muted-foreground text-xs font-semibold tracking-widest uppercase">
-                  Ref No.
-                </TableHead>
-                <TableHead className="text-muted-foreground text-right text-xs font-semibold tracking-widest uppercase">
-                  Amount
-                </TableHead>
+                {['Property or company', 'Unit', 'Account', 'Description', 'Ref No.', 'Amount'].map(
+                  (label, idx) => (
+                    <TableHead
+                      key={label}
+                      className={cn(
+                        'text-muted-foreground text-xs font-semibold tracking-widest uppercase',
+                        idx === 5 ? 'text-right' : '',
+                      )}
+                    >
+                      {label}
+                    </TableHead>
+                  ),
+                )}
                 <TableHead className="w-[3rem]" />
               </TableRow>
             </TableHeader>
@@ -854,11 +855,15 @@ export default function EditCheckForm(props: {
               })}
 
               <TableRow>
-                <TableCell colSpan={5} className="text-sm font-medium">
-                  Total
+                <TableCell colSpan={5} className="text-sm">
+                  <TextLabel as="span" size="sm">
+                    Total
+                  </TextLabel>
                 </TableCell>
-                <TableCell className="text-right text-sm font-semibold">
-                  {fmtUsd(totalAmount)}
+                <TableCell className="text-right text-sm">
+                  <TextLabel as="span" size="sm" className="text-right">
+                    {fmtUsd(totalAmount)}
+                  </TextLabel>
                 </TableCell>
                 <TableCell />
               </TableRow>
@@ -869,7 +874,9 @@ export default function EditCheckForm(props: {
 
       {billsPaid.length > 0 && (
         <div className="space-y-3">
-          <div className="text-sm font-semibold">Bills paid</div>
+          <Body as="div" size="sm" className="font-semibold">
+            Bills paid
+          </Body>
           <div className="overflow-x-auto rounded-md border">
             <Table className="min-w-[900px]">
               <TableHeader>
@@ -918,7 +925,9 @@ export default function EditCheckForm(props: {
 
       <div className="space-y-2">
         <div className="flex items-baseline justify-between gap-4">
-          <div className="text-sm font-semibold">Attachments</div>
+          <TextLabel as="div" size="sm">
+            Attachments
+          </TextLabel>
           <div className="text-muted-foreground text-xs">
             Limited to {MAX_ATTACHMENT_COUNT} files. Max file size is {MAX_ATTACHMENT_SIZE_MB}MB.
           </div>
@@ -954,7 +963,9 @@ export default function EditCheckForm(props: {
                 <div className="flex min-w-0 flex-col gap-0.5">
                   <div className="flex items-center gap-2">
                     <Paperclip className="text-muted-foreground h-4 w-4" aria-hidden />
-                    <div className="truncate text-sm font-medium">{a.title}</div>
+                    <TextLabel as="div" size="sm" className="truncate">
+                      {a.title}
+                    </TextLabel>
                   </div>
                   <div className="text-muted-foreground text-xs">
                     {a.category || 'Uncategorized'}

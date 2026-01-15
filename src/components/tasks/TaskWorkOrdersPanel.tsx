@@ -16,6 +16,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { cn } from '@/components/ui/utils';
+import { Body, Heading, Label } from '@/ui/typography';
 
 export type WorkOrderListItem = {
   id: string;
@@ -46,18 +47,18 @@ type TaskWorkOrdersPanelProps = {
 };
 
 const STATUS_BADGE_STYLES: Record<WorkOrderListItem['statusKey'], string> = {
-  new: 'border-[var(--color-warning-500)] bg-[var(--color-warning-50)] text-[var(--color-warning-600)]',
-  in_progress: 'border-[var(--color-action-200)] bg-[var(--color-action-50)] text-[var(--color-action-700)]',
-  completed: 'border-[var(--color-success-500)] bg-[var(--color-success-50)] text-[var(--color-success-700)]',
-  cancelled: 'border-[var(--color-gray-300)] bg-[var(--color-gray-50)] text-[var(--color-gray-600)]',
-  on_hold: 'border-[var(--color-gray-300)] bg-[var(--color-gray-50)] text-[var(--color-gray-700)]',
+  new: 'status-pill-warning',
+  in_progress: 'status-pill-info',
+  completed: 'status-pill-success',
+  cancelled: 'status-pill-danger',
+  on_hold: 'status-pill-warning',
 };
 
 const PRIORITY_DOT_STYLES: Record<WorkOrderListItem['priorityKey'], string> = {
-  low: 'bg-[var(--color-gray-400)]',
-  normal: 'bg-[var(--color-warning-600)]',
-  high: 'bg-[var(--color-danger-500)]',
-  urgent: 'bg-[var(--color-danger-700)]',
+  low: 'bg-muted-foreground',
+  normal: 'bg-warning-600',
+  high: 'bg-danger-500',
+  urgent: 'bg-danger-700',
 };
 
 export default function TaskWorkOrdersPanel({ workOrders, initialWorkOrderId }: TaskWorkOrdersPanelProps) {
@@ -71,7 +72,9 @@ export default function TaskWorkOrdersPanel({ workOrders, initialWorkOrderId }: 
     return (
       <Card className="border-border/70 shadow-sm">
         <CardContent className="p-6">
-          <p className="text-muted-foreground text-sm">No work orders linked to this task yet.</p>
+          <Body as="p" tone="muted" size="sm">
+            No work orders linked to this task yet.
+          </Body>
         </CardContent>
       </Card>
     );
@@ -103,21 +106,23 @@ export default function TaskWorkOrdersPanel({ workOrders, initialWorkOrderId }: 
               </Badge>
               <Badge
                 variant="outline"
-                className="status-pill border-[var(--color-gray-200)] bg-[var(--color-gray-50)] text-foreground"
+                className="status-pill border-border bg-muted text-foreground"
               >
                 {selected.priorityLabel}
               </Badge>
             </div>
-            <h2 className="text-foreground text-xl font-semibold leading-tight">
-              {selected.subject}{' '}
-              <span className="text-muted-foreground text-sm font-normal">{selected.reference}</span>
-            </h2>
-            <p className="text-muted-foreground text-sm">
+            <Heading as="h2" size="h4" className="flex flex-wrap items-baseline gap-2">
+              {selected.subject}
+              <Body as="span" tone="muted" size="sm">
+                {selected.reference}
+              </Body>
+            </Heading>
+            <Body as="p" tone="muted" size="sm">
               Created {selected.createdAtLabel}
               {selected.createdRelativeLabel ? ` (${selected.createdRelativeLabel})` : ''}
               {' • '}Last updated {selected.updatedAtLabel}
               {selected.updatedRelativeLabel ? ` (${selected.updatedRelativeLabel})` : ''}
-            </p>
+            </Body>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" className="border-border/70">
@@ -145,7 +150,9 @@ export default function TaskWorkOrdersPanel({ workOrders, initialWorkOrderId }: 
                 <DetailItem icon={User} label="Vendor" value={selected.vendorName || '—'} />
               </div>
               <div className="space-y-3 rounded-lg border border-border/60 bg-muted/30 p-4">
-                <h4 className="text-foreground text-sm font-semibold">Details</h4>
+                <Heading as="h4" size="h6">
+                  Details
+                </Heading>
                 <div className="grid gap-3 md:grid-cols-2">
                   <DetailText label="Entry details" value={selected.description || 'No entry details provided.'} />
                   <DetailText label="Work to be performed" value={selected.notes || 'No work description provided.'} />
@@ -156,22 +163,24 @@ export default function TaskWorkOrdersPanel({ workOrders, initialWorkOrderId }: 
             <div className="space-y-4">
               <Card className="border-border/70 shadow-sm">
                 <CardHeader className="border-b border-border/70 pb-3">
-                  <CardTitle className="text-sm">Bills</CardTitle>
-                  <CardDescription className="text-xs">
+                  <CardTitle headingSize="h6">Bills</CardTitle>
+                  <CardDescription bodySize="xs">
                     {selected.bills.length ? 'Linked bills' : 'No bills entered yet.'}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="p-4">
                   {selected.bills.length ? (
-                    <ul className="space-y-2 text-sm">
+                    <ul className="space-y-2">
                       {selected.bills.map((bill) => (
                         <li key={bill.id}>
-                          <Link
-                            href={`/bills/${bill.id}`}
-                            className="text-primary hover:underline"
-                          >
-                            {bill.reference}
-                          </Link>
+                          <Body as="span" size="sm">
+                            <Link
+                              href={`/bills/${bill.id}`}
+                              className="text-primary hover:underline"
+                            >
+                              {bill.reference}
+                            </Link>
+                          </Body>
                         </li>
                       ))}
                     </ul>
@@ -182,20 +191,28 @@ export default function TaskWorkOrdersPanel({ workOrders, initialWorkOrderId }: 
               </Card>
               <Card className="border-border/70 shadow-sm">
                 <CardHeader className="border-b border-border/70 pb-3">
-                  <CardTitle className="text-sm">Contacts</CardTitle>
+                  <CardTitle headingSize="h6">Contacts</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3 p-4">
                   <div className="space-y-1">
-                    <p className="text-muted-foreground text-xs uppercase tracking-wide">Vendor</p>
-                    <p className="text-foreground text-sm font-semibold">{selected.vendorName || '—'}</p>
-                    <p className="text-muted-foreground text-xs">Vendor</p>
+                    <Label as="p" size="xs" tone="muted" className="uppercase tracking-wide">
+                      Vendor
+                    </Label>
+                    <Label as="p" size="sm">
+                      {selected.vendorName || '—'}
+                    </Label>
+                    <Label as="p" size="xs" tone="muted">
+                      Vendor
+                    </Label>
                   </div>
                   <div className="space-y-1">
-                    <p className="text-muted-foreground text-xs uppercase tracking-wide">Entry contacts</p>
-                    <p className="text-foreground text-sm font-semibold">
+                    <Label as="p" size="xs" tone="muted" className="uppercase tracking-wide">
+                      Entry contacts
+                    </Label>
+                    <Label as="p" size="sm">
                       {selected.assignedTo || '—'}
-                    </p>
-                    <Button variant="link" className="px-0 text-xs">Send email</Button>
+                    </Label>
+                    <Button variant="link" size="sm" className="px-0">Send email</Button>
                   </div>
                 </CardContent>
               </Card>
@@ -220,24 +237,48 @@ export default function TaskWorkOrdersPanel({ workOrders, initialWorkOrderId }: 
           </CardHeader>
           <CardContent className="space-y-4 p-6">
             <div className="rounded-md border border-border/60">
-              <div className="border-b border-border/60 bg-muted/40 px-4 py-3 text-sm font-semibold">
-                Parts and supplies - $0.00
+              <div className="border-b border-border/60 bg-muted/40 px-4 py-3">
+                <Label as="p" size="sm">
+                  Parts and supplies - $0.00
+                </Label>
               </div>
               <div className="overflow-auto">
                 <Table className="min-w-[760px]">
                   <TableHeader className="[&_th]:px-4 [&_th]:py-3">
-                    <TableRow className="bg-muted/20 text-muted-foreground text-xs uppercase tracking-wide">
-                      <TableHead className="w-16">Qty</TableHead>
-                      <TableHead>Account</TableHead>
-                      <TableHead>Description</TableHead>
-                      <TableHead className="w-32">Price</TableHead>
-                      <TableHead className="w-32">Amount</TableHead>
+                    <TableRow className="bg-muted/20 uppercase tracking-wide">
+                      <TableHead className="w-16">
+                        <Label as="span" size="xs" tone="muted">
+                          Qty
+                        </Label>
+                      </TableHead>
+                      <TableHead>
+                        <Label as="span" size="xs" tone="muted">
+                          Account
+                        </Label>
+                      </TableHead>
+                      <TableHead>
+                        <Label as="span" size="xs" tone="muted">
+                          Description
+                        </Label>
+                      </TableHead>
+                      <TableHead className="w-32">
+                        <Label as="span" size="xs" tone="muted">
+                          Price
+                        </Label>
+                      </TableHead>
+                      <TableHead className="w-32">
+                        <Label as="span" size="xs" tone="muted">
+                          Amount
+                        </Label>
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody className="[&_td]:px-4 [&_td]:py-3">
                     <TableRow>
-                      <TableCell colSpan={5} className="text-muted-foreground text-center text-sm">
-                        No parts added yet.
+                      <TableCell colSpan={5} className="text-center">
+                        <Body tone="muted" size="sm">
+                          No parts added yet.
+                        </Body>
                       </TableCell>
                     </TableRow>
                   </TableBody>
@@ -246,32 +287,62 @@ export default function TaskWorkOrdersPanel({ workOrders, initialWorkOrderId }: 
             </div>
 
             <div className="rounded-md border border-border/60">
-              <div className="border-b border-border/60 bg-muted/40 px-4 py-3 text-sm font-semibold">
-                Labor
+              <div className="border-b border-border/60 bg-muted/40 px-4 py-3">
+                <Label as="p" size="sm">
+                  Labor
+                </Label>
               </div>
               <div className="overflow-auto">
                 <Table className="min-w-[760px]">
                   <TableHeader className="[&_th]:px-4 [&_th]:py-3">
-                    <TableRow className="bg-muted/20 text-muted-foreground text-xs uppercase tracking-wide">
-                      <TableHead>Work sessions</TableHead>
-                      <TableHead>Total hours worked</TableHead>
-                      <TableHead>Total labor cost</TableHead>
-                      <TableHead>Actions</TableHead>
+                    <TableRow className="bg-muted/20 uppercase tracking-wide">
+                      <TableHead>
+                        <Label as="span" size="xs" tone="muted">
+                          Work sessions
+                        </Label>
+                      </TableHead>
+                      <TableHead>
+                        <Label as="span" size="xs" tone="muted">
+                          Total hours worked
+                        </Label>
+                      </TableHead>
+                      <TableHead>
+                        <Label as="span" size="xs" tone="muted">
+                          Total labor cost
+                        </Label>
+                      </TableHead>
+                      <TableHead>
+                        <Label as="span" size="xs" tone="muted">
+                          Actions
+                        </Label>
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody className="[&_td]:px-4 [&_td]:py-3">
                     <TableRow>
-                      <TableCell className="text-sm">0</TableCell>
-                      <TableCell className="text-sm">00:00:00</TableCell>
-                      <TableCell className="text-sm">$0.00</TableCell>
-                      <TableCell className="text-sm text-primary">Add work sessions</TableCell>
+                      <TableCell>
+                        <Body size="sm">0</Body>
+                      </TableCell>
+                      <TableCell>
+                        <Body size="sm">00:00:00</Body>
+                      </TableCell>
+                      <TableCell>
+                        <Body size="sm">$0.00</Body>
+                      </TableCell>
+                      <TableCell>
+                        <Body size="sm" className="text-primary">
+                          Add work sessions
+                        </Body>
+                      </TableCell>
                     </TableRow>
                   </TableBody>
                 </Table>
               </div>
             </div>
 
-            <div className="text-right text-sm font-semibold">$0.00</div>
+            <Label as="div" size="sm" className="text-right">
+              $0.00
+            </Label>
           </CardContent>
         </Card>
 
@@ -291,9 +362,11 @@ export default function TaskWorkOrdersPanel({ workOrders, initialWorkOrderId }: 
   return (
     <Card className="border-border/70 shadow-sm">
       <CardContent className="p-0">
-        <div className="border-border/70 flex items-center justify-between border-b px-5 py-3 text-sm text-muted-foreground">
+        <div className="border-border/70 flex items-center justify-between border-b px-5 py-3">
           <div className="flex items-center gap-2">
-            <span className="text-foreground font-medium">Work orders</span>
+            <Label as="span" size="sm">
+              Work orders
+            </Label>
             <Badge variant="outline" className="border-border/60 bg-muted/50">
               {workOrders.length}
             </Badge>
@@ -304,14 +377,42 @@ export default function TaskWorkOrdersPanel({ workOrders, initialWorkOrderId }: 
         </div>
         <Table className="min-w-[960px]">
           <TableHeader className="[&_th]:px-5 [&_th]:py-3">
-            <TableRow className="border-border/70 bg-muted/40 text-muted-foreground border-b text-[11px] font-semibold uppercase tracking-widest">
-              <TableHead>Work order</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Priority</TableHead>
-              <TableHead>Due</TableHead>
-              <TableHead>Updated</TableHead>
-              <TableHead>Property / Unit</TableHead>
-              <TableHead>Vendor</TableHead>
+            <TableRow className="border-border/70 bg-muted/40 border-b uppercase tracking-widest">
+              <TableHead>
+                <Label as="span" size="xs" tone="muted">
+                  Work order
+                </Label>
+              </TableHead>
+              <TableHead>
+                <Label as="span" size="xs" tone="muted">
+                  Status
+                </Label>
+              </TableHead>
+              <TableHead>
+                <Label as="span" size="xs" tone="muted">
+                  Priority
+                </Label>
+              </TableHead>
+              <TableHead>
+                <Label as="span" size="xs" tone="muted">
+                  Due
+                </Label>
+              </TableHead>
+              <TableHead>
+                <Label as="span" size="xs" tone="muted">
+                  Updated
+                </Label>
+              </TableHead>
+              <TableHead>
+                <Label as="span" size="xs" tone="muted">
+                  Property / Unit
+                </Label>
+              </TableHead>
+              <TableHead>
+                <Label as="span" size="xs" tone="muted">
+                  Vendor
+                </Label>
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody className="[&_td]:px-5 [&_td]:py-4">
@@ -323,15 +424,19 @@ export default function TaskWorkOrdersPanel({ workOrders, initialWorkOrderId }: 
               >
                 <TableCell>
                   <div className="flex flex-col gap-1">
-                    <span className="text-primary font-medium leading-5">{wo.subject}</span>
-                    <span className="text-muted-foreground text-xs">{wo.reference}</span>
+                    <Label as="span" size="sm" className="text-primary">
+                      {wo.subject}
+                    </Label>
+                    <Body as="span" tone="muted" size="xs">
+                      {wo.reference}
+                    </Body>
                   </div>
                 </TableCell>
                 <TableCell>
                   <Badge
                     variant="outline"
                     className={cn(
-                      'status-pill font-medium capitalize',
+                      'status-pill capitalize',
                       STATUS_BADGE_STYLES[wo.statusKey],
                     )}
                   >
@@ -339,28 +444,42 @@ export default function TaskWorkOrdersPanel({ workOrders, initialWorkOrderId }: 
                   </Badge>
                 </TableCell>
                 <TableCell>
-                  <div className="flex items-center gap-2 text-sm">
+                  <div className="flex items-center gap-2">
                     <span
                       className={cn('size-2.5 rounded-full', PRIORITY_DOT_STYLES[wo.priorityKey])}
                       aria-hidden
                     />
-                    {wo.priorityLabel}
+                    <Body as="span" size="sm">
+                      {wo.priorityLabel}
+                    </Body>
                   </div>
                 </TableCell>
-                <TableCell className="text-sm">{wo.dueDateLabel}</TableCell>
-                <TableCell className="text-sm">
+                <TableCell>
+                  <Body size="sm">{wo.dueDateLabel}</Body>
+                </TableCell>
+                <TableCell>
                   <div className="flex flex-col">
-                    <span>{wo.updatedAtLabel}</span>
-                    <span className="text-muted-foreground text-xs">{wo.updatedRelativeLabel}</span>
+                    <Body as="span" size="sm">
+                      {wo.updatedAtLabel}
+                    </Body>
+                    <Body as="span" tone="muted" size="xs">
+                      {wo.updatedRelativeLabel}
+                    </Body>
                   </div>
                 </TableCell>
-                <TableCell className="text-sm">
+                <TableCell>
                   <div className="flex flex-col">
-                    <span>{wo.propertyName}</span>
-                    <span className="text-muted-foreground text-xs">{wo.unitLabel || '—'}</span>
+                    <Body as="span" size="sm">
+                      {wo.propertyName}
+                    </Body>
+                    <Body as="span" tone="muted" size="xs">
+                      {wo.unitLabel || '—'}
+                    </Body>
                   </div>
                 </TableCell>
-                <TableCell className="text-sm">{wo.vendorName || '—'}</TableCell>
+                <TableCell>
+                  <Body size="sm">{wo.vendorName || '—'}</Body>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -379,11 +498,18 @@ type DetailItemProps = {
 function DetailItem({ icon: Icon, label, value }: DetailItemProps) {
   return (
     <div className="space-y-1 rounded-lg border border-border/60 bg-muted/30 p-3">
-      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+      <Label
+        as="div"
+        size="xs"
+        tone="muted"
+        className="flex items-center gap-2 uppercase tracking-wide"
+      >
         <Icon className="size-4" aria-hidden />
         {label}
-      </div>
-      <p className="text-foreground text-sm">{value || '—'}</p>
+      </Label>
+      <Body as="p" size="sm">
+        {value || '—'}
+      </Body>
     </div>
   );
 }
@@ -396,8 +522,12 @@ type DetailTextProps = {
 function DetailText({ label, value }: DetailTextProps) {
   return (
     <div className="space-y-1">
-      <p className="text-muted-foreground text-xs tracking-widest uppercase">{label}</p>
-      <p className="text-foreground text-sm leading-6">{value || '—'}</p>
+      <Label as="p" size="xs" tone="muted" className="tracking-widest uppercase">
+        {label}
+      </Label>
+      <Body as="p" size="sm" className="leading-6">
+        {value || '—'}
+      </Body>
     </div>
   );
 }

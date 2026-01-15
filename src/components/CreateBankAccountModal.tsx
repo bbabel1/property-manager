@@ -7,6 +7,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import type { BankGlAccountSummary, CreateBankAccountFormValues } from '@/components/forms/types';
 import { fetchWithSupabaseAuth } from '@/lib/supabase/fetch';
 import type { Database } from '@/types/database';
+import { Select } from '@/ui/select';
+import { Body, Heading, Label } from '@/ui/typography';
 
 type CreateBankAccountModalProps = {
   isOpen: boolean;
@@ -184,15 +186,19 @@ export default function CreateBankAccountModal({
       <DialogContent className="bg-card border-border/80 max-h-[90vh] w-[680px] max-w-[680px] overflow-y-auto rounded-none border p-0 shadow-2xl sm:rounded-2xl">
         {/* Header */}
         <DialogHeader className="border-border border-b p-6">
-          <DialogTitle className="text-foreground text-xl font-semibold">
-            Create New Bank Account
+          <DialogTitle>
+            <Heading as="h2" size="h4" className="text-foreground">
+              Create New Bank Account
+            </Heading>
           </DialogTitle>
         </DialogHeader>
 
         {/* Error Message */}
         {error && (
           <div className="mx-6 mt-4 rounded-md border border-red-200 bg-red-50 p-4">
-            <p className="text-sm text-red-600">{error}</p>
+            <Body as="p" size="sm" className="text-red-600">
+              {error}
+            </Body>
           </div>
         )}
 
@@ -200,19 +206,16 @@ export default function CreateBankAccountModal({
         <form onSubmit={handleSubmit} className="space-y-6 p-6">
           {/* Account Information */}
           <div className="space-y-4">
-            <h4 className="flex items-center gap-2 font-medium text-gray-900">
+            <Heading as="h3" size="h5" className="flex items-center gap-2 text-gray-900">
               <Building2 className="h-4 w-4" />
               Account Information
-            </h4>
+            </Heading>
 
             <div className="space-y-4">
               <div>
-                <label
-                  htmlFor="bank-account-name"
-                  className="mb-1 block text-sm font-medium text-gray-700"
-                >
+                <Label htmlFor="bank-account-name" className="mb-1 block text-gray-700">
                   Account Name *
-                </label>
+                </Label>
                 <input
                   id="bank-account-name"
                   type="text"
@@ -225,12 +228,9 @@ export default function CreateBankAccountModal({
               </div>
 
               <div>
-                <label
-                  htmlFor="bank-account-description"
-                  className="mb-1 block text-sm font-medium text-gray-700"
-                >
+                <Label htmlFor="bank-account-description" className="mb-1 block text-gray-700">
                   Description
-                </label>
+                </Label>
                 <textarea
                   id="bank-account-description"
                   value={formData.description}
@@ -242,38 +242,31 @@ export default function CreateBankAccountModal({
               </div>
 
               <div>
-                <label
-                  htmlFor="bank-account-type"
-                  className="mb-1 block text-sm font-medium text-gray-700"
-                >
+                <Label htmlFor="bank-account-type" className="mb-1 block text-gray-700">
                   Account Type *
-                </label>
-                <select
+                </Label>
+                <Select
                   id="bank-account-type"
                   value={formData.bank_account_type}
                   onChange={(e) => handleInputChange('bank_account_type', e.target.value)}
-                  className="w-full appearance-none rounded-md border border-gray-300 bg-white px-3 py-2 text-gray-900 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   required
                 >
-                  <option value="" className="bg-white text-gray-500">
+                  <option value="">
                     Select account type...
                   </option>
                   {BANK_ACCOUNT_TYPES.map((type) => (
-                    <option key={type} value={type} className="bg-white text-gray-900">
+                    <option key={type} value={type}>
                       {type}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label
-                    htmlFor="bank-account-number"
-                    className="mb-1 block text-sm font-medium text-gray-700"
-                  >
+                  <Label htmlFor="bank-account-number" className="mb-1 block text-gray-700">
                     Account Number *
-                  </label>
+                  </Label>
                   <input
                     id="bank-account-number"
                     type="text"
@@ -286,12 +279,9 @@ export default function CreateBankAccountModal({
                 </div>
 
                 <div>
-                  <label
-                    htmlFor="bank-routing-number"
-                    className="mb-1 block text-sm font-medium text-gray-700"
-                  >
+                  <Label htmlFor="bank-routing-number" className="mb-1 block text-gray-700">
                     Routing Number *
-                  </label>
+                  </Label>
                   <input
                     id="bank-routing-number"
                     type="text"
@@ -309,31 +299,27 @@ export default function CreateBankAccountModal({
               </div>
 
               <div>
-                <label
-                  htmlFor="bank-account-country"
-                  className="mb-1 block text-sm font-medium text-gray-700"
-                >
+                <Label htmlFor="bank-account-country" className="mb-1 block text-gray-700">
                   Country *
-                </label>
-                <select
+                </Label>
+                <Select
                   id="bank-account-country"
                   value={formData.country}
                   onChange={(e) => handleInputChange('country', e.target.value)}
-                  className="w-full appearance-none rounded-md border border-gray-300 bg-white px-3 py-2 text-gray-900 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   required
                 >
                   {COUNTRIES.map((country) => (
-                    <option key={country} value={country} className="bg-white text-gray-900">
+                    <option key={country} value={country}>
                       {country}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
 
               <div className="space-y-2">
-                <p className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">
+                <Label as="p" size="xs" tone="muted" className="uppercase tracking-wide">
                   Bank Information
-                </p>
+                </Label>
                 {formData.bank_information_lines.map((line, idx) => (
                   <input
                     key={`bank-info-${idx}`}
@@ -347,11 +333,13 @@ export default function CreateBankAccountModal({
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <p className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">
+                  <Label as="p" size="xs" tone="muted" className="uppercase tracking-wide">
                     Company Information
-                  </p>
+                  </Label>
                   {isLoadingOrg && (
-                    <span className="text-muted-foreground text-[11px]">Loading defaults…</span>
+                    <Body as="span" size="sm" tone="muted" className="text-[11px]">
+                      Loading defaults…
+                    </Body>
                   )}
                 </div>
                 {formData.company_information_lines.map((line, idx) => (

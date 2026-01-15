@@ -15,17 +15,17 @@ type Violation = {
   description?: string | null
 }
 
-const statusMap: Record<string, { label: string; className: string }> = {
-  open: { label: 'Open', className: 'bg-rose-50 text-rose-700 border-rose-200' },
-  in_progress: { label: 'In progress', className: 'bg-amber-50 text-amber-700 border-amber-200' },
-  cleared: { label: 'Cleared', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-  closed: { label: 'Closed', className: 'bg-slate-100 text-slate-700 border-slate-200' },
+const statusMap: Record<string, { label: string; variant: 'success' | 'warning' | 'danger' | 'info' }> = {
+  open: { label: 'Open', variant: 'danger' },
+  in_progress: { label: 'In progress', variant: 'warning' },
+  cleared: { label: 'Cleared', variant: 'success' },
+  closed: { label: 'Closed', variant: 'info' },
 }
 
 function StatusPill({ value }: { value: string }) {
   const key = value.toLowerCase()
-  const info = statusMap[key] || { label: value, className: 'bg-muted text-foreground border-muted-foreground/20' }
-  return <Badge variant="outline" className={info.className + ' text-xs'}>{info.label}</Badge>
+  const info = statusMap[key] || { label: value, variant: 'info' }
+  return <Badge variant={info.variant} className="text-xs">{info.label}</Badge>
 }
 
 export function ComplianceViolationsPanel({ violations }: { violations: Violation[] }) {

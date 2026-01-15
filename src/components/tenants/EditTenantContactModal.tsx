@@ -7,6 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { DatePicker } from '@/components/ui/date-picker';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
+import { Select } from '@/ui/select';
+import { Body, Heading, Label } from '@/ui/typography';
 
 const COUNTRIES = [
   'United States',
@@ -112,25 +114,33 @@ export default function EditTenantContactModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="border-l-primary w-[680px] max-w-[680px] border-l-4">
         <DialogHeader>
-          <DialogTitle>Edit contact information</DialogTitle>
+          <DialogTitle>
+            <Heading as="h2" size="h4">
+              Edit contact information
+            </Heading>
+          </DialogTitle>
         </DialogHeader>
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           {/* Left Column - Personal Information */}
           <div className="space-y-4">
-            <h3 className="text-foreground border-b pb-2 text-sm font-medium">
+            <Heading as="h3" size="h5" className="text-foreground border-b pb-2 font-medium">
               Personal Information
-            </h3>
+            </Heading>
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
-                <div className="mb-1 text-xs">First name</div>
+                <Label as="div" size="xs" className="mb-1">
+                  First name
+                </Label>
                 <Input
                   value={values.first_name ?? ''}
                   onChange={(e) => setValues((v) => ({ ...v, first_name: e.target.value }))}
                 />
               </div>
               <div>
-                <div className="mb-1 text-xs">Last name</div>
+                <Label as="div" size="xs" className="mb-1">
+                  Last name
+                </Label>
                 <Input
                   value={values.last_name ?? ''}
                   onChange={(e) => setValues((v) => ({ ...v, last_name: e.target.value }))}
@@ -138,21 +148,24 @@ export default function EditTenantContactModal({
               </div>
             </div>
 
-            <label className="flex items-center gap-2 text-sm">
+            <Label as="label" htmlFor="edit-tenant-is-company" className="flex items-center gap-2">
               <Checkbox
+                id="edit-tenant-is-company"
                 checked={Boolean(values.is_company)}
-                onCheckedChange={(v) => {
-                  const isCompany = Boolean(v);
+                onCheckedChange={(checked) => {
+                  const isCompany = Boolean(checked);
                   setValues((val) => ({ ...val, is_company: isCompany }));
                   setShowCompanyName(isCompany);
                 }}
               />
               Is company
-            </label>
+            </Label>
 
             {showCompanyName && (
               <div>
-                <div className="mb-1 text-xs">Company name</div>
+                <Label as="div" size="xs" className="mb-1">
+                  Company name
+                </Label>
                 <Input
                   value={values.company_name ?? ''}
                   onChange={(e) => setValues((v) => ({ ...v, company_name: e.target.value }))}
@@ -161,7 +174,9 @@ export default function EditTenantContactModal({
             )}
 
             <div>
-              <div className="mb-1 text-xs">Date of Birth</div>
+              <Label as="div" size="xs" className="mb-1">
+                Date of Birth
+              </Label>
               <DatePicker
                 value={values.date_of_birth ?? null}
                 onChange={(date) =>
@@ -175,9 +190,13 @@ export default function EditTenantContactModal({
             </div>
 
             <div className="space-y-3">
-              <h4 className="text-foreground text-xs font-medium">Email Addresses</h4>
+              <Heading as="h4" size="h6" className="text-foreground font-medium">
+                Email Addresses
+              </Heading>
               <div>
-                <div className="mb-1 text-xs">Primary Email</div>
+                <Label as="div" size="xs" className="mb-1">
+                  Primary Email
+                </Label>
                 <Input
                   type="email"
                   value={values.primary_email ?? ''}
@@ -185,7 +204,9 @@ export default function EditTenantContactModal({
                 />
               </div>
               <div>
-                <div className="mb-1 text-xs">Alternative Email</div>
+                <Label as="div" size="xs" className="mb-1">
+                  Alternative Email
+                </Label>
                 <Input
                   type="email"
                   value={values.alt_email ?? ''}
@@ -195,9 +216,13 @@ export default function EditTenantContactModal({
             </div>
 
             <div className="space-y-3">
-              <h4 className="text-foreground text-xs font-medium">Phone Numbers</h4>
+              <Heading as="h4" size="h6" className="text-foreground font-medium">
+                Phone Numbers
+              </Heading>
               <div>
-                <div className="mb-1 text-xs">Primary Phone</div>
+                <Label as="div" size="xs" className="mb-1">
+                  Primary Phone
+                </Label>
                 <Input
                   value={values.primary_phone ?? ''}
                   onChange={(e) => setValues((v) => ({ ...v, primary_phone: e.target.value }))}
@@ -206,7 +231,9 @@ export default function EditTenantContactModal({
               <div>
                 {showAltPhone ? (
                   <div>
-                    <div className="mb-1 text-xs">Alternative Phone</div>
+                    <Label as="div" size="xs" className="mb-1">
+                      Alternative Phone
+                    </Label>
                     <Input
                       value={values.alt_phone ?? ''}
                       onChange={(e) => setValues((v) => ({ ...v, alt_phone: e.target.value }))}
@@ -214,7 +241,9 @@ export default function EditTenantContactModal({
                   </div>
                 ) : (
                   <div>
-                    <div className="mb-1 text-xs">Alternative Phone</div>
+                    <Label as="div" size="xs" className="mb-1">
+                      Alternative Phone
+                    </Label>
                     <Button
                       type="button"
                       variant="outline"
@@ -231,14 +260,18 @@ export default function EditTenantContactModal({
 
           {/* Right Column - Address Information */}
           <div className="space-y-4">
-            <h3 className="text-foreground border-b pb-2 text-sm font-medium">
+            <Heading as="h3" size="h5" className="text-foreground border-b pb-2 font-medium">
               Address Information
-            </h3>
+            </Heading>
 
             <div className="space-y-3">
-              <h4 className="text-foreground text-xs font-medium">Street Address</h4>
+              <Heading as="h4" size="h6" className="text-foreground font-medium">
+                Street Address
+              </Heading>
               <div>
-                <div className="mb-1 text-xs">Address line 1</div>
+                <Label as="div" size="xs" className="mb-1">
+                  Address line 1
+                </Label>
                 <Input
                   value={values.primary_address_line_1 ?? ''}
                   onChange={(e) =>
@@ -247,7 +280,9 @@ export default function EditTenantContactModal({
                 />
               </div>
               <div>
-                <div className="mb-1 text-xs">Address line 2</div>
+                <Label as="div" size="xs" className="mb-1">
+                  Address line 2
+                </Label>
                 <Input
                   value={values.primary_address_line_2 ?? ''}
                   onChange={(e) =>
@@ -258,17 +293,23 @@ export default function EditTenantContactModal({
             </div>
 
             <div className="space-y-3">
-              <h4 className="text-foreground text-xs font-medium">City, State & ZIP</h4>
+              <Heading as="h4" size="h6" className="text-foreground font-medium">
+                City, State & ZIP
+              </Heading>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
-                  <div className="mb-1 text-xs">City</div>
+                  <Label as="div" size="xs" className="mb-1">
+                    City
+                  </Label>
                   <Input
                     value={values.primary_city ?? ''}
                     onChange={(e) => setValues((v) => ({ ...v, primary_city: e.target.value }))}
                   />
                 </div>
                 <div>
-                  <div className="mb-1 text-xs">State</div>
+                  <Label as="div" size="xs" className="mb-1">
+                    State
+                  </Label>
                   <Input
                     value={values.primary_state ?? ''}
                     onChange={(e) => setValues((v) => ({ ...v, primary_state: e.target.value }))}
@@ -277,7 +318,9 @@ export default function EditTenantContactModal({
               </div>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
-                  <div className="mb-1 text-xs">Postal code</div>
+                  <Label as="div" size="xs" className="mb-1">
+                    Postal code
+                  </Label>
                   <Input
                     value={values.primary_postal_code ?? ''}
                     onChange={(e) =>
@@ -286,11 +329,12 @@ export default function EditTenantContactModal({
                   />
                 </div>
                 <div>
-                  <div className="mb-1 text-xs">Country</div>
-                  <select
+                  <Label as="div" size="xs" className="mb-1">
+                    Country
+                  </Label>
+                  <Select
                     value={values.primary_country ?? 'United States'}
                     onChange={(e) => setValues((v) => ({ ...v, primary_country: e.target.value }))}
-                    className="border-input focus-visible:ring-primary focus-visible:border-primary bg-background text-foreground w-full rounded-md border px-3 py-2 focus-visible:ring-2 focus-visible:outline-none"
                     aria-label="Primary address country"
                   >
                     {COUNTRIES.map((country) => (
@@ -298,7 +342,7 @@ export default function EditTenantContactModal({
                         {country}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </div>
               </div>
             </div>

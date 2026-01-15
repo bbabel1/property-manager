@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 import { COUNTRIES } from '@/lib/constants/countries'
+import { Body, Heading } from '@/ui/typography'
 
 type OrgFormState = {
   companyName: string
@@ -323,11 +324,13 @@ export default function OrganizationPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-2">
-        <h1 className="text-2xl font-bold text-foreground">Organization</h1>
-        <p className="text-sm text-muted-foreground">
+        <Heading as="h1" size="h2">
+          Organization
+        </Heading>
+        <Body as="p" tone="muted" size="sm">
           Keep your organization profile, contact, and accounting settings aligned with the data stored in the
           organizations table.
-        </p>
+        </Body>
       </div>
 
       <Card>

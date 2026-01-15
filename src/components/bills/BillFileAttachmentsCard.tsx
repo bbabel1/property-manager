@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import ActionButton from '@/components/ui/ActionButton';
 import { ChevronDown, Eye, Trash2 } from 'lucide-react';
+import { Body, Heading, Label } from '@/ui/typography';
 import BillFileUploadDialog from './BillFileUploadDialog';
 import BillFileViewDialog from './BillFileViewDialog';
 import type { BillFileRecord } from './types';
@@ -68,14 +69,16 @@ export default function BillFileAttachmentsCard({
         <div className="border-border/60 bg-muted/30 flex flex-wrap items-start justify-between gap-3 border-b px-6 py-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <h2 className="text-foreground text-base font-semibold">File attachments</h2>
+              <Heading as="h2" size="h6" className="text-foreground">
+                File attachments
+              </Heading>
               <span className="status-pill border-border/60 text-muted-foreground px-2 py-0.5">
                 {fileCount} file{fileCount === 1 ? '' : 's'}
               </span>
             </div>
-            <p className="text-muted-foreground text-xs">
+            <Label as="p" size="xs" tone="muted">
               Keep invoices, receipts, and photos together. Add or drop files to attach.
-            </p>
+            </Label>
           </div>
           <div className="flex items-center gap-2">
             <Button
@@ -113,11 +116,13 @@ export default function BillFileAttachmentsCard({
               }}
               className="border-border/60 bg-muted/10 hover:bg-muted/20 focus-visible:ring-primary/40 flex w-full flex-col items-center justify-center gap-3 px-6 py-14 text-center outline-none transition-colors focus-visible:ring-2"
             >
-              <div className="text-foreground text-base font-semibold">Drop files or click to upload</div>
-              <p className="text-muted-foreground max-w-sm text-sm">
+              <Heading as="div" size="h6" className="text-foreground">
+                Drop files or click to upload
+              </Heading>
+              <Body tone="muted" size="sm" className="max-w-sm">
                 Upload invoices, receipts, and supporting documents. You can also use the Add files button
                 to launch the uploader.
-              </p>
+              </Body>
               <Button type="button" variant="secondary" size="sm">
                 Upload your first file
               </Button>
@@ -125,8 +130,12 @@ export default function BillFileAttachmentsCard({
           ) : (
             <div className="overflow-x-auto" id="bill-files-panel">
               <div className="text-muted-foreground flex items-center justify-between gap-3 px-6 py-3 text-xs">
-                <span>All files</span>
-                <span>Newest first</span>
+                <Label as="span" size="xs" tone="muted">
+                  All files
+                </Label>
+                <Label as="span" size="xs" tone="muted">
+                  Newest first
+                </Label>
               </div>
               <Table className="min-w-[560px]">
                 <TableHeader>
@@ -150,21 +159,25 @@ export default function BillFileAttachmentsCard({
                       <TableCell className="text-foreground border-border/60 group-hover:text-primary px-4 py-3 font-medium">
                         {file.title}
                       </TableCell>
-                      <TableCell className="px-4 py-3 text-sm">
-                        <div>{formatDateTime(file.uploadedAt)}</div>
-                        <div className="text-muted-foreground text-xs">
+                      <TableCell className="px-4 py-3">
+                        <Body as="div" size="sm">
+                          {formatDateTime(file.uploadedAt)}
+                        </Body>
+                        <Label as="div" size="xs" tone="muted">
                           by {file.uploadedBy || uploaderName || 'Team member'}
-                        </div>
+                        </Label>
                         {file.buildiumSyncError ? (
-                          <div className="text-destructive text-xs">
+                          <Label as="div" size="xs" className="text-destructive">
                             Buildium sync failed: {file.buildiumSyncError}
-                          </div>
+                          </Label>
                         ) : file.buildiumFileId ? (
-                          <div className="text-muted-foreground text-xs">
+                          <Label as="div" size="xs" tone="muted">
                             Buildium #{file.buildiumFileId}
-                          </div>
+                          </Label>
                         ) : (
-                          <div className="text-xs text-amber-600">Buildium sync pending</div>
+                          <Label as="div" size="xs" className="text-amber-600">
+                            Buildium sync pending
+                          </Label>
                         )}
                       </TableCell>
                       <TableCell className="px-4 py-3 text-right">

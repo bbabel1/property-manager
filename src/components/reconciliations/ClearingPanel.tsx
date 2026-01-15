@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { Lock } from 'lucide-react'
 import { fmtCurrency } from './ReconHelpers'
 import { getSupabaseBrowserClient } from '@/lib/supabase/client'
+import { Checkbox } from '@/ui/checkbox'
+import { Body, Heading, Label } from '@/ui/typography'
 
 type ReconRow = {
   reconciliation_id: string
@@ -98,13 +100,19 @@ export default function ClearingPanel({
   return (
     <div className="rounded-2xl border">
       <div className="flex items-center justify-between p-3">
-        <div className="flex items-center gap-2 text-sm font-medium">
-          <span>Clearing</span>
+        <div className="flex items-center gap-2">
+          <Heading as="div" size="h5">
+            Clearing
+          </Heading>
           {isFinished ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-1 text-xs font-semibold">
+            <Label
+              as="span"
+              size="xs"
+              className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-1 font-semibold"
+            >
               <Lock className="h-3 w-3" aria-hidden />
               Locked
-            </span>
+            </Label>
           ) : null}
         </div>
         <div className="flex gap-2">
@@ -124,9 +132,14 @@ export default function ClearingPanel({
           </button>
         </div>
       </div>
-      <div className="border-t px-3 py-2 text-xs text-muted-foreground">
+      <Body
+        as="div"
+        size="sm"
+        tone="muted"
+        className="border-t px-3 py-2 text-xs leading-tight"
+      >
         {summary.cleared} cleared · {summary.reconciled} reconciled · {summary.uncleared} uncleared
-      </div>
+      </Body>
       <div className="max-h-[60vh] overflow-auto">
         <table className="w-full text-sm">
           <thead>
@@ -151,8 +164,7 @@ export default function ClearingPanel({
                   <td className="p-2 text-right">{fmtCurrency(Number(r.bank_amount ?? 0))}</td>
                   <td className="p-2 text-center">
                     <label className="inline-flex items-center gap-2">
-                      <input
-                        type="checkbox"
+                      <Checkbox
                         checked={r.status !== 'uncleared'}
                         onChange={(e) => toggle(key, e.target.checked)}
                         disabled={isFinished}

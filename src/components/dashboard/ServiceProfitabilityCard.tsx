@@ -13,6 +13,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { formatCurrency } from '@/lib/format-currency';
 import { TrendingUp, TrendingDown } from 'lucide-react';
+import { Body, Heading } from '@/ui/typography';
 
 interface ServiceProfitabilityData {
   offering_id: string;
@@ -80,7 +81,7 @@ export default function ServiceProfitabilityCard({
     return (
       <Card>
         <CardContent className="py-6">
-          <div className="text-destructive text-center">{error}</div>
+          <Body className="text-destructive text-center">{error}</Body>
         </CardContent>
       </Card>
     );
@@ -94,7 +95,9 @@ export default function ServiceProfitabilityCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Service Profitability</CardTitle>
+        <CardTitle headingAs="h3" headingSize="h4">
+          Service Profitability
+        </CardTitle>
         <CardDescription>
           Revenue, costs, and margins by service offering for {period}
         </CardDescription>
@@ -103,36 +106,52 @@ export default function ServiceProfitabilityCard({
         {/* Summary */}
         <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-4">
           <div>
-            <div className="text-muted-foreground text-sm">Total Revenue</div>
-            <div className="text-2xl font-bold">{formatCurrency(totalRevenue)}</div>
+            <Body tone="muted" size="sm">
+              Total Revenue
+            </Body>
+            <Heading as="div" size="h3">
+              {formatCurrency(totalRevenue)}
+            </Heading>
           </div>
           <div>
-            <div className="text-muted-foreground text-sm">Total Costs</div>
-            <div className="text-2xl font-bold">{formatCurrency(totalCost)}</div>
+            <Body tone="muted" size="sm">
+              Total Costs
+            </Body>
+            <Heading as="div" size="h3">
+              {formatCurrency(totalCost)}
+            </Heading>
           </div>
           <div>
-            <div className="text-muted-foreground text-sm">Net Margin</div>
-            <div
-              className={`text-2xl font-bold ${totalMargin >= 0 ? 'text-green-600' : 'text-red-600'}`}
+            <Body tone="muted" size="sm">
+              Net Margin
+            </Body>
+            <Heading
+              as="div"
+              size="h3"
+              className={totalMargin >= 0 ? 'text-green-600' : 'text-red-600'}
             >
               {formatCurrency(totalMargin)}
-            </div>
+            </Heading>
           </div>
           <div>
-            <div className="text-muted-foreground text-sm">Margin %</div>
-            <div
-              className={`text-2xl font-bold ${totalMarginPercent >= 0 ? 'text-green-600' : 'text-red-600'}`}
+            <Body tone="muted" size="sm">
+              Margin %
+            </Body>
+            <Heading
+              as="div"
+              size="h3"
+              className={totalMarginPercent >= 0 ? 'text-green-600' : 'text-red-600'}
             >
               {totalMarginPercent.toFixed(1)}%
-            </div>
+            </Heading>
           </div>
         </div>
 
         {/* Table */}
         {data.length === 0 ? (
-          <div className="text-muted-foreground rounded-md border border-dashed p-6 text-center text-sm">
+          <Body tone="muted" size="sm" className="rounded-md border border-dashed p-6 text-center">
             No profitability data available for this period.
-          </div>
+          </Body>
         ) : (
           <div className="border-border overflow-hidden rounded-lg border">
             <Table>

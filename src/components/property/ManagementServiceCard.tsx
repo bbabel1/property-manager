@@ -6,9 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { Body, Label as TypographyLabel } from '@/ui/typography';
 import { toast } from 'sonner';
 
 type ManagementServiceConfig = {
@@ -269,11 +269,17 @@ export default function ManagementServiceCard({
   const readOnlyContent = (
     <div className="space-y-3">
       <div>
-        <p className="text-muted-foreground text-sm">Service Plan</p>
-        <p className="text-foreground text-base font-medium">{config?.service_plan || '—'}</p>
+        <TypographyLabel as="p" tone="muted" size="sm">
+          Service Plan
+        </TypographyLabel>
+        <TypographyLabel as="p" size="sm">
+          {config?.service_plan || '—'}
+        </TypographyLabel>
       </div>
       <div>
-        <p className="text-muted-foreground text-sm">Active Services</p>
+        <TypographyLabel as="p" tone="muted" size="sm">
+          Active Services
+        </TypographyLabel>
         {config?.active_services?.length ? (
           <div className="flex flex-wrap gap-2 pt-1">
             {config.active_services.map((svc) => (
@@ -283,33 +289,43 @@ export default function ManagementServiceCard({
             ))}
           </div>
         ) : (
-          <p className="text-muted-foreground text-sm">None</p>
+          <Body tone="muted" size="sm">
+            None
+          </Body>
         )}
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
-          <p className="text-muted-foreground text-sm">Fee Amount</p>
-          <p className="text-foreground text-base font-medium">
+          <Body tone="muted" size="sm">
+            Fee Amount
+          </Body>
+          <TypographyLabel as="p" size="sm">
             {config?.fee_amount != null ? `$${config.fee_amount}` : '—'}
-          </p>
+          </TypographyLabel>
         </div>
         <div>
-          <p className="text-muted-foreground text-sm">Fee Percent</p>
-          <p className="text-foreground text-base font-medium">
+          <Body tone="muted" size="sm">
+            Fee Percent
+          </Body>
+          <TypographyLabel as="p" size="sm">
             {config?.fee_percent != null ? `${config.fee_percent}%` : '—'}
-          </p>
+          </TypographyLabel>
         </div>
         <div>
-          <p className="text-muted-foreground text-sm">Billing Frequency</p>
-          <p className="text-foreground text-base font-medium">
+          <Body tone="muted" size="sm">
+            Billing Frequency
+          </Body>
+          <TypographyLabel as="p" size="sm">
             {frequencyLabel(config?.billing_frequency)}
-          </p>
+          </TypographyLabel>
         </div>
         <div>
-          <p className="text-muted-foreground text-sm">Billing Notes</p>
-          <p className="text-foreground text-base font-medium">
+          <Body tone="muted" size="sm">
+            Billing Notes
+          </Body>
+          <TypographyLabel as="p" size="sm">
             {config?.bill_administration || '—'}
-          </p>
+          </TypographyLabel>
         </div>
       </div>
     </div>
@@ -320,29 +336,37 @@ export default function ManagementServiceCard({
       <CardHeader>
         <div className="flex items-start justify-between gap-3">
           <div>
-            <CardTitle className="text-xl">{title}</CardTitle>
-            <CardDescription>{subtitle || 'Configure plan, services, and billing notes.'}</CardDescription>
+            <CardTitle headingSize="h4">{title}</CardTitle>
+            <CardDescription>
+              {subtitle || 'Configure plan, services, and billing notes.'}
+            </CardDescription>
           </div>
           <Button variant="outline" size="sm" onClick={load} disabled={loading}>
             {loading ? 'Loading…' : 'Refresh'}
           </Button>
         </div>
         {error ? (
-          <p className="text-destructive text-sm font-medium">{error}</p>
+          <Body size="sm" className="text-destructive">
+            {error}
+          </Body>
         ) : null}
       </CardHeader>
       <CardContent className="space-y-4">
         {loading ? (
-          <p className="text-muted-foreground text-sm">Loading management services…</p>
+          <Body tone="muted" size="sm">
+            Loading management services…
+          </Body>
         ) : !config ? (
-          <p className="text-destructive text-sm">Unable to load configuration.</p>
+          <Body size="sm" className="text-destructive">
+            Unable to load configuration.
+          </Body>
         ) : readOnly ? (
           readOnlyContent
         ) : (
           <>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label>Service Plan</Label>
+                <TypographyLabel>Service Plan</TypographyLabel>
                 <Select value={planName} onValueChange={handlePlanChange}>
                   <SelectTrigger aria-label="Service Plan">
                     <SelectValue placeholder="Select plan" />
@@ -357,7 +381,7 @@ export default function ManagementServiceCard({
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Billing Frequency</Label>
+                <TypographyLabel>Billing Frequency</TypographyLabel>
                 <Select value={feeFrequency} onValueChange={setFeeFrequency}>
                   <SelectTrigger aria-label="Billing Frequency">
                     <SelectValue />
@@ -376,7 +400,7 @@ export default function ManagementServiceCard({
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label>Fee Amount ($)</Label>
+                <TypographyLabel>Fee Amount ($)</TypographyLabel>
                 <Input
                   value={feeAmount}
                   onChange={(e) => setFeeAmount(e.target.value)}
@@ -385,7 +409,7 @@ export default function ManagementServiceCard({
                 />
               </div>
               <div className="space-y-2">
-                <Label>Fee Percent (%)</Label>
+                <TypographyLabel>Fee Percent (%)</TypographyLabel>
                 <Input
                   value={feePercent}
                   onChange={(e) => setFeePercent(e.target.value)}
@@ -396,41 +420,45 @@ export default function ManagementServiceCard({
             </div>
 
             <div className="rounded-md border border-dashed p-3">
-              <p className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">
+              <TypographyLabel as="p" size="xs" tone="muted" className="uppercase tracking-wide">
                 Fee Summary
-              </p>
-              <p className="text-foreground text-sm font-medium">{feeSummary}</p>
+              </TypographyLabel>
+              <TypographyLabel as="p" size="sm">
+                {feeSummary}
+              </TypographyLabel>
             </div>
 
-              <div className="space-y-2">
+            <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label>Active Services {alaCarte ? '(A-la-carte)' : ''}</Label>
-                <span className="text-muted-foreground text-xs">
+                <TypographyLabel>Active Services {alaCarte ? '(A-la-carte)' : ''}</TypographyLabel>
+                <Body as="span" tone="muted" size="xs">
                   {alaCarte
                     ? 'Select services for this plan.'
                     : 'Plan services are pre-selected; uncheck to override.'}
-                </span>
+                </Body>
               </div>
               {alaCarte && selectedServices.size === 0 ? (
-                <p className="text-muted-foreground text-sm">
+                <Body tone="muted" size="sm">
                   Select at least one service to include for this A-la-carte plan.
-                </p>
+                </Body>
               ) : null}
               <div className="grid gap-2 sm:grid-cols-2">
                 {sortedServices.map((svc) => (
-                  <label key={svc.id} className="flex items-center gap-2 text-sm">
+                  <label key={svc.id} className="flex items-center gap-2">
                     <Checkbox
                       checked={selectedServices.has(svc.name)}
                       onCheckedChange={() => toggleService(svc.name)}
                     />
-                    <span>{svc.name}</span>
+                    <Body as="span" size="sm">
+                      {svc.name}
+                    </Body>
                   </label>
                 ))}
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label>Billing Notes</Label>
+              <TypographyLabel>Billing Notes</TypographyLabel>
               <Textarea
                 value={billNotes}
                 onChange={(e) => setBillNotes(e.target.value)}

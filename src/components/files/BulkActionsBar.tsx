@@ -5,6 +5,7 @@ import { fetchWithSupabaseAuth } from '@/lib/supabase/fetch';
 import { toast } from 'sonner';
 import { cn } from '@/components/ui/utils';
 import DestructiveActionModal from '@/components/common/DestructiveActionModal';
+import { Body } from '@/ui/typography';
 
 export interface BulkActionsBarProps {
   selectedFiles: Set<string>;
@@ -91,9 +92,9 @@ export function BulkActionsBar({
         role="region"
         aria-label="Bulk actions"
       >
-        <div className="text-primary text-sm font-medium">
+        <Body as="div" size="sm" className="text-primary font-medium">
           {selectedFiles.size} {selectedFiles.size === 1 ? 'file' : 'files'} selected
-        </div>
+        </Body>
         <div className="flex flex-wrap items-center gap-2">
           <Button
             variant="outline"

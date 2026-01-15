@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { cn } from '@/components/ui/utils';
+import { Body, Heading, Label } from '@/ui/typography';
 
 interface EventDetailDrawerProps {
   event: CalendarEvent | null;
@@ -168,7 +169,11 @@ export function EventDetailDrawer({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] w-[680px] max-w-[680px] overflow-y-auto bg-white p-0">
         <DialogHeader className="sr-only">
-          <DialogTitle>{event.title}</DialogTitle>
+          <DialogTitle>
+            <Heading as="h3" size="h5">
+              {event.title}
+            </Heading>
+          </DialogTitle>
         </DialogHeader>
         {/* Header */}
         <div className="border-b border-gray-200 p-6">
@@ -179,12 +184,16 @@ export function EventDetailDrawer({
                 style={{ backgroundColor: event.color }}
               />
               <div className="min-w-0 flex-1">
-                <h2 className="mb-2 text-2xl font-normal break-words text-gray-900">
+                <Heading as="h2" size="h4" className="mb-2 break-words">
                   {event.title}
-                </h2>
-                <div className="text-sm text-gray-600">{formatTimeRange()}</div>
+                </Heading>
+                <Body as="div" tone="muted" size="sm">
+                  {formatTimeRange()}
+                </Body>
                 {isGoogleEvent && (
-                  <div className="mt-1 text-sm text-gray-600">Weekly on weekdays</div>
+                  <Body as="div" tone="muted" size="sm" className="mt-1">
+                    Weekly on weekdays
+                  </Body>
                 )}
               </div>
             </div>
@@ -225,36 +234,40 @@ export function EventDetailDrawer({
           {hasMeetLink && (
             <div className="space-y-3">
               <div className="flex items-center gap-3">
-                <Button className="flex items-center gap-2 rounded-md bg-[#1a73e8] px-4 py-2 text-white hover:bg-[#1557b0]">
+                <Button className="flex items-center gap-2 rounded-md bg-[#1a73e8] px-4 py-2 hover:bg-[#1557b0]">
                   <Video className="h-4 w-4" />
                   Join with Google Meet
                 </Button>
               </div>
-              <div className="flex items-center gap-2 text-sm text-gray-700">
-                <span>meet.google.com/bcn-sdms-zcc</span>
+              <div className="flex items-center gap-2">
+                <Body as="span" size="sm">
+                  meet.google.com/bcn-sdms-zcc
+                </Body>
                 <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleCopyLink}>
-                  {copied ? (
-                    <Check className="h-4 w-4 text-green-600" />
-                  ) : (
-                    <Copy className="h-4 w-4" />
-                  )}
+                  {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                 </Button>
               </div>
 
               {/* Phone dial-in */}
               <div className="space-y-2 pt-2">
-                <div className="flex items-center gap-2 text-sm text-gray-700">
+                <div className="flex items-center gap-2">
                   <Phone className="h-4 w-4" />
-                  <span>Join by phone</span>
+                  <Body as="span" size="sm">
+                    Join by phone
+                  </Body>
                 </div>
-                <div className="pl-6 text-sm text-gray-600">
-                  <div>+1 267-553-4862</div>
-                  <div>PIN: 377 971 367#</div>
+                <div className="pl-6">
+                  <Body as="div" tone="muted" size="sm">
+                    +1 267-553-4862
+                  </Body>
+                  <Body as="div" tone="muted" size="sm">
+                    PIN: 377 971 367#
+                  </Body>
                 </div>
                 <Button
-                  variant="ghost"
+                  variant="link"
                   size="sm"
-                  className="-ml-2 pl-6 text-sm text-blue-600 hover:text-blue-700"
+                  className="-ml-2 pl-6 px-0"
                 >
                   <ExternalLink className="mr-1 h-3 w-3" />
                   More phone numbers
@@ -264,17 +277,19 @@ export function EventDetailDrawer({
               {/* Gemini meeting notes */}
               <div className="border-t border-gray-200 pt-2">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-sm text-gray-700">
+                  <div className="flex items-center gap-2">
                     <Sparkles className="h-4 w-4" />
-                    <span>Turn on Gemini meeting notes</span>
+                    <Body as="span" size="sm">
+                      Turn on Gemini meeting notes
+                    </Body>
                   </div>
                   <Button variant="ghost" size="icon" className="h-6 w-6">
                     <MoreVertical className="h-4 w-4" />
                   </Button>
                 </div>
-                <p className="mt-1 pl-6 text-xs text-gray-500">
+                <Body as="p" tone="muted" size="xs" className="mt-1 pl-6">
                   Share notes and transcript with internal guests
-                </p>
+                </Body>
               </div>
             </div>
           )}
@@ -283,18 +298,28 @@ export function EventDetailDrawer({
           {guests.length > 0 && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-sm text-gray-700">
+                <div className="flex items-center gap-2">
                   <div className="flex items-center gap-1">
                     <div className="flex h-5 w-5 items-center justify-center rounded-full bg-gray-300">
-                      <span className="text-xs text-gray-700">{guests.length}</span>
+                      <Body as="span" size="xs">
+                        {guests.length}
+                      </Body>
                     </div>
                   </div>
-                  <span>{guests.length} guests</span>
+                  <Body as="span" size="sm">
+                    {guests.length} guests
+                  </Body>
                 </div>
-                <div className="flex items-center gap-2 text-xs text-gray-600">
-                  <span>{yesCount} yes</span>
-                  <span>•</span>
-                  <span>{awaitingCount} awaiting</span>
+                <div className="flex items-center gap-2">
+                  <Body as="span" tone="muted" size="xs">
+                    {yesCount} yes
+                  </Body>
+                  <Body as="span" tone="muted" size="xs">
+                    •
+                  </Body>
+                  <Body as="span" tone="muted" size="xs">
+                    {awaitingCount} awaiting
+                  </Body>
                 </div>
                 <div className="flex items-center gap-1">
                   <Button variant="ghost" size="icon" className="h-6 w-6">
@@ -312,26 +337,34 @@ export function EventDetailDrawer({
                     <Avatar className="h-8 w-8">
                       <AvatarImage src={guest.avatar || undefined} alt={guest.name || 'Guest'} />
                       <AvatarFallback
-                        className={cn('text-xs text-white', getAvatarColor(guest.color))}
+                        className={cn('flex items-center justify-center', getAvatarColor(guest.color))}
                       >
-                        {guest.name
-                          .split(' ')
-                          .map((n) => n[0])
-                          .join('')
-                          .toUpperCase()}
+                        <Label as="span" size="xs">
+                          {guest.name
+                            .split(' ')
+                            .map((n) => n[0])
+                            .join('')
+                            .toUpperCase()}
+                        </Label>
                       </AvatarFallback>
                     </Avatar>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm text-gray-900">{guest.name}</span>
-                        {guest.rsvp === 'yes' && <Check className="h-4 w-4 text-green-600" />}
+                        <Body as="span" size="sm">
+                          {guest.name}
+                        </Body>
+                        {guest.rsvp === 'yes' && <Check className="h-4 w-4" />}
                       </div>
-                      {guest.role && <div className="text-xs text-gray-500">{guest.role}</div>}
+                      {guest.role && (
+                        <Body as="div" tone="muted" size="xs">
+                          {guest.role}
+                        </Body>
+                      )}
                       {guest.name === 'Brandon Babel' && (
                         <Button
                           variant="link"
                           size="sm"
-                          className="h-auto p-0 text-xs text-blue-600 hover:text-blue-700"
+                          className="h-auto p-0"
                         >
                           Set your working location
                         </Button>
@@ -345,33 +378,43 @@ export function EventDetailDrawer({
 
           {/* Notification, Organizer, Availability */}
           <div className="space-y-3 border-t border-gray-200 pt-2">
-            <div className="flex items-center gap-2 text-sm text-gray-700">
+            <div className="flex items-center gap-2">
               <Bell className="h-4 w-4" />
-              <span>10 minutes before</span>
+              <Body as="span" size="sm">
+                10 minutes before
+              </Body>
             </div>
             {organizer && (
-              <div className="flex items-center gap-2 text-sm text-gray-700">
+              <div className="flex items-center gap-2">
                 <CalendarIcon className="h-4 w-4" />
-                <span>{organizer.name}</span>
+                <Body as="span" size="sm">
+                  {organizer.name}
+                </Body>
               </div>
             )}
-            <div className="flex items-center gap-2 text-sm text-gray-700">
+            <div className="flex items-center gap-2">
               <Briefcase className="h-4 w-4" />
-              <span>Free</span>
+              <Body as="span" size="sm">
+                Free
+              </Body>
             </div>
           </div>
 
           {/* Description */}
           {event.description && (
             <div className="border-t border-gray-200 pt-2">
-              <p className="text-sm whitespace-pre-wrap text-gray-700">{event.description}</p>
+              <Body as="p" size="sm" className="whitespace-pre-wrap">
+                {event.description}
+              </Body>
             </div>
           )}
 
           {/* Location */}
           {event.location && (
             <div className="border-t border-gray-200 pt-2">
-              <div className="text-sm text-gray-700">{event.location}</div>
+              <Body as="div" size="sm">
+                {event.location}
+              </Body>
             </div>
           )}
 
@@ -395,7 +438,9 @@ export function EventDetailDrawer({
         {/* RSVP Section */}
         {isGoogleEvent && (
           <div className="flex items-center justify-between border-t border-gray-200 bg-gray-50 px-6 py-4">
-            <span className="text-sm font-medium text-gray-700">Going?</span>
+            <Label as="span" size="sm">
+              Going?
+            </Label>
             <div className="flex items-center gap-2">
               <Button
                 variant={rsvp === 'yes' ? 'default' : 'outline'}
@@ -407,19 +452,19 @@ export function EventDetailDrawer({
                 <ChevronDown className="ml-1 h-3 w-3" />
               </Button>
               <Button
-                variant={rsvp === 'no' ? 'default' : 'outline'}
+                variant={rsvp === 'no' ? 'destructive' : 'outline'}
                 size="sm"
-                className={cn('px-4', rsvp === 'no' && 'bg-red-600 text-white hover:bg-red-700')}
+                className="px-4"
                 onClick={() => setRsvp(rsvp === 'no' ? null : 'no')}
               >
                 No
               </Button>
               <Button
-                variant={rsvp === 'maybe' ? 'default' : 'outline'}
+                variant={rsvp === 'maybe' ? 'secondary' : 'outline'}
                 size="sm"
                 className={cn(
                   'px-4',
-                  rsvp === 'maybe' && 'bg-yellow-600 text-white hover:bg-yellow-700',
+                  rsvp === 'maybe' && 'bg-amber-500 text-foreground hover:bg-amber-600',
                 )}
                 onClick={() => setRsvp(rsvp === 'maybe' ? null : 'maybe')}
               >

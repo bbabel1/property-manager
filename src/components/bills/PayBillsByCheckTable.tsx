@@ -18,6 +18,7 @@ import { cn } from "@/components/ui/utils";
 import { Badge } from "@/components/ui/badge";
 import { DateInput } from "@/components/ui/date-input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Body } from "@/ui/typography";
 
 export type PayBillsByCheckBill = {
   id: string;
@@ -278,13 +279,13 @@ export default function PayBillsByCheckTable({ groups }: PayBillsByCheckTablePro
       {selectedIds.size > 0 ? (
         <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/95 px-4 py-3">
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
-            <p className="text-foreground text-sm font-medium">
+            <Body as="p" size="sm" className="font-medium">
               Total payment:{' '}
               {totalSelectedAmount.toLocaleString('en-US', {
                 style: 'currency',
                 currency: 'USD',
               })}
-            </p>
+            </Body>
             <div className="flex items-center gap-3">
               <Button
                 type="button"

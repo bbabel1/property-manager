@@ -7,6 +7,7 @@ import PropertyFileUploadDialog, {
   PropertyFileRow,
 } from '@/components/property/PropertyFileUploadDialog';
 import { fetchWithSupabaseAuth } from '@/lib/supabase/fetch';
+import { Body, Heading } from '@/ui/typography';
 
 interface PropertyRecentFilesSectionProps {
   propertyId: string;
@@ -106,35 +107,42 @@ export default function PropertyRecentFilesSection({
 
   return (
     <div className="space-y-4">
-      <div className="section-title-row">
-        <h2 className="section-title-text">Recent files</h2>
+      <div className="mb-4 flex flex-wrap items-center gap-3 border-b border-border-strong pb-3">
+        <Heading as="h2" size="h5" className="text-lg font-semibold text-foreground">
+          Recent files
+        </Heading>
         <AddLink onClick={() => setOpen(true)} aria-label="Add property file" className="px-2" />
       </div>
-      <div className="surface-card">
+      <div className="rounded-lg border border-border bg-card">
         {loading ? (
-          <div className="text-muted-foreground px-4 py-6 text-center text-sm">Loading files…</div>
+          <Body tone="muted" size="sm" className="px-4 py-6 text-center">
+            Loading files…
+          </Body>
         ) : files.length === 0 ? (
-          <div className="text-muted-foreground px-4 py-6 text-sm">
+          <Body tone="muted" size="sm" className="px-4 py-6">
             {emptyCopy}{' '}
             <Button variant="link" className="px-1" onClick={() => setOpen(true)}>
               Upload your first file.
             </Button>
-          </div>
+          </Body>
         ) : (
-          <div className="divide-card divide-y">
+          <div className="divide-y divide-border-subtle">
             {files.map((file) => (
               <div
                 key={file.id}
                 className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div className="flex-1 space-y-1">
-                  <div className="text-foreground text-sm font-semibold">{file.title}</div>
-                  <div className="text-muted-foreground text-sm">
-                    {file.category} · Uploaded {file.uploadedAt.toLocaleDateString()} by{' '}
-                    {file.uploadedBy}
-                  </div>
+                  <Body as="div" size="sm" className="font-semibold text-foreground">
+                    {file.title}
+                  </Body>
+                  <Body as="div" tone="muted" size="sm">
+                    {file.category} · Uploaded {file.uploadedAt.toLocaleDateString()} by {file.uploadedBy}
+                  </Body>
                   {file.description ? (
-                    <div className="text-muted-foreground text-sm">{file.description}</div>
+                    <Body as="div" tone="muted" size="sm">
+                      {file.description}
+                    </Body>
                   ) : null}
                 </div>
                 {file.href ? (

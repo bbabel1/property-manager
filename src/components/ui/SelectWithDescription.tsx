@@ -4,6 +4,7 @@ import * as Select from '@radix-ui/react-select'
 import { ChevronDown, ChevronUp, Check } from 'lucide-react'
 import React from 'react'
 import clsx from 'clsx'
+import { Body, Label } from '@/ui/typography'
 
 export type OptionWithDescription = {
   value: string
@@ -28,11 +29,17 @@ export function SelectWithDescription({
     <Select.Root value={value} onValueChange={onChange}>
       <Select.Trigger
         className={clsx(
-          'w-full h-11 px-3 border border-border rounded-md bg-background text-foreground text-sm inline-flex items-center justify-between transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+          'w-full h-11 px-3 border border-border rounded-md bg-background text-foreground inline-flex items-center justify-between transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-background',
           triggerClassName
         )}
       >
-        <Select.Value placeholder={<span className="text-muted-foreground">{placeholder}</span>} />
+        <Select.Value
+          placeholder={
+            <Body as="span" size="sm" tone="muted">
+              {placeholder}
+            </Body>
+          }
+        />
         <Select.Icon>
           <ChevronDown className="h-4 w-4 text-muted-foreground" />
         </Select.Icon>
@@ -46,12 +53,14 @@ export function SelectWithDescription({
             {options.map(opt => (
               <Select.Item key={opt.value} value={opt.value} className="relative flex cursor-pointer select-none items-start rounded p-2 hover:bg-muted focus:bg-muted focus:outline-none">
                 <div className="leading-tight">
-                  <div className="text-sm font-medium">
+                  <Label as="div" size="sm">
                     {/* ItemText is used by Radix for the value shown in the trigger; keep it to label only */}
                     <Select.ItemText>{opt.label}</Select.ItemText>
-                  </div>
+                  </Label>
                   {opt.description ? (
-                    <div className="text-xs text-muted-foreground">{opt.description}</div>
+                    <Body as="div" size="xs" tone="muted">
+                      {opt.description}
+                    </Body>
                   ) : null}
                 </div>
                 <Select.ItemIndicator className="absolute right-2 top-1/2 -translate-y-1/2">

@@ -11,6 +11,7 @@ import { DatePicker } from '@/components/ui/date-picker'
 import { Textarea } from '@/components/ui/textarea'
 import type { LeaseAccountOption } from '@/components/leases/types'
 import { RentCycleEnumDb } from '@/schemas/lease-api'
+import { Body, Heading, Label } from '@/ui/typography'
 
 const RecurringChargeSchema = z.object({
   amount: z.coerce.number().positive('Amount must be greater than 0'),
@@ -138,17 +139,21 @@ export function RecurringChargeForm({ leaseId, leaseSummary, onCancel, onSuccess
   return (
     <div className="mx-auto w-full max-w-5xl space-y-8">
       <div className="space-y-1">
-        <h1 className="text-2xl font-semibold text-foreground">
+        <Heading as="h1" size="h3">
           Add recurring charge{leaseSummary?.propertyUnit ? ` for ${leaseSummary.propertyUnit}` : ''}
           {leaseSummary?.tenants ? ` • ${leaseSummary.tenants}` : ''}
-        </h1>
-        <div className="flex items-start gap-3 rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+        </Heading>
+        <Body
+          as="div"
+          size="sm"
+          className="flex items-start gap-3 rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-blue-900"
+        >
           <Info className="h-4 w-4 flex-none" />
           <span>
             Recurring rent charges can also be added from the{' '}
             <a href="#rent" className="text-primary underline underline-offset-2">rent page</a>.
           </span>
-        </div>
+        </Body>
       </div>
 
       <Card className="border border-border/70 shadow-sm">
@@ -156,7 +161,9 @@ export function RecurringChargeForm({ leaseId, leaseSummary, onCancel, onSuccess
           <form className="space-y-10" onSubmit={handleSubmit}>
             <section className="grid gap-6 lg:grid-cols-2">
               <label className="space-y-2">
-                <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Amount *</span>
+                <Label size="xs" tone="muted" className="uppercase tracking-wide">
+                  Amount *
+                </Label>
                 <Input
                   type="number"
                   inputMode="decimal"
@@ -165,20 +172,32 @@ export function RecurringChargeForm({ leaseId, leaseSummary, onCancel, onSuccess
                   onChange={(event) => update('amount', event.target.value)}
                   placeholder="$0.00"
                 />
-                {errors.amount ? <p className="text-xs text-destructive">{errors.amount}</p> : null}
+                {errors.amount ? (
+                  <Body as="p" size="sm" className="text-destructive text-xs">
+                    {errors.amount}
+                  </Body>
+                ) : null}
               </label>
               <label className="space-y-2">
-                <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Account *</span>
+                <Label size="xs" tone="muted" className="uppercase tracking-wide">
+                  Account *
+                </Label>
                 <Dropdown
                   value={form.gl_account_id}
                   onChange={(value) => update('gl_account_id', value)}
                   options={(accounts ?? []).map((acc) => ({ value: String(acc.id), label: acc.name }))}
                   placeholder="Select account"
                 />
-                {errors.gl_account_id ? <p className="text-xs text-destructive">{errors.gl_account_id}</p> : null}
+                {errors.gl_account_id ? (
+                  <Body as="p" size="sm" className="text-destructive text-xs">
+                    {errors.gl_account_id}
+                  </Body>
+                ) : null}
               </label>
               <label className="space-y-2 lg:col-span-2">
-                <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Memo</span>
+                <Label size="xs" tone="muted" className="uppercase tracking-wide">
+                  Memo
+                </Label>
                 <Textarea
                   value={form.memo}
                   onChange={(event) => update('memo', event.target.value)}
@@ -189,10 +208,14 @@ export function RecurringChargeForm({ leaseId, leaseSummary, onCancel, onSuccess
             </section>
 
             <section className="space-y-4">
-              <h2 className="text-sm font-semibold text-foreground">Recurrence information</h2>
+              <Label as="h2" className="text-foreground" size="sm">
+                Recurrence information
+              </Label>
               <div className="grid gap-6 lg:grid-cols-3">
                 <label className="space-y-2">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Frequency *</span>
+                  <Label size="xs" tone="muted" className="uppercase tracking-wide">
+                    Frequency *
+                  </Label>
                   <Dropdown
                     value={form.frequency}
                     onChange={(value) => update('frequency', value)}
@@ -200,16 +223,24 @@ export function RecurringChargeForm({ leaseId, leaseSummary, onCancel, onSuccess
                   />
                 </label>
                 <label className="space-y-2">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Next date *</span>
+                  <Label size="xs" tone="muted" className="uppercase tracking-wide">
+                    Next date *
+                  </Label>
                   <DatePicker
                     value={form.next_date}
                     onChange={(value) => update('next_date', value)}
                     placeholder="mm/dd/yyyy"
                   />
-                  {errors.next_date ? <p className="text-xs text-destructive">{errors.next_date}</p> : null}
+                  {errors.next_date ? (
+                    <Body as="p" size="sm" className="text-destructive text-xs">
+                      {errors.next_date}
+                    </Body>
+                  ) : null}
                 </label>
                 <label className="space-y-2">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Post *</span>
+                  <Label size="xs" tone="muted" className="uppercase tracking-wide">
+                    Post *
+                  </Label>
                   <div className="flex items-center gap-2">
                     <Input
                       className="w-20"
@@ -218,15 +249,19 @@ export function RecurringChargeForm({ leaseId, leaseSummary, onCancel, onSuccess
                       value={form.posting_days_in_advance}
                       onChange={(event) => update('posting_days_in_advance', event.target.value)}
                     />
-                    <span className="text-sm text-muted-foreground">days in advance</span>
+                    <Body as="span" tone="muted" size="sm">
+                      days in advance
+                    </Body>
                   </div>
                 </label>
               </div>
 
               <div className="space-y-3">
-                <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Duration *</span>
+                <Label size="xs" tone="muted" className="uppercase tracking-wide">
+                  Duration *
+                </Label>
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                  <label className="flex items-center gap-2 text-sm text-foreground">
+                  <Label as="label" size="sm" className="flex items-center gap-2 text-foreground">
                     <input
                       type="radio"
                       name="duration"
@@ -235,8 +270,8 @@ export function RecurringChargeForm({ leaseId, leaseSummary, onCancel, onSuccess
                       className="h-4 w-4"
                     />
                     Until end of term
-                  </label>
-                  <label className="flex items-center gap-2 text-sm text-foreground">
+                  </Label>
+                  <Label as="label" size="sm" className="flex items-center gap-2 text-foreground">
                     <input
                       type="radio"
                       name="duration"
@@ -254,15 +289,19 @@ export function RecurringChargeForm({ leaseId, leaseSummary, onCancel, onSuccess
                       disabled={form.duration !== 'occurrences'}
                     />
                     occurrences
-                  </label>
+                  </Label>
                 </div>
               </div>
             </section>
 
             {formError ? (
-              <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              <Body
+                as="div"
+                size="sm"
+                className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-destructive"
+              >
                 {formError}
-              </div>
+              </Body>
             ) : null}
 
             <div className="flex flex-wrap items-center gap-3">

@@ -17,6 +17,7 @@ import DynamicOverlay from '@/components/ui/DynamicOverlay';
 import RecurringChargeForm from '@/components/leases/RecurringChargeForm';
 import RecurringPaymentForm from '@/components/leases/RecurringPaymentForm';
 import type { LeaseAccountOption, LeaseTenantOption } from '@/components/leases/types';
+import { Body, Heading, Label } from '@/ui/typography';
 
 export type RecurringRow = {
   id: string;
@@ -128,10 +129,12 @@ export default function RecurringTransactionsPanel({
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h3 className="text-foreground text-base font-semibold">Recurring transactions</h3>
-          <p className="text-muted-foreground text-sm">
+          <Heading as="h3" size="h5">
+            Recurring transactions
+          </Heading>
+          <Body tone="muted" size="sm">
             Manage scheduled charges, payments, and credits for this lease.
-          </p>
+          </Body>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="default" className="gap-2" onClick={() => setMode('charge')}>
@@ -148,10 +151,10 @@ export default function RecurringTransactionsPanel({
       </div>
 
       <div className="border-border bg-card rounded-lg border shadow-sm">
-        <div className="border-border text-muted-foreground flex items-center justify-between border-b px-5 py-3 text-sm">
-          <span>
+        <div className="border-border text-muted-foreground flex items-center justify-between border-b px-5 py-3">
+          <Body size="sm" tone="muted">
             {rows.length ? `${rows.length} match${rows.length === 1 ? '' : 'es'}` : 'No matches'}
-          </span>
+          </Body>
           <Button variant="ghost" size="sm" className="h-8" disabled>
             Export
           </Button>
@@ -159,30 +162,96 @@ export default function RecurringTransactionsPanel({
         <Table className="divide-border min-w-full divide-y">
           <TableHeader>
             <TableRow>
-              <TableHead className="w-32">Next date</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead>Account</TableHead>
-              <TableHead>Memo</TableHead>
-              <TableHead>Frequency</TableHead>
-              <TableHead>Duration</TableHead>
-              <TableHead>Posting day</TableHead>
-              <TableHead className="w-32 text-right">Amount</TableHead>
-              <TableHead className="w-12 text-right">Actions</TableHead>
+              <TableHead className="w-32">
+                <Label as="span" size="xs">
+                  Next date
+                </Label>
+              </TableHead>
+              <TableHead>
+                <Label as="span" size="xs">
+                  Type
+                </Label>
+              </TableHead>
+              <TableHead>
+                <Label as="span" size="xs">
+                  Account
+                </Label>
+              </TableHead>
+              <TableHead>
+                <Label as="span" size="xs">
+                  Memo
+                </Label>
+              </TableHead>
+              <TableHead>
+                <Label as="span" size="xs">
+                  Frequency
+                </Label>
+              </TableHead>
+              <TableHead>
+                <Label as="span" size="xs">
+                  Duration
+                </Label>
+              </TableHead>
+              <TableHead>
+                <Label as="span" size="xs">
+                  Posting day
+                </Label>
+              </TableHead>
+              <TableHead className="w-32 text-right">
+                <Label as="span" size="xs">
+                  Amount
+                </Label>
+              </TableHead>
+              <TableHead className="w-12 text-right">
+                <Label as="span" size="xs">
+                  Actions
+                </Label>
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody className="divide-border divide-y">
             {rows.length ? (
               rows.map((row) => (
                 <TableRow key={row.id}>
-                  <TableCell className="text-foreground text-sm">{row.nextDate}</TableCell>
-                  <TableCell className="text-foreground text-sm">{row.type}</TableCell>
-                  <TableCell className="text-foreground text-sm">{row.account}</TableCell>
-                  <TableCell className="text-foreground text-sm">{row.memo}</TableCell>
-                  <TableCell className="text-foreground text-sm">{row.frequency}</TableCell>
-                  <TableCell className="text-foreground text-sm">{row.duration}</TableCell>
-                  <TableCell className="text-foreground text-sm">{row.posting}</TableCell>
-                  <TableCell className="text-foreground text-right text-sm font-medium">
-                    {row.amount}
+                  <TableCell>
+                    <Body as="span" size="sm">
+                      {row.nextDate}
+                    </Body>
+                  </TableCell>
+                  <TableCell>
+                    <Body as="span" size="sm">
+                      {row.type}
+                    </Body>
+                  </TableCell>
+                  <TableCell>
+                    <Body as="span" size="sm">
+                      {row.account}
+                    </Body>
+                  </TableCell>
+                  <TableCell>
+                    <Body as="span" size="sm">
+                      {row.memo}
+                    </Body>
+                  </TableCell>
+                  <TableCell>
+                    <Body as="span" size="sm">
+                      {row.frequency}
+                    </Body>
+                  </TableCell>
+                  <TableCell>
+                    <Body as="span" size="sm">
+                      {row.duration}
+                    </Body>
+                  </TableCell>
+                  <TableCell>
+                    <Body as="span" size="sm">
+                      {row.posting}
+                    </Body>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Heading as="span" size="h6">
+                      {row.amount}
+                    </Heading>
                   </TableCell>
                   <TableCell className="text-right">
                     <ActionButton aria-label="Recurring transaction actions" />
@@ -191,8 +260,10 @@ export default function RecurringTransactionsPanel({
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={9} className="text-muted-foreground py-8 text-center text-sm">
-                  No recurring transactions have been set up yet.
+                <TableCell colSpan={9} className="py-8 text-center">
+                  <Body size="sm" tone="muted">
+                    No recurring transactions have been set up yet.
+                  </Body>
                 </TableCell>
               </TableRow>
             )}
@@ -200,10 +271,10 @@ export default function RecurringTransactionsPanel({
         </Table>
       </div>
 
-      <p className="text-muted-foreground text-sm">
+      <Body tone="muted" size="sm">
         Recurring transactions with crossed-out next dates will not post because they fall after the
         end of the current term.
-      </p>
+      </Body>
     </div>
   );
 }

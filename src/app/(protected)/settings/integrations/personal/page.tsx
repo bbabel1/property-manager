@@ -5,7 +5,8 @@ import { useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import { Body, Heading, Label } from '@/ui/typography'
 import { Mail, Calendar } from 'lucide-react'
 
 type PersonalIntegration = {
@@ -169,10 +170,12 @@ export default function PersonalIntegrationsPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-2">
-        <h1 className="text-2xl font-bold text-foreground">Personal Integrations</h1>
-        <p className="text-sm text-muted-foreground">
+        <Heading as="h1" size="h3">
+          Personal Integrations
+        </Heading>
+        <Body tone="muted" size="sm">
           Gmail and Calendar connections that follow you. Workspace-level integrations stay under Workspace → Integrations.
-        </p>
+        </Body>
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -183,28 +186,30 @@ export default function PersonalIntegrationsPage() {
                 {item.key === 'gmail' && <Mail className="h-5 w-5 text-muted-foreground" />}
                 {item.key === 'calendar' && <Calendar className="h-5 w-5 text-muted-foreground" />}
                 <div>
-                  <CardTitle>{item.title}</CardTitle>
-                  <p className="text-sm text-muted-foreground">{item.description}</p>
+                  <Heading as="div" size="h5" className="leading-none">
+                    {item.title}
+                  </Heading>
+                  <Body tone="muted" size="sm">
+                    {item.description}
+                  </Body>
                   {item.email ? (
-                    <p className="text-xs text-muted-foreground mt-1">Connected as: {item.email}</p>
+                    <Label as="p" size="xs" tone="muted" className="mt-1">
+                      Connected as: {item.email}
+                    </Label>
                   ) : null}
                 </div>
               </div>
               <Badge
-                variant="outline"
-                className={
-                  item.status === 'connected'
-                    ? 'status-pill border-[var(--color-success-500)] bg-[var(--color-success-50)] text-[var(--color-success-700)]'
-                    : 'status-pill'
-                }
+                variant={item.status === 'connected' ? 'success' : 'danger'}
+                className="status-pill"
               >
                 {item.status === 'connected' ? 'Connected' : 'Not connected'}
               </Badge>
             </CardHeader>
             <CardContent className="flex items-center justify-between gap-3">
-              <div className="text-xs text-muted-foreground">
+              <Label as="div" size="xs" tone="muted">
                 {item.status === 'connected' ? 'Synced recently' : 'No syncs yet'}
-              </div>
+              </Label>
               <div className="flex gap-2">
                 <Button
                   size="sm"

@@ -29,6 +29,7 @@ import {
   safeParseJson,
   type MonthlyLogTransactionResponse,
 } from '@/types/monthly-log';
+import { Body, Heading, Label } from '@/ui/typography';
 
 type VendorOption = {
   id: string;
@@ -294,30 +295,36 @@ export default function CreateBillForm({
   return (
     <form className="space-y-5" onSubmit={handleSubmit}>
       {formError ? (
-        <div className="border-destructive/30 bg-destructive/10 text-destructive rounded-md border px-3 py-2 text-sm">
+        <Body
+          as="div"
+          size="sm"
+          className="border-destructive/30 bg-destructive/10 text-destructive rounded-md border px-3 py-2"
+        >
           {formError}
-        </div>
+        </Body>
       ) : null}
       <Card className="border-border border shadow-none">
         <CardContent className="space-y-6 px-4 py-5">
           <div className="grid gap-4 sm:grid-cols-2">
-            <label className="space-y-1 text-sm">
-              <span className="text-muted-foreground block text-xs font-semibold uppercase">
+            <label className="space-y-1">
+              <Label size="xs" tone="muted" className="block uppercase">
                 Date *
-              </span>
+              </Label>
               <DateInput
                 value={form.date}
                 onChange={(value) => updateField('date', value)}
                 className="w-full"
               />
               {errors.date ? (
-                <span className="text-destructive text-xs">{errors.date}</span>
+                <Body as="span" size="xs" className="text-destructive">
+                  {errors.date}
+                </Body>
               ) : null}
             </label>
-            <label className="space-y-1 text-sm">
-              <span className="text-muted-foreground block text-xs font-semibold uppercase">
+            <label className="space-y-1">
+              <Label size="xs" tone="muted" className="block uppercase">
                 Due date
-              </span>
+              </Label>
               <DateInput
                 value={form.due_date || ''}
                 onChange={(value) => updateField('due_date', value)}
@@ -326,10 +333,10 @@ export default function CreateBillForm({
             </label>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
-            <label className="space-y-1 text-sm">
-              <span className="text-muted-foreground block text-xs font-semibold uppercase">
+            <label className="space-y-1">
+              <Label size="xs" tone="muted" className="block uppercase">
                 Pay to *
-              </span>
+              </Label>
               <Dropdown
                 value={form.vendor_id}
                 onChange={(value) => updateField('vendor_id', value)}
@@ -337,18 +344,20 @@ export default function CreateBillForm({
                 placeholder={
                   vendorOptions.length
                     ? 'Select vendor'
-                    : 'Add a vendor with a Buildium ID to begin'
+                  : 'Add a vendor with a Buildium ID to begin'
                 }
                 className="w-full"
               />
               {errors.vendor_id ? (
-                <span className="text-destructive text-xs">{errors.vendor_id}</span>
+                <Body as="span" size="xs" className="text-destructive">
+                  {errors.vendor_id}
+                </Body>
               ) : null}
             </label>
-            <label className="space-y-1 text-sm">
-              <span className="text-muted-foreground block text-xs font-semibold uppercase">
+            <label className="space-y-1">
+              <Label size="xs" tone="muted" className="block uppercase">
                 Reference number
-              </span>
+              </Label>
               <Input
                 value={form.reference_number}
                 onChange={(event) => updateField('reference_number', event.target.value)}
@@ -356,10 +365,10 @@ export default function CreateBillForm({
               />
             </label>
           </div>
-          <label className="space-y-1 text-sm">
-            <span className="text-muted-foreground block text-xs font-semibold uppercase">
+          <label className="space-y-1">
+            <Label size="xs" tone="muted" className="block uppercase">
               Memo
-            </span>
+            </Label>
             <Textarea
               value={form.memo}
               onChange={(event) => updateField('memo', event.target.value)}
@@ -374,10 +383,10 @@ export default function CreateBillForm({
         <CardContent className="space-y-4 px-4 py-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-medium text-foreground">Line items</p>
-              <p className="text-muted-foreground text-xs">
+              <Label as="p" size="sm">Line items</Label>
+              <Body as="p" size="xs" tone="muted">
                 Select the expense accounts for this bill. Amounts are automatically summed.
-              </p>
+              </Body>
             </div>
             <Button type="button" size="sm" variant="outline" className="gap-2" onClick={addRow}>
               <Plus className="h-4 w-4" />
@@ -385,13 +394,19 @@ export default function CreateBillForm({
             </Button>
           </div>
           {!mappedAccountCount ? (
-            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            <Body
+              as="div"
+              size="xs"
+              className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-amber-900"
+            >
               Map at least one GL expense account to a Buildium account before saving. You can still
               view all accounts here.
-            </div>
+            </Body>
           ) : null}
           {errors.allocations ? (
-            <div className="text-destructive text-xs">{errors.allocations}</div>
+            <Body as="div" size="xs" className="text-destructive">
+              {errors.allocations}
+            </Body>
           ) : null}
           <div className="rounded-lg border border-border/70">
             <Table>
@@ -451,9 +466,13 @@ export default function CreateBillForm({
               </TableBody>
             </Table>
           </div>
-          <div className="flex items-center justify-end gap-6 text-sm font-medium">
-            <span className="text-muted-foreground uppercase">Total</span>
-            <span>{formatCurrency(allocationTotal)}</span>
+          <div className="flex items-center justify-end gap-6">
+            <Label as="span" size="sm" className="uppercase">
+              Total
+            </Label>
+            <Heading as="span" size="h5">
+              {formatCurrency(allocationTotal)}
+            </Heading>
           </div>
         </CardContent>
       </Card>
@@ -467,9 +486,9 @@ export default function CreateBillForm({
           {submitting ? 'Saving…' : 'Save bill'}
         </Button>
           {submitDisabled && !submitting ? (
-            <span className="text-xs text-muted-foreground">
+            <Body as="span" size="xs" tone="muted">
               Add vendors and mapped expense accounts to enable saving.
-            </span>
+            </Body>
           ) : null}
         </div>
       </div>

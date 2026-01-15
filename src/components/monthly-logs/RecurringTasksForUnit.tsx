@@ -9,7 +9,6 @@ import type { RecurringTaskTemplate } from '@/components/monthly-logs/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -20,6 +19,7 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/components/ui/utils';
+import { Body, Heading, Label } from '@/ui/typography';
 
 type RecurringTaskFormState = {
   title: string;
@@ -200,17 +200,21 @@ export default function RecurringTasksForUnit({
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <CalendarClock className="h-3.5 w-3.5 text-slate-700" />
-          <h3 className="text-sm font-medium text-slate-900">Recurring tasks</h3>
+          <Heading as="h3" size="h6">
+            Recurring tasks
+          </Heading>
         </div>
         <Button
           type="button"
           variant="ghost"
           size="sm"
-          className="flex h-7 items-center gap-1 text-xs text-slate-700 hover:bg-slate-200 hover:text-slate-900"
+          className="text-muted-foreground hover:text-foreground flex h-7 items-center gap-1 hover:bg-slate-200"
           onClick={() => setExpanded((prev) => !prev)}
         >
           {expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-          {expanded ? 'Hide' : 'Show'}
+          <Body as="span" size="xs" tone="muted">
+            {expanded ? 'Hide' : 'Show'}
+          </Body>
         </Button>
       </div>
 
@@ -218,50 +222,67 @@ export default function RecurringTasksForUnit({
         <>
           <div className="mt-3 space-y-2">
             {!canManage ? (
-              <div className="rounded border border-dashed border-slate-400 bg-slate-100 p-3 text-xs text-slate-600">
+              <Body
+                as="div"
+                size="xs"
+                tone="muted"
+                className="rounded border border-dashed border-slate-400 bg-slate-100 p-3"
+              >
                 Assign a property and unit to manage recurring tasks.
-              </div>
+              </Body>
             ) : tasks.length === 0 ? (
-              <div className="rounded border border-dashed border-slate-400 bg-slate-100 p-3 text-xs text-slate-600">
+              <Body
+                as="div"
+                size="xs"
+                tone="muted"
+                className="rounded border border-dashed border-slate-400 bg-slate-100 p-3"
+              >
                 No recurring tasks yet for this unit.
-              </div>
+              </Body>
             ) : (
               tasks.map((task) => (
                 <div
                   key={task.id}
-                  className="rounded border border-slate-300 bg-white p-2.5 transition hover:border-slate-400 hover:bg-slate-100"
+                  className="border-border bg-card hover:border-border/80 hover:bg-muted rounded border p-2.5 transition"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="text-sm font-medium text-slate-900">{task.title}</span>
+                        <Label as="span" size="sm">
+                          {task.title}
+                        </Label>
                         <Badge
                           variant="outline"
                           className={cn(
-                            'status-pill px-1.5 py-0 text-[10px] font-medium',
+                            'status-pill px-1.5 py-0',
                             task.isActive
-                              ? 'border-[var(--color-success-500)] bg-[var(--color-success-50)] text-[var(--color-success-700)]'
-                              : 'border-slate-300 bg-slate-100 text-slate-600',
+                              ? 'border-success-500 bg-success-50 text-success-700'
+                              : 'border-border bg-muted text-muted-foreground',
                           )}
                         >
                           {task.isActive ? 'Active' : 'Paused'}
                         </Badge>
                       </div>
-                      <div className="mt-1 text-xs text-slate-600">
+                      <Body as="div" size="xs" tone="muted" className="mt-1">
                         {task.frequency ? `${task.frequency} • ` : ''}
                         Due {task.dueAnchor.replace('_', ' ')}
                         {task.dueOffsetDays ? ` • Offset ${task.dueOffsetDays}d` : ''}
-                      </div>
+                      </Body>
                       {task.description && (
-                        <p className="mt-1 line-clamp-2 text-xs text-slate-700">
+                        <Body as="p" size="xs" className="mt-1 line-clamp-2">
                           {task.description}
-                        </p>
+                        </Body>
                       )}
                       {task.reminders.length > 0 && (
-                        <div className="mt-1 flex items-center gap-1 text-xs text-slate-600">
+                        <Body
+                          as="div"
+                          size="xs"
+                          tone="muted"
+                          className="mt-1 flex items-center gap-1"
+                        >
                           <Bell className="h-3 w-3" />
                           {task.reminders.map((r) => `${r}d before`).join(', ')}
-                        </div>
+                        </Body>
                       )}
                     </div>
                     <div className="flex items-center gap-1">
@@ -272,7 +293,9 @@ export default function RecurringTasksForUnit({
                         className="h-7 w-7 p-0 text-slate-600 hover:bg-slate-200 hover:text-slate-900"
                         onClick={() => startEditing(task)}
                       >
-                        <span className="text-xs">Edit</span>
+                        <Body as="span" size="xs">
+                          Edit
+                        </Body>
                       </Button>
                       <Button
                         type="button"
@@ -298,14 +321,16 @@ export default function RecurringTasksForUnit({
             >
               <div className="flex items-center gap-2">
                 <Users className="h-3.5 w-3.5 text-slate-600" />
-                <div className="text-xs font-medium text-slate-900">
+                <Label as="div" size="xs">
                   {editingId ? 'Edit recurring task' : 'Create recurring task'}
-                </div>
+                </Label>
               </div>
 
               <div className="grid gap-2 sm:grid-cols-2">
                 <div>
-                  <Label className="text-xs font-medium text-slate-700">Subject</Label>
+                  <Label size="xs" tone="muted">
+                    Subject
+                  </Label>
                   <Input
                     value={formState.title}
                     onChange={(event) =>
@@ -314,11 +339,13 @@ export default function RecurringTasksForUnit({
                     placeholder="e.g., Reconcile bank statement"
                     required
                     disabled={!canManage}
-                    className="h-8 text-sm"
+                    className="h-8"
                   />
                 </div>
                 <div>
-                  <Label className="text-xs font-medium text-slate-700">Frequency</Label>
+                  <Label size="xs" tone="muted">
+                    Frequency
+                  </Label>
                   <Select
                     value={formState.frequency}
                     onValueChange={(value) =>
@@ -329,7 +356,7 @@ export default function RecurringTasksForUnit({
                     }
                     disabled={!canManage}
                   >
-                    <SelectTrigger className="h-8 text-sm">
+                    <SelectTrigger className="h-8">
                       <SelectValue placeholder="Choose frequency" />
                     </SelectTrigger>
                     <SelectContent>
@@ -344,21 +371,25 @@ export default function RecurringTasksForUnit({
               </div>
 
               <div>
-                <Label className="text-xs font-medium text-slate-700">Description</Label>
+                <Label size="xs" tone="muted">
+                  Description
+                </Label>
                 <Textarea
                   value={formState.description}
                   onChange={(event) =>
                     setFormState((prev) => ({ ...prev, description: event.target.value }))
                   }
                   placeholder="Optional checklist or notes"
-                  className="min-h-[60px] text-sm"
+                  className="min-h-[60px]"
                   disabled={!canManage}
                 />
               </div>
 
               <div className="grid gap-2 sm:grid-cols-3">
                 <div>
-                  <Label className="text-xs font-medium text-slate-700">Due anchor</Label>
+                  <Label size="xs" tone="muted">
+                    Due anchor
+                  </Label>
                   <Select
                     value={formState.dueAnchor}
                     onValueChange={(value) =>
@@ -369,7 +400,7 @@ export default function RecurringTasksForUnit({
                     }
                     disabled={!canManage}
                   >
-                    <SelectTrigger className="h-8 text-sm">
+                    <SelectTrigger className="h-8">
                       <SelectValue placeholder="Choose anchor" />
                     </SelectTrigger>
                     <SelectContent>
@@ -379,7 +410,9 @@ export default function RecurringTasksForUnit({
                   </Select>
                 </div>
                 <div>
-                  <Label className="text-xs font-medium text-slate-700">Offset (days)</Label>
+                  <Label size="xs" tone="muted">
+                    Offset (days)
+                  </Label>
                   <Input
                     type="number"
                     value={formState.dueOffsetDays}
@@ -390,7 +423,7 @@ export default function RecurringTasksForUnit({
                       }))
                     }
                     disabled={!canManage}
-                    className="h-8 text-sm"
+                    className="h-8"
                   />
                 </div>
                 <div className="flex items-center gap-2 pt-6">
@@ -402,22 +435,14 @@ export default function RecurringTasksForUnit({
                     id="recurring-inline-active"
                     disabled={!canManage}
                   />
-                  <Label
-                    htmlFor="recurring-inline-active"
-                    className="text-xs font-medium text-slate-700"
-                  >
+                  <Label htmlFor="recurring-inline-active" size="xs" tone="muted">
                     {formState.isActive ? 'Active' : 'Paused'}
                   </Label>
                 </div>
               </div>
 
               <div className="flex items-center gap-2">
-                <Button
-                  type="submit"
-                  size="sm"
-                  disabled={!canManage || saving}
-                  className="h-8 text-xs"
-                >
+                <Button type="submit" size="sm" disabled={!canManage || saving} className="h-8">
                   {saving ? 'Saving…' : editingId ? 'Save' : 'Add'}
                 </Button>
                 {editingId && (
@@ -427,7 +452,7 @@ export default function RecurringTasksForUnit({
                     size="sm"
                     onClick={resetForm}
                     disabled={saving}
-                    className="h-8 text-xs"
+                    className="h-8"
                   >
                     Cancel
                   </Button>

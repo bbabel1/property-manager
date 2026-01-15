@@ -7,6 +7,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import type { CreateStaffFormValues, StaffSummary } from '@/components/forms/types';
 import { normalizeStaffRole } from '@/lib/staff-role';
 import { getAvailableUIStaffRoles } from '@/lib/enums/staff-roles';
+import { Select } from '@/ui/select';
+import { Body, Heading, Label } from '@/ui/typography';
+import { Input } from '@/components/ui/input';
 
 type CreateStaffModalProps = {
   isOpen: boolean;
@@ -104,15 +107,19 @@ export default function CreateStaffModal({ isOpen, onClose, onSuccess }: CreateS
       <DialogContent className="bg-card border-border/80 max-h-[90vh] w-[680px] max-w-[680px] overflow-y-auto rounded-none border p-0 shadow-2xl sm:rounded-2xl">
         {/* Header */}
         <DialogHeader className="border-border border-b p-6">
-          <DialogTitle className="text-foreground text-xl font-semibold">
-            Create New Staff Member
+          <DialogTitle asChild>
+            <Heading as="h2" size="h4">
+              Create New Staff Member
+            </Heading>
           </DialogTitle>
         </DialogHeader>
 
         {/* Error Message */}
         {error && (
           <div className="mx-6 mt-4 rounded-md border border-red-200 bg-red-50 p-4">
-            <p className="text-sm text-red-600">{error}</p>
+            <Body as="p" size="sm" className="text-red-600">
+              {error}
+            </Body>
           </div>
         )}
 
@@ -120,44 +127,38 @@ export default function CreateStaffModal({ isOpen, onClose, onSuccess }: CreateS
         <form onSubmit={handleSubmit} className="space-y-6 p-6">
           {/* Staff Information */}
           <div className="space-y-4">
-            <h4 className="flex items-center gap-2 font-medium text-gray-900">
+            <Heading as="h4" size="h4" className="flex items-center gap-2">
               <Users className="h-4 w-4" />
               Staff Information
-            </h4>
+            </Heading>
 
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label
-                    htmlFor="staff-first-name"
-                    className="mb-1 block text-sm font-medium text-gray-700"
-                  >
+                  <Label htmlFor="staff-first-name" className="mb-1 block">
                     First Name *
-                  </label>
-                  <input
+                  </Label>
+                  <Input
                     id="staff-first-name"
                     type="text"
                     value={formData.firstName}
                     onChange={(e) => handleInputChange('firstName', e.target.value)}
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    className="w-full"
                     placeholder="e.g., John"
                     required
                   />
                 </div>
 
                 <div>
-                  <label
-                    htmlFor="staff-last-name"
-                    className="mb-1 block text-sm font-medium text-gray-700"
-                  >
+                  <Label htmlFor="staff-last-name" className="mb-1 block">
                     Last Name *
-                  </label>
-                  <input
+                  </Label>
+                  <Input
                     id="staff-last-name"
                     type="text"
                     value={formData.lastName}
                     onChange={(e) => handleInputChange('lastName', e.target.value)}
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    className="w-full"
                     placeholder="e.g., Smith"
                     required
                   />
@@ -165,59 +166,49 @@ export default function CreateStaffModal({ isOpen, onClose, onSuccess }: CreateS
               </div>
 
               <div>
-                <label
-                  htmlFor="staff-email"
-                  className="mb-1 block text-sm font-medium text-gray-700"
-                >
+                <Label htmlFor="staff-email" className="mb-1 block">
                   Email
-                </label>
-                <input
+                </Label>
+                <Input
                   id="staff-email"
                   type="email"
                   value={formData.email}
                   onChange={(e) => handleInputChange('email', e.target.value)}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  className="w-full"
                   placeholder="e.g., john.smith@company.com"
                 />
               </div>
 
               <div>
-                <label
-                  htmlFor="staff-phone"
-                  className="mb-1 block text-sm font-medium text-gray-700"
-                >
+                <Label htmlFor="staff-phone" className="mb-1 block">
                   Phone
-                </label>
-                <input
+                </Label>
+                <Input
                   id="staff-phone"
                   type="tel"
                   value={formData.phone}
                   onChange={(e) => handleInputChange('phone', e.target.value)}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  className="w-full"
                   placeholder="e.g., (555) 123-4567"
                 />
               </div>
 
               <div>
-                <label
-                  htmlFor="staff-role"
-                  className="mb-1 block text-sm font-medium text-gray-700"
-                >
+                <Label htmlFor="staff-role" className="mb-1 block">
                   Role *
-                </label>
-                <select
+                </Label>
+                <Select
                   id="staff-role"
                   value={formData.role}
                   onChange={(e) => handleInputChange('role', e.target.value)}
-                  className="w-full appearance-none rounded-md border border-gray-300 bg-white px-3 py-2 text-gray-900 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   required
                 >
                   {STAFF_ROLES.map((role) => (
-                    <option key={role} value={role} className="bg-white text-gray-900">
+                    <option key={role} value={role}>
                       {role}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
             </div>
           </div>

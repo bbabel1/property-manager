@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/table';
 import PropertyAddNoteModal from '@/components/property/PropertyAddNoteModal';
 import { fetchWithSupabaseAuth } from '@/lib/supabase/fetch';
+import { Body, Heading, Label } from '@/ui/typography';
 
 type PropertyNote = {
   id: string;
@@ -89,8 +90,10 @@ export default function PropertyRecentNotesSection({
   return (
     <>
       <div className="space-y-4">
-        <div className="section-title-row">
-          <h2 className="section-title-text">Recent notes</h2>
+        <div className="mb-4 flex flex-wrap items-center gap-3 border-b border-border-strong pb-3">
+          <Heading as="h2" size="h5" className="text-lg font-semibold text-foreground">
+            Recent notes
+          </Heading>
           <Button
             variant="link"
             className="px-2"
@@ -100,22 +103,22 @@ export default function PropertyRecentNotesSection({
             Add
           </Button>
         </div>
-        <div className="surface-card">
+        <div className="rounded-lg border border-border bg-card">
           {!propertyId ? (
-            <div className="text-muted-foreground px-4 py-6 text-sm">
+            <Body as="div" tone="muted" size="sm" className="px-4 py-6">
               Notes are available after this property is saved.
-            </div>
+            </Body>
           ) : loading ? (
-            <div className="text-muted-foreground px-4 py-6 text-center text-sm">
+            <Body as="div" tone="muted" size="sm" className="px-4 py-6 text-center">
               Loading recent notes...
-            </div>
+            </Body>
           ) : notes.length === 0 ? (
-            <div className="text-muted-foreground px-4 py-6 text-sm">
+            <Body as="div" tone="muted" size="sm" className="px-4 py-6">
               You don't have any notes for this property right now.{' '}
               <Button variant="link" className="px-1" onClick={() => setModalOpen(true)}>
                 Add your first note
               </Button>
-            </div>
+            </Body>
           ) : (
             <Table>
               <TableHeader>
@@ -125,16 +128,16 @@ export default function PropertyRecentNotesSection({
                   <TableHead className="w-32">Visibility</TableHead>
                 </TableRow>
               </TableHeader>
-              <TableBody className="divide-card divide-y">
+              <TableBody className="divide-y divide-border-subtle">
                 {notes.map((note) => (
                   <TableRow key={note.id}>
                     <TableCell className="text-muted-foreground text-sm">
                       {formatDateTime(note.created_at)}
                     </TableCell>
                     <TableCell>
-                      <div className="text-foreground text-sm font-medium">
+                      <Label as="div" size="sm">
                         {note.subject || 'Note'}
-                      </div>
+                      </Label>
                       <div
                         className={`text-muted-foreground text-sm ${expandedNotes[note.id] ? 'whitespace-pre-wrap' : 'line-clamp-2'}`}
                       >
@@ -144,7 +147,7 @@ export default function PropertyRecentNotesSection({
                         <button
                           type="button"
                           onClick={() => toggleNoteExpansion(note.id)}
-                          className="text-primary focus-visible:ring-offset-background mt-1 inline-flex min-h-[2.75rem] items-center rounded-md px-1 py-1 text-sm font-medium underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:outline-none"
+                          className="text-primary focus-visible:ring-offset-background mt-1 inline-flex min-h-[2.75rem] items-center rounded-md px-1 py-1 text-sm font-[var(--font-weight-medium)] underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:outline-none"
                         >
                           {expandedNotes[note.id] ? 'Show less' : 'View more'}
                         </button>

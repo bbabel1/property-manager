@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { getSupabaseBrowserClient } from '@/lib/supabase/client'
 import { X } from 'lucide-react'
+import { Body, Heading, Label } from '@/ui/typography'
 
 interface PersonalInfoValues {
   date_of_birth?: string | null
@@ -92,7 +93,9 @@ export default function TenantPersonalInfoInlineEditor({
   return (
     <div className="lg:col-span-2">
       <div className="mb-4 flex items-center gap-3 border-b border-border pb-3">
-        <h2 className="text-lg font-semibold text-foreground">Personal information</h2>
+        <Heading as="h2" size="h3">
+          Personal information
+        </Heading>
         {!editing ? <EditLink onClick={() => setEditing(true)} /> : null}
       </div>
       <Card className={editing ? 'relative overflow-hidden border-l-2 border-l-primary shadow-lg bg-white border border-border' : 'bg-white'}>
@@ -101,16 +104,24 @@ export default function TenantPersonalInfoInlineEditor({
           {!editing ? (
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-3 text-sm">
               <div>
-                <div className="mb-1 text-xs font-medium text-muted-foreground">DATE OF BIRTH</div>
-                <div className="text-foreground">{formatDate(values.date_of_birth)}</div>
+                <Label tone="muted" size="xs" className="mb-1 block">
+                  DATE OF BIRTH
+                </Label>
+                <Body size="sm">{formatDate(values.date_of_birth)}</Body>
               </div>
               <div>
-                <div className="mb-1 text-xs font-medium text-muted-foreground">TAXPAYER ID</div>
-                <div className="text-foreground">{values.tax_id || '—'}</div>
+                <Label tone="muted" size="xs" className="mb-1 block">
+                  TAXPAYER ID
+                </Label>
+                <Body size="sm">{values.tax_id || '—'}</Body>
               </div>
               <div>
-                <div className="mb-1 text-xs font-medium text-muted-foreground">COMMENTS</div>
-                <div className="whitespace-pre-wrap text-foreground">{values.comment?.trim() || '—'}</div>
+                <Label tone="muted" size="xs" className="mb-1 block">
+                  COMMENTS
+                </Label>
+                <Body size="sm" className="whitespace-pre-wrap">
+                  {values.comment?.trim() || '—'}
+                </Body>
               </div>
             </div>
           ) : (
@@ -125,21 +136,25 @@ export default function TenantPersonalInfoInlineEditor({
               </button>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 mt-2">
                 <div>
-          <div className="text-xs mb-1">Date of birth</div>
-          <DatePicker
-            value={values.date_of_birth ?? null}
-            onChange={(date) => {
-              const iso = date ? new Date(date as Date | string).toISOString() : null
-              setValues((prev) => ({
-                ...prev,
-                date_of_birth: iso,
-              }))
-            }}
-            placeholder="Select date"
-          />
+                  <Label size="xs" className="mb-1 block">
+                    Date of birth
+                  </Label>
+                  <DatePicker
+                    value={values.date_of_birth ?? null}
+                    onChange={(date) => {
+                      const iso = date ? new Date(date as Date | string).toISOString() : null
+                      setValues((prev) => ({
+                        ...prev,
+                        date_of_birth: iso,
+                      }))
+                    }}
+                    placeholder="Select date"
+                  />
                 </div>
                 <div>
-                  <div className="text-xs mb-1">Taxpayer ID</div>
+                  <Label size="xs" className="mb-1 block">
+                    Taxpayer ID
+                  </Label>
                   <Input
                     value={values.tax_id ?? ''}
                     onChange={(e) => setValues((prev) => ({ ...prev, tax_id: e.target.value }))}
@@ -148,7 +163,9 @@ export default function TenantPersonalInfoInlineEditor({
                 </div>
               </div>
               <div>
-                <div className="text-xs mb-1">Comments</div>
+                <Label size="xs" className="mb-1 block">
+                  Comments
+                </Label>
                 <Textarea
                   rows={4}
                   value={values.comment ?? ''}
@@ -156,7 +173,11 @@ export default function TenantPersonalInfoInlineEditor({
                   placeholder="Add notes about this tenant"
                 />
               </div>
-              {error ? <div className="text-sm text-destructive">{error}</div> : null}
+              {error ? (
+                <Body size="sm" className="text-destructive">
+                  {error}
+                </Body>
+              ) : null}
               <div className="flex items-center gap-3">
                 <Button onClick={handleSave} disabled={saving}>
                   {saving ? 'Saving…' : 'Save'}

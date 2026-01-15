@@ -34,6 +34,7 @@ import type { AppRole } from '@/lib/auth/roles';
 import { PaymentIntentStatus } from '@/components/payments/PaymentIntentStatus';
 import { PaymentEventsTimeline } from '@/components/payments/PaymentEventsTimeline';
 import { formatCurrency } from '@/lib/transactions/formatting';
+import { Body, Heading, Label } from '@/ui/typography';
 
 const ReceivePaymentSchema = z.object({
   date: z.string().min(1, 'Date required'),
@@ -531,16 +532,20 @@ export default function ReceivePaymentForm({
     <div className="mx-auto w-full max-w-5xl space-y-8">
       {hideHeader ? null : (
         <div className="space-y-1">
-          <h1 className="text-foreground text-2xl font-semibold">
+          <Heading as="h1" size="h3">
             Receive payment{leaseSummary?.propertyUnit ? ` for ${leaseSummary.propertyUnit}` : ''}
             {leaseSummary?.tenants ? ` • ${leaseSummary.tenants}` : ''}
-          </h1>
-          <div className="flex items-start gap-3 rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+          </Heading>
+          <Body
+            as="div"
+            size="sm"
+            className="flex items-start gap-3 rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-blue-900"
+          >
             <Info className="h-4 w-4 flex-none" />
             <span>
               Record payments received for this lease and allocate them to outstanding balances.
             </span>
-          </div>
+          </Body>
         </div>
       )}
 
@@ -560,19 +565,23 @@ export default function ReceivePaymentForm({
           <form className={cn('space-y-10', isCompact && 'space-y-6')} onSubmit={handleSubmit}>
             <section className={cn('grid gap-6 lg:grid-cols-2', isCompact && 'gap-5')}>
               <label className="space-y-2">
-                <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                <Label size="xs" tone="muted" className="tracking-wide uppercase">
                   Date *
-                </span>
+                </Label>
                 <DateInput
                   value={form.date || ''}
                   onChange={(nextValue) => updateField('date', nextValue)}
                 />
-                {errors.date ? <p className="text-destructive text-xs">{errors.date}</p> : null}
+                {errors.date ? (
+                  <Body as="p" size="sm" className="text-destructive text-xs">
+                    {errors.date}
+                  </Body>
+                ) : null}
               </label>
               <label className="space-y-2">
-                <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                <Label size="xs" tone="muted" className="tracking-wide uppercase">
                   Amount *
-                </span>
+                </Label>
                 <Input
                   type="number"
                   inputMode="decimal"
@@ -581,12 +590,16 @@ export default function ReceivePaymentForm({
                   onChange={(event) => updateField('amount', event.target.value)}
                   placeholder="$0.00"
                 />
-                {errors.amount ? <p className="text-destructive text-xs">{errors.amount}</p> : null}
+                {errors.amount ? (
+                  <Body as="p" size="sm" className="text-destructive text-xs">
+                    {errors.amount}
+                  </Body>
+                ) : null}
               </label>
               <label className="space-y-2">
-                <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                <Label size="xs" tone="muted" className="tracking-wide uppercase">
                   Payment method *
-                </span>
+                </Label>
                 <Dropdown
                   value={form.payment_method}
                   onChange={(value) => updateField('payment_method', value as PaymentMethodValue)}
@@ -596,13 +609,15 @@ export default function ReceivePaymentForm({
                   placeholder="Select payment method"
                 />
                 {errors.payment_method ? (
-                  <p className="text-destructive text-xs">{errors.payment_method}</p>
+                  <Body as="p" size="sm" className="text-destructive text-xs">
+                    {errors.payment_method}
+                  </Body>
                 ) : null}
               </label>
               <label className="space-y-2">
-                <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                <Label size="xs" tone="muted" className="tracking-wide uppercase">
                   Received from
-                </span>
+                </Label>
                 <Dropdown
                   value={form.resident_id}
                   onChange={(value) => updateField('resident_id', value)}
@@ -619,9 +634,9 @@ export default function ReceivePaymentForm({
                   Number.isFinite(Number(tenant.buildiumTenantId)),
               ) ? (
                 <label className="space-y-2">
-                  <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                  <Label size="xs" tone="muted" className="tracking-wide uppercase">
                     Buildium tenant ID (required for payments)
-                  </span>
+                  </Label>
                   <Input
                     type="number"
                     inputMode="numeric"
@@ -634,9 +649,9 @@ export default function ReceivePaymentForm({
                 </label>
               ) : null}
               <label className="space-y-2 lg:col-span-2">
-                <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                <Label size="xs" tone="muted" className="tracking-wide uppercase">
                   Memo
-                </span>
+                </Label>
                 <Textarea
                   rows={3}
                   value={form.memo}
@@ -647,7 +662,9 @@ export default function ReceivePaymentForm({
             </section>
 
             <section className={cn('space-y-4', isCompact && 'space-y-3')}>
-              <h2 className="text-foreground text-sm font-semibold">Apply to accounts</h2>
+              <Label as="h2" className="text-foreground" size="sm">
+                Apply to accounts
+              </Label>
               <div className="border-border overflow-hidden rounded-lg border">
                 <Table className="min-w-full">
                   <TableHeader>
@@ -706,14 +723,20 @@ export default function ReceivePaymentForm({
                 <Plus className="h-4 w-4" /> Add row
               </Button>
               {errors.allocations ? (
-                <p className="text-destructive text-xs">{errors.allocations}</p>
+                <Body as="p" size="sm" className="text-destructive text-xs">
+                  {errors.allocations}
+                </Body>
               ) : null}
             </section>
 
             {formError ? (
-              <div className="border-destructive/40 bg-destructive/10 text-destructive rounded-md border px-4 py-3 text-sm">
+              <Body
+                as="div"
+                size="sm"
+                className="border-destructive/40 bg-destructive/10 text-destructive rounded-md border px-4 py-3"
+              >
                 {formError}
-              </div>
+              </Body>
             ) : null}
 
             <div className={cn('flex flex-wrap items-center gap-3', isCompact && 'gap-2')}>

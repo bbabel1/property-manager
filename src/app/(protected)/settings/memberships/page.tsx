@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Body, Heading, Label } from '@/ui/typography';
 
 type Org = { id: string; name: string };
 type Membership = { org_id: string; org_name?: string; roles?: string[] };
@@ -171,21 +172,29 @@ export default function MembershipsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-foreground text-2xl font-bold">Memberships</h1>
+      <Heading as="h1" size="h3" className="font-bold">
+        Memberships
+      </Heading>
 
       <Card>
         <CardHeader>
           <CardTitle>Quick Assign</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {error && <div className="text-destructive text-sm">{error}</div>}
+          {error && (
+            <Body tone="default" size="sm" className="text-destructive">
+              {error}
+            </Body>
+          )}
           {loading ? (
-            <div className="text-muted-foreground">Loading...</div>
+            <Body tone="muted">Loading...</Body>
           ) : (
             <>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                 <div>
-                  <label className="mb-1 block text-sm">User</label>
+                  <Label as="label" size="sm" className="mb-1 block">
+                    User
+                  </Label>
                   <Select value={selectedUser} onValueChange={setSelectedUser}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select user" />
@@ -200,7 +209,9 @@ export default function MembershipsPage() {
                   </Select>
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm">Organization</label>
+                  <Label as="label" size="sm" className="mb-1 block">
+                    Organization
+                  </Label>
                   <Select value={selectedOrg} onValueChange={setSelectedOrg}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select organization" />
@@ -215,7 +226,9 @@ export default function MembershipsPage() {
                   </Select>
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm">Role</label>
+                  <Label as="label" size="sm" className="mb-1 block">
+                    Role
+                  </Label>
                   <Select value={selectedRole} onValueChange={setSelectedRole}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select role" />
@@ -241,9 +254,9 @@ export default function MembershipsPage() {
                     </SelectContent>
                   </Select>
                   {selectedRole && roles.find((r) => r.name === selectedRole)?.description && (
-                    <p className="text-muted-foreground mt-1 text-xs">
+                    <Label as="p" size="xs" tone="muted" className="mt-1">
                       {roles.find((r) => r.name === selectedRole)?.description}
-                    </p>
+                    </Label>
                   )}
                 </div>
               </div>
@@ -266,7 +279,7 @@ export default function MembershipsPage() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="text-muted-foreground">Loading...</div>
+            <Body tone="muted">Loading...</Body>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -282,8 +295,10 @@ export default function MembershipsPage() {
                   {users.flatMap((u: UserRow) => (u.memberships || []).map((m: Membership) => ({ u, m }))).length ===
                   0 ? (
                     <tr>
-                      <td colSpan={4} className="text-muted-foreground py-4">
-                        No memberships found.
+                      <td colSpan={4} className="py-4">
+                        <Body tone="muted" size="sm">
+                          No memberships found.
+                        </Body>
                       </td>
                     </tr>
                   ) : (

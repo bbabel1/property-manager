@@ -1,12 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import {
-  MapPin,
-  Camera,
-  Home,
-  Banknote,
-} from 'lucide-react';
+import { MapPin, Camera, Home, Banknote } from 'lucide-react';
 import EditLink from '@/components/ui/EditLink';
 import { Button } from '@/components/ui/button';
 import type { BankAccountSummary } from '@/components/forms/types';
@@ -15,6 +10,7 @@ import BankingDetailsModal from '@/components/BankingDetailsModal';
 import PropertyNotes from '@/components/property/PropertyNotes';
 import { type PropertyWithDetails } from '@/lib/property-service';
 import { fetchWithSupabaseAuth } from '@/lib/supabase/fetch';
+import { Body, Heading, Label } from '@/ui/typography';
 
 interface PropertySummaryProps {
   property: PropertyWithDetails;
@@ -35,10 +31,10 @@ export function PropertySummary({ property, fin, onPropertyUpdate }: PropertySum
   const [isLoadingBankAccounts, setIsLoadingBankAccounts] = useState(false);
   const panelBaseClass = 'rounded-lg shadow-none';
   const panelClass = `${panelBaseClass} bg-card border-0`;
-  const accentPanelClass = `${panelBaseClass} border-[0.75px] border-[var(--color-surface-primary-soft-border)] bg-[var(--color-surface-primary-soft)] shadow-[0_3px_8px_rgba(22,74,172,0.06)]`;
-  const panelHeaderClass = 'border-b border-[var(--color-border-subtle)] bg-card px-6 py-4';
+  const accentPanelClass = `${panelBaseClass} border-[0.75px] border-surface-primary-soft-border bg-surface-primary-soft shadow-[0_3px_8px_rgba(22,74,172,0.06)]`;
+  const panelHeaderClass = 'border-b border-border-subtle bg-card px-6 py-4';
   const accentPanelHeaderClass =
-    'border-b border-[0.75px] border-[var(--color-surface-primary-soft-border)] bg-[var(--color-surface-primary-soft-highlight)] px-6 py-4';
+    'border-b border-[0.75px] border-surface-primary-soft-border bg-surface-primary-soft-highlight px-6 py-4';
 
   const handleEditSuccess = () => {
     if (onPropertyUpdate) {
@@ -98,7 +94,9 @@ export function PropertySummary({ property, fin, onPropertyUpdate }: PropertySum
           <div className={panelClass}>
             <div className={panelHeaderClass}>
               <div className="flex items-center gap-2">
-                <h2 className="text-foreground text-lg font-semibold">Property Details</h2>
+                <Heading as="h2" size="h3">
+                  Property Details
+                </Heading>
                 <EditLink onClick={() => setShowEditModal(true)} />
               </div>
             </div>
@@ -107,12 +105,14 @@ export function PropertySummary({ property, fin, onPropertyUpdate }: PropertySum
                 {/* Column 1: Property Image */}
                 <div className="space-y-4 md:col-span-2">
                   <div className="relative">
-                    <div className="flex h-64 w-full items-center justify-center overflow-hidden rounded-lg bg-gradient-to-br from-[var(--color-gray-100)] to-[var(--color-gray-200)]">
+                    <div className="flex h-64 w-full items-center justify-center overflow-hidden rounded-lg bg-gradient-to-br from-muted to-border">
                       <div className="text-center">
                         <div className="bg-card mx-auto mb-3 flex h-20 w-20 items-center justify-center rounded-full">
-                          <Home className="h-10 w-10 text-[var(--color-brand-500)]" />
+                          <Home className="h-10 w-10 text-brand-500" />
                         </div>
-                        <p className="text-muted-foreground text-sm">Property Image</p>
+                        <Body size="sm" tone="muted">
+                          Property Image
+                        </Body>
                       </div>
                     </div>
                     <Button
@@ -130,14 +130,14 @@ export function PropertySummary({ property, fin, onPropertyUpdate }: PropertySum
                 <div className="space-y-6 md:col-span-3">
                   {/* Address */}
                   <div>
-                    <p className="text-muted-foreground mb-2 text-xs font-medium tracking-wide uppercase">
+                    <Label tone="muted" size="xs" className="mb-2 block tracking-wide uppercase">
                       ADDRESS
-                    </p>
-                    <p className="text-foreground mb-3 text-lg">
+                    </Label>
+                    <Heading as="p" size="h4" className="mb-3">
                       {property.address_line1}
                       <br />
                       {property.city}, {property.state} {property.postal_code}
-                    </p>
+                    </Heading>
                     <Button
                       variant="ghost"
                       size="sm"
@@ -150,69 +150,71 @@ export function PropertySummary({ property, fin, onPropertyUpdate }: PropertySum
 
                   {/* Property Manager */}
                   <div>
-                    <p className="text-muted-foreground mb-2 text-xs font-medium tracking-wide uppercase">
+                    <Label tone="muted" size="xs" className="mb-2 block tracking-wide uppercase">
                       PROPERTY MANAGER
-                    </p>
-                    <p className="text-foreground">No manager assigned</p>
+                    </Label>
+                    <Body>No manager assigned</Body>
                   </div>
 
                   {/* Property Type */}
                   <div>
-                    <p className="text-muted-foreground mb-2 text-xs font-medium tracking-wide uppercase">
+                    <Label tone="muted" size="xs" className="mb-2 block tracking-wide uppercase">
                       PROPERTY TYPE
-                    </p>
-                    <p className="text-foreground font-semibold">
+                    </Label>
+                    <Heading as="p" size="h5">
                       {property.property_type || 'None'}
-                    </p>
+                    </Heading>
                   </div>
 
                   {/* Status */}
                   <div>
-                    <p className="text-muted-foreground mb-2 text-xs font-medium tracking-wide uppercase">
+                    <Label tone="muted" size="xs" className="mb-2 block tracking-wide uppercase">
                       STATUS
-                    </p>
-                    <p
-                      className={`font-semibold ${property.status === 'Active' ? 'text-[var(--color-action-500)]' : 'text-[var(--color-danger-500)]'}`}
+                    </Label>
+                    <Heading
+                      as="p"
+                      size="h5"
+                      className={property.status === 'Active' ? 'text-primary-500' : 'text-danger-500'}
                     >
                       {property.status || 'Unknown'}
-                    </p>
+                    </Heading>
                   </div>
 
                   {/* Rental Owners */}
                   <div>
-                    <p className="text-muted-foreground mb-2 text-xs font-medium tracking-wide uppercase">
+                    <Label tone="muted" size="xs" className="mb-2 block tracking-wide uppercase">
                       RENTAL OWNERS
-                    </p>
+                    </Label>
                     {property.owners && property.owners.length > 0 ? (
                       <div className="space-y-2">
                         {property.owners.map((owner) => (
                           <div
                             key={owner.id}
-                            className="border-l-2 border-[var(--color-brand-500)] pl-3"
+                            className="border-l-2 border-brand-500 pl-3"
                           >
                             <div className="flex items-center justify-between">
-                              <span className="text-foreground font-medium">
+                              <Body as="span" className="font-medium">
                                 {owner.is_company
                                   ? owner.company_name
                                   : `${owner.first_name} ${owner.last_name}`}
                                 {owner.primary && (
-                                  <span className="ml-2 inline-flex items-center rounded-full bg-[var(--color-action-50)] px-2 py-0.5 text-xs font-medium text-[var(--color-action-600)]">
+                                  <span className="ml-2 inline-flex items-center rounded-full bg-primary-50 px-2 py-0.5 text-xs font-medium text-primary-600">
                                     Primary
                                   </span>
                                 )}
-                              </span>
+                              </Body>
                             </div>
-                            <div className="text-muted-foreground mt-1 text-sm">
+                            <Body tone="muted" size="sm" className="mt-1">
                               <span className="mr-4">
                                 Ownership: {owner.ownership_percentage || 0}%
                               </span>
                               <span>Disbursement: {owner.disbursement_percentage || 0}%</span>
-                            </div>
+                            </Body>
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <p className="text-muted-foreground">No ownership information available</p>
+                      <Body tone="muted">No ownership information available</Body>
                     )}
                   </div>
                 </div>
@@ -224,14 +226,16 @@ export function PropertySummary({ property, fin, onPropertyUpdate }: PropertySum
           <div className={panelClass}>
             <div className={panelHeaderClass}>
               <div className="flex items-center gap-2">
-                <h2 className="text-foreground text-lg font-semibold">Location</h2>
+                <Heading as="h2" size="h3">
+                  Location
+                </Heading>
                 <EditLink />
               </div>
             </div>
             <div className="p-6">
-              <div className="text-muted-foreground py-8 text-center">
+              <div className="py-8 text-center">
                 <MapPin className="text-muted-foreground/50 mx-auto mb-3 h-12 w-12" />
-                <p>Location information will appear here</p>
+                <Body tone="muted">Location information will appear here</Body>
               </div>
             </div>
           </div>
@@ -243,37 +247,43 @@ export function PropertySummary({ property, fin, onPropertyUpdate }: PropertySum
           <div className={`${accentPanelClass} p-6`}>
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <span className="text-foreground">Cash balance:</span>
-                <span className="text-foreground font-semibold">
+                <Body as="span">Cash balance:</Body>
+                <Heading as="span" size="h5">
                   {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(
                     fin?.cash_balance ?? 0,
                   )}
-                </span>
+                </Heading>
               </div>
-              <div className="text-muted-foreground flex items-center justify-between">
-                <span className="pl-4">- Security deposits and early payments:</span>
-                <span>
+              <div className="flex items-center justify-between">
+                <Body tone="muted" className="pl-4">
+                  - Security deposits and early payments:
+                </Body>
+                <Body as="span" tone="muted">
                   {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(
                     Math.abs(fin?.security_deposits ?? 0),
                   )}
-                </span>
+                </Body>
               </div>
-              <div className="text-muted-foreground flex items-center justify-between">
-                <span className="pl-4">- Property reserve:</span>
-                <span>
+              <div className="flex items-center justify-between">
+                <Body tone="muted" className="pl-4">
+                  - Property reserve:
+                </Body>
+                <Body as="span" tone="muted">
                   {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(
                     fin?.reserve ?? (property.reserve || 0),
                   )}
-                </span>
+                </Body>
               </div>
               <div className="border-border border-t pt-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-foreground font-semibold">Available:</span>
-                  <span className="text-foreground text-xl font-bold">
+                  <Heading as="span" size="h5">
+                    Available:
+                  </Heading>
+                  <Heading as="span" size="h3">
                     {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(
                       fin?.available_balance ?? 0,
                     )}
-                  </span>
+                  </Heading>
                 </div>
               </div>
               <Button
@@ -290,57 +300,59 @@ export function PropertySummary({ property, fin, onPropertyUpdate }: PropertySum
           <div className={accentPanelClass}>
             <div className={accentPanelHeaderClass}>
               <div className="flex items-center gap-2">
-                <h2 className="text-foreground text-lg font-semibold">Banking details</h2>
+                <Heading as="h2" size="h3">
+                  Banking details
+                </Heading>
                 <EditLink onClick={() => setShowBankingModal(true)} />
               </div>
             </div>
             <div className="space-y-4 p-6">
               <div>
-                <p className="text-muted-foreground mb-2 text-xs font-medium tracking-wide uppercase">
+                <Label tone="muted" size="xs" className="mb-2 block tracking-wide uppercase">
                   OPERATING ACCOUNT
-                </p>
+                </Label>
                 <div className="flex items-center">
                   <div className="bg-muted mr-3 flex h-8 w-8 items-center justify-center rounded-full">
                     <Banknote className="text-muted-foreground h-4 w-4" />
                   </div>
                   {isLoadingBankAccounts ? (
-                    <span className="text-muted-foreground">Loading...</span>
+                    <Body tone="muted">Loading...</Body>
                   ) : getOperatingBankAccount() ? (
                     <div>
-                      <div className="text-foreground font-medium">
+                      <Body as="div" className="font-medium">
                         {getOperatingBankAccount()?.name}
-                      </div>
-                      <div className="text-muted-foreground text-sm">
+                      </Body>
+                      <Body tone="muted" size="sm">
                         {getOperatingBankAccount()?.account_number
                           ? `****${getOperatingBankAccount()?.account_number?.slice(-4) || ''}`
                           : 'No account number'}
-                      </div>
+                      </Body>
                     </div>
                   ) : (
-                    <span className="text-muted-foreground">Not configured</span>
+                    <Body tone="muted">Not configured</Body>
                   )}
                 </div>
               </div>
               <div>
-                <p className="text-muted-foreground mb-2 text-xs font-medium tracking-wide uppercase">
+                <Label tone="muted" size="xs" className="mb-2 block tracking-wide uppercase">
                   DEPOSIT TRUST ACCOUNT
-                </p>
+                </Label>
                 <div className="flex items-center">
                   <div className="bg-muted mr-3 flex h-8 w-8 items-center justify-center rounded-full">
                     <Banknote className="text-muted-foreground h-4 w-4" />
                   </div>
                   {isLoadingBankAccounts ? (
-                    <span className="text-muted-foreground">Loading...</span>
+                    <Body tone="muted">Loading...</Body>
                   ) : getDepositTrustBankAccount() ? (
                     <div>
-                      <div className="text-foreground font-medium">
+                      <Body as="div" className="font-medium">
                         {getDepositTrustBankAccount()?.name}
-                      </div>
-                      <div className="text-muted-foreground text-sm">
+                      </Body>
+                      <Body tone="muted" size="sm">
                         {getDepositTrustBankAccount()?.account_number
                           ? `****${getDepositTrustBankAccount()?.account_number?.slice(-4) || ''}`
                           : 'No account number'}
-                      </div>
+                      </Body>
                     </div>
                   ) : (
                     <Button

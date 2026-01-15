@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
+import { Body, Heading, Label } from '@/ui/typography';
 
 type BuildingDetail = {
   id: string;
@@ -201,42 +202,68 @@ export default function BuildingSummaryPage() {
       <PageGrid columns={4}>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-muted-foreground text-sm font-medium">Units</CardTitle>
+            <CardTitle>
+              <Label as="span" size="sm" tone="muted">
+                Units
+              </Label>
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-semibold">{totalUnits || '—'}</div>
-            <p className="text-muted-foreground text-sm">
+            <Heading as="div" size="h2">
+              {totalUnits || '—'}
+            </Heading>
+            <Body tone="muted" size="sm">
               {building.occupiedUnits} occupied · {building.vacantUnits} vacant
-            </p>
+            </Body>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-muted-foreground text-sm font-medium">Occupancy</CardTitle>
+            <CardTitle>
+              <Label as="span" size="sm" tone="muted">
+                Occupancy
+              </Label>
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            <div className="text-3xl font-semibold">{building.occupancyRate}%</div>
+            <Heading as="div" size="h2">
+              {building.occupancyRate}%
+            </Heading>
             <Progress value={building.occupancyRate} />
-            <p className="text-muted-foreground text-sm">Portfolio rollup for linked properties</p>
+            <Body tone="muted" size="sm">
+              Portfolio rollup for linked properties
+            </Body>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-muted-foreground text-sm font-medium">Properties</CardTitle>
+            <CardTitle>
+              <Label as="span" size="sm" tone="muted">
+                Properties
+              </Label>
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-semibold">{propertyCount}</div>
-            <p className="text-muted-foreground text-sm">connected to this building</p>
+            <Heading as="div" size="h2">
+              {propertyCount}
+            </Heading>
+            <Body tone="muted" size="sm">
+              connected to this building
+            </Body>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-muted-foreground text-sm font-medium">Compliance signals</CardTitle>
+            <CardTitle>
+              <Label as="span" size="sm" tone="muted">
+                Compliance signals
+              </Label>
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            <p className="text-muted-foreground text-sm">
+            <Body tone="muted" size="sm">
               Use the Compliance tab to view registrations, assets, and items for linked properties.
-            </p>
+            </Body>
           </CardContent>
         </Card>
       </PageGrid>
@@ -286,8 +313,10 @@ export default function BuildingSummaryPage() {
           <div className="flex items-center gap-3 text-destructive">
             <BadgeAlert className="h-5 w-5" />
             <div>
-              <p className="font-semibold">Failed to load building</p>
-              <p className="text-sm">{error}</p>
+              <Label as="p" size="sm">
+                Failed to load building
+              </Label>
+              <Body size="sm">{error}</Body>
             </div>
           </div>
           <Button variant="secondary" onClick={() => void fetchBuilding()}>
@@ -297,7 +326,7 @@ export default function BuildingSummaryPage() {
         </Card>
       ) : !building ? (
         <Card className="space-y-4 p-6">
-          <div className="text-muted-foreground">Building not found.</div>
+          <Body tone="muted">Building not found.</Body>
         </Card>
       ) : (
         <Stack gap="lg">
@@ -305,24 +334,30 @@ export default function BuildingSummaryPage() {
             <CardContent className="space-y-1 p-6">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div className="space-y-2">
-                  <h1 className="flex items-center gap-2 text-2xl font-bold">
+                  <Heading as="h1" size="h2" className="flex items-center gap-2">
                     <Building2 className="h-6 w-6 text-primary" />
                     {building.streetAddress}
-                  </h1>
-                  <p className="text-muted-foreground flex items-center gap-2 text-sm">
+                  </Heading>
+                  <Body as="p" tone="muted" size="sm" className="flex items-center gap-2">
                     <MapPin className="h-4 w-4" />
                     {locationLabel || 'Location unavailable'}
-                  </p>
-                  <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                  </Body>
+                  <div className="flex flex-wrap items-center gap-2">
                     {building.latitude && building.longitude ? (
-                      <span>
+                      <Body as="span" size="sm" tone="muted">
                         Lat {building.latitude}, Lng {building.longitude}
-                      </span>
+                      </Body>
                     ) : null}
                     {mapHref ? (
-                      <Link href={mapHref} target="_blank" className="text-primary hover:underline">
+                      <Label
+                        as={Link}
+                        href={mapHref}
+                        target="_blank"
+                        size="sm"
+                        className="text-primary hover:underline"
+                      >
                         View on map
-                      </Link>
+                      </Label>
                     ) : null}
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -333,16 +368,28 @@ export default function BuildingSummaryPage() {
                 </div>
                 <div className="min-w-[260px] space-y-3 rounded-md border p-4">
                   <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground text-sm">BBL</span>
-                    <span className="font-semibold">{building.bbl || '—'}</span>
+                    <Label size="xs" tone="muted">
+                      BBL
+                    </Label>
+                    <Label as="span" size="sm">
+                      {building.bbl || '—'}
+                    </Label>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground text-sm">BIN</span>
-                    <span className="font-semibold">{building.bin || '—'}</span>
+                    <Label size="xs" tone="muted">
+                      BIN
+                    </Label>
+                    <Label as="span" size="sm">
+                      {building.bin || '—'}
+                    </Label>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground text-sm">PARID</span>
-                    <span className="font-semibold">{building.parid || '—'}</span>
+                    <Label size="xs" tone="muted">
+                      PARID
+                    </Label>
+                    <Label as="span" size="sm">
+                      {building.parid || '—'}
+                    </Label>
                   </div>
                 </div>
               </div>
@@ -353,7 +400,9 @@ export default function BuildingSummaryPage() {
 
           <Stack gap="md">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold">Occupancy & applicability</h2>
+              <Heading as="h2" size="h5">
+                Occupancy & applicability
+              </Heading>
               <div className="flex items-center gap-2">
                 <Button variant="secondary" size="sm" onClick={() => void fetchBuilding()}>
                   <RefreshCw className="mr-2 h-4 w-4" />
@@ -492,18 +541,32 @@ export default function BuildingSummaryPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg font-semibold">Linked properties</CardTitle>
+              <CardTitle>
+                <Heading as="h2" size="h4">
+                  Linked properties
+                </Heading>
+              </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               <div className="overflow-x-auto">
-                <table className="min-w-full text-sm">
-                  <thead className="bg-muted/70 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <table className="min-w-full">
+                  <thead className="bg-muted/70 text-left uppercase tracking-wide text-muted-foreground">
                     <tr>
-                      <th className="px-6 py-3 font-semibold">Property</th>
-                      <th className="px-6 py-3 font-semibold">Status</th>
-                      <th className="px-6 py-3 font-semibold">Units</th>
-                      <th className="px-6 py-3 font-semibold">Occupied</th>
-                      <th className="px-6 py-3 font-semibold">Vacant</th>
+                      <Label as="th" size="xs" tone="muted" className="px-6 py-3">
+                        Property
+                      </Label>
+                      <Label as="th" size="xs" tone="muted" className="px-6 py-3">
+                        Status
+                      </Label>
+                      <Label as="th" size="xs" tone="muted" className="px-6 py-3">
+                        Units
+                      </Label>
+                      <Label as="th" size="xs" tone="muted" className="px-6 py-3">
+                        Occupied
+                      </Label>
+                      <Label as="th" size="xs" tone="muted" className="px-6 py-3">
+                        Vacant
+                      </Label>
                     </tr>
                   </thead>
                   <tbody className="bg-card">
@@ -514,28 +577,36 @@ export default function BuildingSummaryPage() {
                       >
                         <td className="px-6 py-4 align-top">
                           <Stack gap="xs">
-                            <Link
+                            <Label
+                              as={Link}
                               href={`/properties/${property.id}`}
-                              className="font-semibold text-primary hover:underline"
+                              size="sm"
+                              className="text-primary hover:underline"
                             >
                               {property.name}
-                            </Link>
-                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                            </Label>
+                            <Body as="div" size="xs" tone="muted" className="flex items-center gap-1">
                               <Home className="h-3 w-3" />
                               <span className="truncate">
                                 {[property.addressLine1, property.city, property.state]
                                   .filter(Boolean)
                                   .join(', ') || '—'}
                               </span>
-                            </div>
+                            </Body>
                           </Stack>
                         </td>
-                        <td className="px-6 py-4 align-top text-sm text-foreground">
+                        <Body as="td" size="sm" className="px-6 py-4 align-top">
                           {property.status || '—'}
-                        </td>
-                        <td className="px-6 py-4 align-top">{property.totalUnits ?? '—'}</td>
-                        <td className="px-6 py-4 align-top">{property.occupiedUnits ?? '—'}</td>
-                        <td className="px-6 py-4 align-top">{property.vacantUnits ?? '—'}</td>
+                        </Body>
+                        <Body as="td" size="sm" className="px-6 py-4 align-top">
+                          {property.totalUnits ?? '—'}
+                        </Body>
+                        <Body as="td" size="sm" className="px-6 py-4 align-top">
+                          {property.occupiedUnits ?? '—'}
+                        </Body>
+                        <Body as="td" size="sm" className="px-6 py-4 align-top">
+                          {property.vacantUnits ?? '—'}
+                        </Body>
                       </tr>
                     ))}
                   </tbody>

@@ -3,6 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Calendar, AlertTriangle, CheckCircle2 } from 'lucide-react'
+import { Body } from '@/ui/typography'
 
 type Activity = {
   type: 'event' | 'violation'
@@ -25,13 +26,22 @@ export function ComplianceActivityTimeline({ items }: { items: Activity[] }) {
         <CardTitle>Recent Compliance Activity</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3 max-h-[420px] overflow-auto">
-        {items.length === 0 && <div className="text-sm text-muted-foreground">No recent activity.</div>}
+        {items.length === 0 && (
+          <Body as="div" size="sm" tone="muted">
+            No recent activity.
+          </Body>
+        )}
         {items.map((item, idx) => (
           <div key={idx} className="flex gap-3 border-b border-muted-100 pb-2 last:border-none">
             <div className="mt-1">{iconFor(item.type, item.status)}</div>
             <div className="flex-1">
-              <div className="text-sm font-medium leading-tight">{item.title || 'Event'}</div>
-              <div className="text-xs text-muted-foreground">{item.date ? new Date(item.date).toLocaleDateString() : '—'}{item.agency ? ` • ${item.agency}` : ''}</div>
+              <Body as="div" size="sm" className="font-medium leading-tight text-foreground">
+                {item.title || 'Event'}
+              </Body>
+              <Body as="div" size="xs" tone="muted">
+                {item.date ? new Date(item.date).toLocaleDateString() : '—'}
+                {item.agency ? ` • ${item.agency}` : ''}
+              </Body>
               {item.status && (
                 <Badge variant="outline" className="mt-1 text-[11px]">
                   {item.type === 'event' && item.status.toLowerCase() === 'removed' ? 'Device retired' : item.status}

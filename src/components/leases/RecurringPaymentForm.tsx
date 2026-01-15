@@ -21,6 +21,7 @@ import type { LeaseAccountOption, LeaseTenantOption } from '@/components/leases/
 import { getTenantOptionValue } from '@/components/leases/types';
 import { RentCycleEnumDb } from '@/schemas/lease-api';
 import { formatCurrency } from '@/lib/transactions/formatting';
+import { Body, Heading, Label } from '@/ui/typography';
 
 const PaymentSchema = z.object({
   amount: z.coerce.number().positive('Amount must be greater than 0'),
@@ -268,18 +269,22 @@ export default function RecurringPaymentForm({
   return (
     <div className="mx-auto w-full max-w-5xl space-y-8">
       <div className="space-y-1">
-        <h1 className="text-foreground text-2xl font-semibold">
+        <Heading as="h1" size="h3">
           Add recurring payment
           {leaseSummary?.propertyUnit ? ` for ${leaseSummary.propertyUnit}` : ''}
           {leaseSummary?.tenants ? ` • ${leaseSummary.tenants}` : ''}
-        </h1>
-        <div className="flex items-start gap-3 rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+        </Heading>
+        <Body
+          as="div"
+          size="sm"
+          className="flex items-start gap-3 rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-blue-900"
+        >
           <Info className="h-4 w-4 flex-none" />
           <span>
             Recurring payments can be scheduled to post automatically before or after their due
             date.
           </span>
-        </div>
+        </Body>
       </div>
 
       <Card className="border-border/70 border shadow-sm">
@@ -287,9 +292,9 @@ export default function RecurringPaymentForm({
           <form className="space-y-10" onSubmit={handleSubmit}>
             <section className="grid gap-6 lg:grid-cols-2">
               <label className="space-y-2">
-                <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                <Label size="xs" tone="muted" className="tracking-wide uppercase">
                   Amount *
-                </span>
+                </Label>
                 <Input
                   type="number"
                   inputMode="decimal"
@@ -298,12 +303,16 @@ export default function RecurringPaymentForm({
                   onChange={(event) => updateField('amount', event.target.value)}
                   placeholder="$0.00"
                 />
-                {errors.amount ? <p className="text-destructive text-xs">{errors.amount}</p> : null}
+                {errors.amount ? (
+                  <Body as="p" size="sm" className="text-destructive text-xs">
+                    {errors.amount}
+                  </Body>
+                ) : null}
               </label>
               <label className="space-y-2">
-                <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                <Label size="xs" tone="muted" className="tracking-wide uppercase">
                   Payment method *
-                </span>
+                </Label>
                 <Dropdown
                   value={form.payment_method}
                   onChange={(value) => updateField('payment_method', value)}
@@ -311,13 +320,15 @@ export default function RecurringPaymentForm({
                   placeholder="Select payment method"
                 />
                 {errors.payment_method ? (
-                  <p className="text-destructive text-xs">{errors.payment_method}</p>
+                  <Body as="p" size="sm" className="text-destructive text-xs">
+                    {errors.payment_method}
+                  </Body>
                 ) : null}
               </label>
               <label className="space-y-2">
-                <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                <Label size="xs" tone="muted" className="tracking-wide uppercase">
                   Received from
-                </span>
+                </Label>
                 <Dropdown
                   value={form.resident_id}
                   onChange={(value) => updateField('resident_id', value)}
@@ -329,9 +340,9 @@ export default function RecurringPaymentForm({
                 />
               </label>
               <label className="space-y-2 lg:col-span-2">
-                <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                <Label size="xs" tone="muted" className="tracking-wide uppercase">
                   Memo
-                </span>
+                </Label>
                 <Textarea
                   rows={3}
                   value={form.memo}
@@ -342,12 +353,14 @@ export default function RecurringPaymentForm({
             </section>
 
             <section className="space-y-4">
-              <h2 className="text-foreground text-sm font-semibold">Recurrence information</h2>
+              <Label as="h2" className="text-foreground" size="sm">
+                Recurrence information
+              </Label>
               <div className="grid gap-6 lg:grid-cols-3">
                 <label className="space-y-2">
-                  <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                  <Label size="xs" tone="muted" className="tracking-wide uppercase">
                     Frequency *
-                  </span>
+                  </Label>
                   <Dropdown
                     value={form.frequency}
                     onChange={(value) => updateField('frequency', value)}
@@ -355,22 +368,24 @@ export default function RecurringPaymentForm({
                   />
                 </label>
                 <label className="space-y-2">
-                  <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                  <Label size="xs" tone="muted" className="tracking-wide uppercase">
                     Next date *
-                  </span>
+                  </Label>
                   <DatePicker
                     value={form.next_date}
                     onChange={(value) => updateField('next_date', value)}
                     placeholder="mm/dd/yyyy"
                   />
                   {errors.next_date ? (
-                    <p className="text-destructive text-xs">{errors.next_date}</p>
+                    <Body as="p" size="sm" className="text-destructive text-xs">
+                      {errors.next_date}
+                    </Body>
                   ) : null}
                 </label>
                 <label className="space-y-2">
-                  <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                  <Label size="xs" tone="muted" className="tracking-wide uppercase">
                     Post *
-                  </span>
+                  </Label>
                   <div className="flex items-center gap-2">
                     <Input
                       className="w-20"
@@ -381,17 +396,19 @@ export default function RecurringPaymentForm({
                         updateField('posting_days_in_advance', event.target.value)
                       }
                     />
-                    <span className="text-muted-foreground text-sm">days in advance</span>
+                    <Body as="span" tone="muted" size="sm">
+                      days in advance
+                    </Body>
                   </div>
                 </label>
               </div>
 
               <div className="space-y-3">
-                <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                <Label size="xs" tone="muted" className="tracking-wide uppercase">
                   Duration *
-                </span>
+                </Label>
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                  <label className="text-foreground flex items-center gap-2 text-sm">
+                  <Label as="label" size="sm" className="text-foreground flex items-center gap-2">
                     <input
                       type="radio"
                       name="recurring-duration"
@@ -400,8 +417,8 @@ export default function RecurringPaymentForm({
                       className="h-4 w-4"
                     />
                     Until end of term
-                  </label>
-                  <label className="text-foreground flex items-center gap-2 text-sm">
+                  </Label>
+                  <Label as="label" size="sm" className="text-foreground flex items-center gap-2">
                     <input
                       type="radio"
                       name="recurring-duration"
@@ -419,13 +436,15 @@ export default function RecurringPaymentForm({
                       disabled={form.duration !== 'occurrences'}
                     />
                     occurrences
-                  </label>
+                  </Label>
                 </div>
               </div>
             </section>
 
             <section className="space-y-4">
-              <h2 className="text-foreground text-sm font-semibold">Apply payment to balances</h2>
+              <Label as="h2" className="text-foreground" size="sm">
+                Apply payment to balances
+              </Label>
               <div className="border-border overflow-hidden rounded-lg border">
                 <Table className="min-w-full">
                   <TableHeader>
@@ -492,14 +511,20 @@ export default function RecurringPaymentForm({
                 <Plus className="h-4 w-4" /> Add row
               </Button>
               {errors.allocations ? (
-                <p className="text-destructive text-xs">{errors.allocations}</p>
+                <Body as="p" size="sm" className="text-destructive text-xs">
+                  {errors.allocations}
+                </Body>
               ) : null}
             </section>
 
             {formError ? (
-              <div className="border-destructive/40 bg-destructive/10 text-destructive rounded-md border px-4 py-3 text-sm">
+              <Body
+                as="div"
+                size="sm"
+                className="border-destructive/40 bg-destructive/10 text-destructive rounded-md border px-4 py-3"
+              >
                 {formError}
-              </div>
+              </Body>
             ) : null}
 
             <div className="flex flex-wrap items-center gap-3">

@@ -1,15 +1,18 @@
 import Link from 'next/link'
 import { Bell, CreditCard, ShieldCheck, UserCog, Users } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Body, Heading } from '@/ui/typography'
 
 export default function SettingsPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-2">
-        <h1 className="text-2xl font-bold text-foreground">Settings</h1>
-        <p className="text-sm text-muted-foreground">
+        <Heading as="h1" size="h2">
+          Settings
+        </Heading>
+        <Body as="p" tone="muted" size="sm">
           Personal settings cover how you experience Ora. Workspace settings cover how your organization runs.
-        </p>
+        </Body>
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">

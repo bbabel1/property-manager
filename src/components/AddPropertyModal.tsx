@@ -14,6 +14,7 @@ import {
   Users,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -26,6 +27,8 @@ import DraftAssignmentServicesEditor, {
   INITIAL_DRAFT_SERVICE_ASSIGNMENT,
   type DraftServiceAssignment,
 } from '@/components/services/DraftAssignmentServicesEditor';
+import { Checkbox } from '@/ui/checkbox';
+import { Body, Heading, Label } from '@/ui/typography';
 
 interface AddPropertyFormData {
   // Step 1: Property Type
@@ -655,16 +658,20 @@ export default function AddPropertyModal({
       >
         {/* Header */}
         <DialogHeader className="border-border border-b p-6">
-          <DialogTitle className="text-foreground text-xl font-semibold">Add New Property</DialogTitle>
-        </DialogHeader>
+            <DialogTitle>
+              <Heading as="h3" size="h4">
+                Add New Property
+              </Heading>
+            </DialogTitle>
+          </DialogHeader>
 
         {/* Progress Steps */}
         <div className="border-border border-b px-6 py-4">
           {isTourActive ? (
             <div className="mb-3 flex justify-end">
-              <span className="text-muted-foreground text-xs">
+              <Body as="span" tone="muted" size="xs">
                 {stepReady ? 'Next is ready' : 'Complete this step to unlock Next'}
-              </span>
+              </Body>
             </div>
           ) : null}
           <div className="flex items-center justify-between">
@@ -677,11 +684,9 @@ export default function AddPropertyModal({
                       : 'border-input text-muted-foreground'
                   }`}
                 >
-                  {currentStep > step.id ? (
-                    <span className="text-sm">✓</span>
-                  ) : (
-                    <span className="text-sm">{step.id}</span>
-                  )}
+                  <Label as="span" size="sm" className="text-current">
+                    {currentStep > step.id ? '✓' : step.id}
+                  </Label>
                 </div>
                 {index < STEPS.length - 1 && (
                   <div
@@ -699,12 +704,16 @@ export default function AddPropertyModal({
         <div className={`p-5 md:p-6${isTourActive ? 'pb-24' : ''}`}>
           {submitError && (
             <div className="bg-destructive/10 border-destructive/20 mb-4 rounded-md border p-3">
-              <p className="text-destructive text-sm">{submitError}</p>
+              <Body as="p" size="sm" className="text-destructive">
+                {submitError}
+              </Body>
             </div>
           )}
           {submitSuccess && (
             <div className="bg-success/10 border-success/20 mb-4 rounded-md border p-3">
-              <p className="text-success text-sm">{submitSuccess}</p>
+              <Body as="p" size="sm" className="text-success">
+                {submitSuccess}
+              </Body>
             </div>
           )}
           {isTourActive && showTourIntro && (
@@ -762,15 +771,14 @@ export default function AddPropertyModal({
 
           <div className="flex items-center gap-4">
             {currentStep === TOTAL_STEPS && (
-              <label className="text-muted-foreground flex items-center gap-2 text-sm select-none">
-                <input
-                  type="checkbox"
-                  className={`border-border h-4 w-4 rounded ${FOCUS_RING}`}
+              <Label as="label" tone="muted" size="sm" className="flex items-center gap-2 select-none">
+                <Checkbox
+                  className={`h-4 w-4 ${FOCUS_RING}`}
                   checked={syncToBuildium}
                   onChange={(e) => setSyncToBuildium(e.target.checked)}
                 />
                 Create this property in Buildium
-              </label>
+              </Label>
             )}
             <Button
               type="button"
@@ -800,26 +808,30 @@ function GuidedStepTip({ config, ready }: { config: TourStepConfig; ready: boole
         </div>
         <div className="flex-1 space-y-2">
           <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <span className="bg-primary/10 text-primary rounded-full px-2.5 py-1 text-[11px] font-semibold tracking-wide uppercase">
-                Step {config.id} / {TOTAL_STEPS}
-              </span>
-            </div>
-            <span className={`text-xs ${ready ? 'text-success' : 'text-muted-foreground'}`}>
+            <Badge variant="outline" className="uppercase tracking-wide">
+              Step {config.id} / {TOTAL_STEPS}
+            </Badge>
+            <Badge variant={ready ? 'success' : 'outline'}>
               {ready ? 'Ready for Next' : 'Finish required items'}
-            </span>
+            </Badge>
           </div>
           <div>
-            <h4 className="text-foreground text-sm font-semibold">{config.title}</h4>
-            <p className="text-muted-foreground text-sm">{config.description}</p>
+            <Heading as="h4" size="h6">
+              {config.title}
+            </Heading>
+            <Body as="p" tone="muted" size="sm">
+              {config.description}
+            </Body>
           </div>
           <ul className="grid gap-1 sm:grid-cols-2">
             {config.bullets.map((bullet) => (
-              <li key={bullet} className="text-foreground flex items-start gap-2 text-sm">
+              <li key={bullet} className="flex items-start gap-2">
                 <CheckCircle2
                   className={`mt-0.5 h-4 w-4 ${ready ? 'text-success' : 'text-primary'}`}
                 />
-                <span>{bullet}</span>
+                <Body as="span" size="sm">
+                  {bullet}
+                </Body>
               </li>
             ))}
           </ul>
@@ -836,25 +848,31 @@ function GuidedStepTip({ config, ready }: { config: TourStepConfig; ready: boole
           </div>
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <span className="bg-primary/10 text-primary rounded-full px-2 py-0.5 text-[11px] font-semibold tracking-wide uppercase">
+              <Badge variant="outline" className="uppercase tracking-wide">
                 Step {config.id}/{TOTAL_STEPS}
-              </span>
+              </Badge>
             </div>
-            <p className="text-foreground text-sm font-semibold">{config.title}</p>
-            <p className="text-muted-foreground text-xs">{config.description}</p>
+            <Label as="p" size="sm">
+              {config.title}
+            </Label>
+            <Body as="p" tone="muted" size="xs">
+              {config.description}
+            </Body>
             <ul className="space-y-1">
               {config.bullets.map((bullet) => (
-                <li key={bullet} className="text-foreground flex items-start gap-2 text-xs">
+                <li key={bullet} className="flex items-start gap-2">
                   <CheckCircle2
                     className={`mt-0.5 h-4 w-4 ${ready ? 'text-success' : 'text-primary'}`}
                   />
-                  <span>{bullet}</span>
+                  <Body as="span" size="xs">
+                    {bullet}
+                  </Body>
                 </li>
               ))}
             </ul>
-            <p className="text-muted-foreground text-[11px]">
+            <Body as="p" tone="muted" size="xs">
               {ready ? 'Next is highlighted.' : 'Complete these to enable Next.'}
-            </p>
+            </Body>
           </div>
         </div>
       </div>
@@ -871,13 +889,17 @@ function TourIntroCard({ onStart, onSkip }: { onStart: () => void; onSkip: () =>
         </div>
         <div className="flex-1 space-y-3">
           <div className="flex items-center justify-between gap-2">
-            <h4 className="text-foreground text-base font-semibold">Guided tour: Add Property</h4>
-            <span className="text-muted-foreground text-xs">{TOTAL_STEPS} steps</span>
+            <Heading as="h4" size="h5">
+              Guided tour: Add Property
+            </Heading>
+            <Body as="span" tone="muted" size="xs">
+              {TOTAL_STEPS} steps
+            </Body>
           </div>
-          <p className="text-muted-foreground text-sm">
+          <Body as="p" tone="muted" size="sm">
             Quick checklist before you start. These match the required fields the modal already
             validates.
-          </p>
+          </Body>
           <div className="grid gap-2 sm:grid-cols-2">
             {PRE_TOUR_REQUIREMENTS.map((item) => {
               const Icon = item.icon;
@@ -887,7 +909,9 @@ function TourIntroCard({ onStart, onSkip }: { onStart: () => void; onSkip: () =>
                   className="border-border/70 bg-background flex items-center gap-2 rounded-md border px-2 py-2"
                 >
                   <Icon className="text-primary h-4 w-4" />
-                  <span className="text-foreground text-sm">{item.label}</span>
+                  <Body as="span" size="sm">
+                    {item.label}
+                  </Body>
                 </div>
               );
             })}
@@ -899,9 +923,9 @@ function TourIntroCard({ onStart, onSkip }: { onStart: () => void; onSkip: () =>
             <Button size="sm" variant="ghost" onClick={onSkip} className={FOCUS_RING}>
               Skip tour
             </Button>
-            <span className="text-muted-foreground text-xs">
+            <Body as="span" tone="muted" size="xs">
               Next highlights once the checklist for each step is done.
-            </span>
+            </Body>
           </div>
         </div>
       </div>
@@ -922,8 +946,12 @@ function Step1PropertyType({
   return (
     <div className="text-center">
       <CurrentIcon className="text-primary mx-auto mb-2 h-12 w-12" />
-      <h3 className="text-foreground mb-1 text-xl font-semibold">Property Type</h3>
-      <p className="text-muted-foreground mb-4">What type of property are you adding?</p>
+      <Heading as="h3" size="h4" className="mb-1">
+        Property Type
+      </Heading>
+      <Body as="p" tone="muted" size="sm" className="mb-4">
+        What type of property are you adding?
+      </Body>
 
       <div className="mx-auto max-w-3xl md:max-w-4xl">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -940,11 +968,9 @@ function Step1PropertyType({
                 <Building
                   className={`h-5 w-5 ${selected ? 'text-primary-foreground' : 'text-muted-foreground'}`}
                 />
-                <span
-                  className={`text-sm ${selected ? 'text-primary-foreground' : 'text-foreground'}`}
-                >
+                <Label as="span" size="sm" className={selected ? 'text-primary-foreground' : ''}>
                   {type}
-                </span>
+                </Label>
               </Button>
             );
           })}
@@ -968,14 +994,21 @@ function Step2PropertyDetails({
     <div>
       <div className="mb-4 text-center">
         <CurrentIcon className="text-primary mx-auto mb-2 h-12 w-12" />
-        <h3 className="text-foreground mb-1 text-xl font-semibold">Property Details</h3>
-        <p className="text-muted-foreground">Enter the property address and basic information</p>
+        <Heading as="h3" size="h4" className="mb-1">
+          Property Details
+        </Heading>
+        <Body as="p" tone="muted" size="sm">
+          Enter the property address and basic information
+        </Body>
       </div>
 
       <div className="mx-auto max-w-3xl space-y-4 md:max-w-4xl">
         <div>
-          <label className="text-foreground mb-1 block text-sm font-medium">Street Address *</label>
+          <Label as="label" htmlFor="add-property-street" className="mb-1 block" size="sm">
+            Street Address *
+          </Label>
           <AddressAutocomplete
+            id="add-property-street"
             value={formData.addressLine1}
             onChange={(value) => setFormData((prev) => ({ ...prev, addressLine1: value }))}
             onPlaceSelect={(place) => {
@@ -1002,9 +1035,9 @@ function Step2PropertyDetails({
         </div>
 
         <div>
-          <label className="text-foreground mb-1 block text-sm font-medium">
+          <Label as="label" className="mb-1 block" size="sm">
             Address Line 2
-          </label>
+          </Label>
           <input
             type="text"
             value={formData.addressLine2}
@@ -1017,7 +1050,9 @@ function Step2PropertyDetails({
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
-            <label className="text-foreground mb-1 block text-sm font-medium">City *</label>
+            <Label as="label" className="mb-1 block" size="sm">
+              City *
+            </Label>
             <input
               type="text"
               value={formData.city}
@@ -1028,7 +1063,9 @@ function Step2PropertyDetails({
             />
           </div>
           <div>
-            <label className="text-foreground mb-1 block text-sm font-medium">State *</label>
+            <Label as="label" className="mb-1 block" size="sm">
+              State *
+            </Label>
             <input
               type="text"
               value={formData.state}
@@ -1042,7 +1079,9 @@ function Step2PropertyDetails({
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
-            <label className="text-foreground mb-1 block text-sm font-medium">ZIP Code *</label>
+            <Label as="label" className="mb-1 block" size="sm">
+              ZIP Code *
+            </Label>
             <input
               type="text"
               value={formData.postalCode}
@@ -1053,40 +1092,37 @@ function Step2PropertyDetails({
             />
           </div>
           <div>
-            <label
-              htmlFor="add-property-country"
-              className="text-foreground mb-1 block text-sm font-medium"
-          >
-            Country *
-          </label>
-          <Select
-            value={formData.country || EMPTY_OPTION_VALUE}
-            onValueChange={(value) =>
-              setFormData((prev) => ({ ...prev, country: value === EMPTY_OPTION_VALUE ? '' : value }))
-            }
-          >
-            <SelectTrigger className={`h-10 w-full ${FOCUS_RING}`}>
-              <SelectValue placeholder="Select country" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={EMPTY_OPTION_VALUE}>Select country</SelectItem>
-              {COUNTRIES.map((c) => (
-                <SelectItem key={c} value={c}>
-                  {c}
-                </SelectItem>
-              ))}
+            <Label as="label" htmlFor="add-property-country" className="mb-1 block" size="sm">
+              Country *
+            </Label>
+            <Select
+              value={formData.country || EMPTY_OPTION_VALUE}
+              onValueChange={(value) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  country: value === EMPTY_OPTION_VALUE ? '' : value,
+                }))
+              }
+            >
+              <SelectTrigger className={`h-10 w-full ${FOCUS_RING}`}>
+                <SelectValue placeholder="Select country" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={EMPTY_OPTION_VALUE}>Select country</SelectItem>
+                {COUNTRIES.map((c) => (
+                  <SelectItem key={c} value={c}>
+                    {c}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
         </div>
 
         <div>
-          <label
-            htmlFor="add-property-status"
-            className="text-foreground mb-1 block text-sm font-medium"
-          >
+          <Label as="label" htmlFor="add-property-status" className="mb-1 block" size="sm">
             Status
-          </label>
+          </Label>
           <Select
             value={formData.status || ''}
             onValueChange={(value) =>
@@ -1105,9 +1141,9 @@ function Step2PropertyDetails({
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
-            <label className="text-foreground mb-1 block text-sm font-medium">
+            <Label as="label" className="mb-1 block" size="sm">
               Year Built
-            </label>
+            </Label>
             <input
               type="text"
               value={formData.yearBuilt}
@@ -1117,9 +1153,9 @@ function Step2PropertyDetails({
             />
           </div>
           <div className="sm:col-span-2">
-            <label className="text-foreground mb-1 block text-sm font-medium">
+            <Label as="label" className="mb-1 block" size="sm">
               Description
-            </label>
+            </Label>
             <textarea
               value={formData.structureDescription}
               onChange={(e) =>
@@ -1336,18 +1372,24 @@ function Step3Ownership({
     <div>
       <div className="mb-6 text-center">
         <CurrentIcon className="text-primary mx-auto mb-4 h-16 w-16" />
-        <h3 className="text-foreground mb-2 text-xl font-semibold">Ownership</h3>
-        <p className="text-muted-foreground">Select the owners related to this property</p>
+        <Heading as="h3" size="h4" className="mb-2">
+          Ownership
+        </Heading>
+        <Body as="p" tone="muted" size="sm">
+          Select the owners related to this property
+        </Body>
       </div>
 
       <div className="space-y-4">
         <div>
-          <label
-          htmlFor="add-property-owner-select"
-          className="text-foreground mb-1 block text-sm font-medium"
-        >
-          Add Owners *
-        </label>
+          <Label
+            as="label"
+            htmlFor="add-property-owner-select"
+            className="mb-1 block"
+            size="sm"
+          >
+            Add Owners *
+          </Label>
         <Select
           value={ownerSelectValue}
           onValueChange={(value) => {
@@ -1376,14 +1418,24 @@ function Step3Ownership({
 
         {showCreateInline && (
           <div className="border-border bg-muted/10 rounded-lg border p-4">
-            <h4 className="mb-3 text-sm font-medium">Create New Owner</h4>
-            {err && <p className="text-destructive mb-2 text-sm">{err}</p>}
+            <Heading as="h4" size="h6" className="mb-3">
+              Create New Owner
+            </Heading>
+            {err && (
+              <Body as="p" size="sm" className="text-destructive mb-2">
+                {err}
+              </Body>
+            )}
             {!err && (csrfLoading || !csrfToken) && (
-              <p className="text-muted-foreground mb-2 text-sm">Preparing security token…</p>
+              <Body as="p" tone="muted" size="sm" className="mb-2">
+                Preparing security token…
+              </Body>
             )}
             <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
-                <label className="text-muted-foreground mb-1 block text-xs">First Name *</label>
+                <Label as="label" size="xs" tone="muted" className="mb-1 block">
+                  First Name *
+                </Label>
                 <input
                   className={`border-border bg-background h-9 w-full rounded border px-2 ${FOCUS_RING}`}
                   value={createFirst}
@@ -1392,7 +1444,9 @@ function Step3Ownership({
                 />
               </div>
               <div>
-                <label className="text-muted-foreground mb-1 block text-xs">Last Name *</label>
+                <Label as="label" size="xs" tone="muted" className="mb-1 block">
+                  Last Name *
+                </Label>
                 <input
                   className={`border-border bg-background h-9 w-full rounded border px-2 ${FOCUS_RING}`}
                   value={createLast}
@@ -1401,7 +1455,9 @@ function Step3Ownership({
                 />
               </div>
               <div className="sm:col-span-2">
-                <label className="text-muted-foreground mb-1 block text-xs">Email *</label>
+                <Label as="label" size="xs" tone="muted" className="mb-1 block">
+                  Email *
+                </Label>
                 <input
                   className={`border-border bg-background h-9 w-full rounded border px-2 ${FOCUS_RING}`}
                   value={createEmail}
@@ -1410,7 +1466,9 @@ function Step3Ownership({
                 />
               </div>
               <div className="sm:col-span-2">
-                <label className="text-muted-foreground mb-1 block text-xs">Phone</label>
+                <Label as="label" size="xs" tone="muted" className="mb-1 block">
+                  Phone
+                </Label>
                 <input
                   className={`border-border bg-background h-9 w-full rounded border px-2 ${FOCUS_RING}`}
                   value={createPhone}
@@ -1419,7 +1477,9 @@ function Step3Ownership({
                 />
               </div>
               <div>
-                <label className="text-muted-foreground mb-1 block text-xs">Ownership %</label>
+                <Label as="label" size="xs" tone="muted" className="mb-1 block">
+                  Ownership %
+                </Label>
                 <input
                   type="number"
                   min={0}
@@ -1431,7 +1491,9 @@ function Step3Ownership({
                 />
               </div>
               <div>
-                <label className="text-muted-foreground mb-1 block text-xs">Disbursement %</label>
+                <Label as="label" size="xs" tone="muted" className="mb-1 block">
+                  Disbursement %
+                </Label>
                 <input
                   type="number"
                   min={0}
@@ -1443,15 +1505,19 @@ function Step3Ownership({
                 />
               </div>
               <div className="sm:col-span-2">
-                <label className="text-muted-foreground inline-flex items-center gap-2 text-xs">
-                  <input
-                    type="checkbox"
+                <Label
+                  as="label"
+                  size="xs"
+                  tone="muted"
+                  className="inline-flex items-center gap-2"
+                >
+                  <Checkbox
                     className={FOCUS_RING}
                     checked={createPrimary}
                     onChange={(e) => setCreatePrimary(e.target.checked)}
                   />
                   Primary
-                </label>
+                </Label>
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -1480,16 +1546,38 @@ function Step3Ownership({
 
         {formData.owners.length > 0 && (
           <div>
-            <h4 className="text-foreground mb-2 text-sm font-medium">Selected Owners</h4>
+            <Heading as="h4" size="h6" className="mb-2">
+              Selected Owners
+            </Heading>
             <div className="border-border overflow-hidden rounded-lg border">
-              <table className="w-full text-sm">
-                <thead className="bg-muted/40 text-muted-foreground">
+              <table className="w-full">
+                <thead className="bg-muted/40">
                   <tr>
-                    <th className="px-4 py-2 text-left font-medium">Owner</th>
-                    <th className="px-4 py-2 text-center font-medium">Ownership %</th>
-                    <th className="px-4 py-2 text-center font-medium">Disbursement %</th>
-                    <th className="px-4 py-2 text-center font-medium">Primary</th>
-                    <th className="px-4 py-2 text-right font-medium">Action</th>
+                    <th className="px-4 py-2 text-left">
+                      <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                        Owner
+                      </Label>
+                    </th>
+                    <th className="px-4 py-2 text-center">
+                      <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                        Ownership %
+                      </Label>
+                    </th>
+                    <th className="px-4 py-2 text-center">
+                      <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                        Disbursement %
+                      </Label>
+                    </th>
+                    <th className="px-4 py-2 text-center">
+                      <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                        Primary
+                      </Label>
+                    </th>
+                    <th className="px-4 py-2 text-right">
+                      <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                        Action
+                      </Label>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1497,11 +1585,13 @@ function Step3Ownership({
                     <tr key={owner.id} className="border-border border-t">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
-                          <span className="font-medium">{owner.name || 'Unnamed Owner'}</span>
+                          <Label as="span" size="sm">
+                            {owner.name || 'Unnamed Owner'}
+                          </Label>
                           {String(owner.status || '').toLowerCase() === 'new' && (
-                            <span className="bg-primary/10 text-primary rounded px-2 py-0.5 text-xs">
+                            <Badge variant="default">
                               New Owner
-                            </span>
+                            </Badge>
                           )}
                         </div>
                       </td>
@@ -1516,7 +1606,7 @@ function Step3Ownership({
                               Number(e.target.value),
                             )
                           }
-                          className={`border-border text-foreground bg-background w-24 rounded border px-2 py-1 text-sm ${FOCUS_RING}`}
+                          className={`border-border bg-background w-24 rounded border px-2 py-1 leading-tight ${FOCUS_RING}`}
                           min={0}
                           max={100}
                           step={1}
@@ -1534,7 +1624,7 @@ function Step3Ownership({
                               Number(e.target.value),
                             )
                           }
-                          className={`border-border text-foreground bg-background w-24 rounded border px-2 py-1 text-sm ${FOCUS_RING}`}
+                          className={`border-border bg-background w-24 rounded border px-2 py-1 leading-tight ${FOCUS_RING}`}
                           min={0}
                           max={100}
                           step={1}
@@ -1542,8 +1632,7 @@ function Step3Ownership({
                         />
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <input
-                          type="checkbox"
+                        <Checkbox
                           className={FOCUS_RING}
                           checked={!!owner.primary}
                           onChange={() => setPrimaryOwner(owner.id)}
@@ -1551,13 +1640,16 @@ function Step3Ownership({
                         />
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <button
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
                           onClick={() => removeOwner(owner.id)}
-                          className={`text-destructive text-sm hover:underline ${FOCUS_RING}`}
+                          className={`${FOCUS_RING} px-0`}
                           aria-label={`Remove ${owner.name} from property`}
                         >
                           Remove
-                        </button>
+                        </Button>
                       </td>
                     </tr>
                   ))}
@@ -1572,9 +1664,9 @@ function Step3Ownership({
               );
               if (total !== 100) {
                 return (
-                  <p className="text-destructive mt-2 text-sm">
+                  <Body as="p" size="sm" className="text-destructive">
                     Ownership total is {total}%. It must equal 100% to continue.
-                  </p>
+                  </Body>
                 );
               }
               return null;
@@ -1605,84 +1697,93 @@ function Step5ManagementServices({
     <div>
       <div className="mb-6 text-center">
         <CurrentIcon className="text-primary mx-auto mb-4 h-16 w-16" />
-        <h3 className="text-foreground mb-2 text-xl font-semibold">Management Services</h3>
-        <p className="text-muted-foreground">
+        <Heading as="h3" size="h4" className="mb-2">
+          Management Services
+        </Heading>
+        <Body as="p" tone="muted" size="sm">
           Configure management scope, assignment level, and the property’s service plan.
-        </p>
+        </Body>
       </div>
 
       <div className="space-y-6">
         <div className="rounded-xl border p-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label
-            htmlFor="add-property-management-scope"
-            className="text-foreground mb-1 block text-sm font-medium"
-        >
-          Management Scope *
-        </label>
-        <Select
-          value={formData.management_scope || EMPTY_OPTION_VALUE}
-          onValueChange={(value) =>
-            setFormData({
-              ...formData,
-              management_scope: (value === EMPTY_OPTION_VALUE ? null : value) as
-                | 'Building'
-                | 'Unit'
-                | null,
-            })
-          }
-        >
-          <SelectTrigger className={`h-10 w-full ${FOCUS_RING}`}>
-            <SelectValue placeholder="Select scope..." />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={EMPTY_OPTION_VALUE}>Select scope...</SelectItem>
-            <SelectItem value="Building">Building</SelectItem>
-            <SelectItem value="Unit">Unit</SelectItem>
-          </SelectContent>
-        </Select>
+              <Label
+                as="label"
+                htmlFor="add-property-management-scope"
+                className="mb-1 block"
+                size="sm"
+              >
+                Management Scope *
+              </Label>
+              <Select
+                value={formData.management_scope || EMPTY_OPTION_VALUE}
+                onValueChange={(value) =>
+                  setFormData({
+                    ...formData,
+                    management_scope: (value === EMPTY_OPTION_VALUE ? null : value) as
+                      | 'Building'
+                      | 'Unit'
+                      | null,
+                  })
+                }
+              >
+                <SelectTrigger className={`h-10 w-full ${FOCUS_RING}`}>
+                  <SelectValue placeholder="Select scope..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={EMPTY_OPTION_VALUE}>Select scope...</SelectItem>
+                  <SelectItem value="Building">Building</SelectItem>
+                  <SelectItem value="Unit">Unit</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label
+                as="label"
+                htmlFor="add-property-service-assignment"
+                className="mb-1 block"
+                size="sm"
+              >
+                Service Assignment *
+              </Label>
+              <Select
+                value={formData.service_assignment || EMPTY_OPTION_VALUE}
+                onValueChange={(value) =>
+                  setFormData({
+                    ...formData,
+                    service_assignment: (value === EMPTY_OPTION_VALUE ? null : value) as
+                      | 'Property Level'
+                      | 'Unit Level'
+                      | null,
+                  })
+                }
+              >
+                <SelectTrigger className={`h-10 w-full ${FOCUS_RING}`}>
+                  <SelectValue placeholder="Select assignment..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={EMPTY_OPTION_VALUE}>Select assignment...</SelectItem>
+                  <SelectItem value="Property Level">Property Level</SelectItem>
+                  <SelectItem value="Unit Level">Unit Level</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
         </div>
 
-        <div>
-          <label
-            htmlFor="add-property-service-assignment"
-            className="text-foreground mb-1 block text-sm font-medium"
-        >
-          Service Assignment *
-        </label>
-        <Select
-          value={formData.service_assignment || EMPTY_OPTION_VALUE}
-          onValueChange={(value) =>
-            setFormData({
-              ...formData,
-              service_assignment: (value === EMPTY_OPTION_VALUE ? null : value) as
-                | 'Property Level'
-                | 'Unit Level'
-                | null,
-            })
-          }
-        >
-          <SelectTrigger className={`h-10 w-full ${FOCUS_RING}`}>
-            <SelectValue placeholder="Select assignment..." />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={EMPTY_OPTION_VALUE}>Select assignment...</SelectItem>
-            <SelectItem value="Property Level">Property Level</SelectItem>
-            <SelectItem value="Unit Level">Unit Level</SelectItem>
-          </SelectContent>
-        </Select>
-        </div>
-      </div>
-    </div>
 
         {isUnitLevel ? (
           <div className="bg-muted/30 rounded-xl border p-4">
-            <p className="text-foreground text-sm font-semibold">Unit Level assignments</p>
-            <p className="text-muted-foreground mt-1 text-sm">
+            <Label as="p" size="sm">
+              Unit Level assignments
+            </Label>
+            <Body as="p" tone="muted" size="sm" className="mt-1">
               This property is set to Unit Level service assignments. You’ll configure the service
               plan and services on each unit after the property is created.
-            </p>
+            </Body>
           </div>
         ) : (
           <DraftAssignmentServicesEditor draft={serviceDraft} onChange={setServiceDraft} />
@@ -1745,18 +1846,24 @@ function Step6BankAccount({
     <div>
       <div className="mb-6 text-center">
         <CurrentIcon className="text-primary mx-auto mb-4 h-16 w-16" />
-        <h3 className="text-foreground mb-2 text-xl font-semibold">Bank Account</h3>
-        <p className="text-muted-foreground">Select the operating bank account for this property</p>
+        <Heading as="h3" size="h4" className="mb-2">
+          Bank Account
+        </Heading>
+        <Body as="p" tone="muted" size="sm">
+          Select the operating bank account for this property
+        </Body>
       </div>
 
       <div className="space-y-4">
         <div>
-          <label
+          <Label
+            as="label"
             htmlFor="add-property-operating-account"
-            className="text-foreground mb-1 block text-sm font-medium"
-        >
-          Operating Bank Account *
-        </label>
+            className="mb-1 block"
+            size="sm"
+          >
+            Operating Bank Account *
+          </Label>
         <Select
           value={formData.operatingBankAccountId || EMPTY_OPTION_VALUE}
           onValueChange={(value) => {
@@ -1798,12 +1905,14 @@ function Step6BankAccount({
         </div>
 
         <div>
-          <label
+          <Label
+            as="label"
             htmlFor="add-property-trust-account"
-            className="text-foreground mb-1 block text-sm font-medium"
-        >
-          Deposit Trust Account
-        </label>
+            className="mb-1 block"
+            size="sm"
+          >
+            Deposit Trust Account
+          </Label>
         <Select
           value={formData.depositTrustAccountId || EMPTY_OPTION_VALUE}
           onValueChange={(value) => {
@@ -1832,7 +1941,9 @@ function Step6BankAccount({
         </div>
 
         <div>
-          <label className="text-foreground mb-1 block text-sm font-medium">Reserve Amount</label>
+          <Label as="label" className="mb-1 block" size="sm">
+            Reserve Amount
+          </Label>
           <div className="relative">
             <span className="text-muted-foreground absolute top-1/2 left-3 -translate-y-1/2">
               $
@@ -1915,7 +2026,7 @@ function Step7PropertyManager({
                 displayName: String(
                   staff.displayName ||
                     `${staff.first_name ?? ''} ${staff.last_name ?? ''}`.trim() ||
-                    `Staff ${staff.id}`,
+                  `Staff ${staff.id}`,
                 ),
               };
             }),
@@ -1930,22 +2041,31 @@ function Step7PropertyManager({
     };
   }, []);
 
+  const ownerNames = formData.owners.map((o) => o.name).filter(Boolean).join(', ');
+  const primaryOwnerName = formData.owners.find((o) => o.primary)?.name;
+
   return (
     <div>
       <div className="mb-6 text-center">
         <CurrentIcon className="text-primary mx-auto mb-4 h-16 w-16" />
-        <h3 className="text-foreground mb-2 text-xl font-semibold">Property Manager</h3>
-        <p className="text-muted-foreground">Assign a property manager</p>
+        <Heading as="h3" size="h4" className="mb-2">
+          Property Manager
+        </Heading>
+        <Body as="p" tone="muted" size="sm">
+          Assign a property manager
+        </Body>
       </div>
 
       <div className="space-y-6">
         <div>
-          <label
-          htmlFor="add-property-manager"
-          className="text-foreground mb-1 block text-sm font-medium"
-        >
-          Property Manager
-        </label>
+          <Label
+            as="label"
+            htmlFor="add-property-manager"
+            className="mb-1 block"
+            size="sm"
+          >
+            Property Manager
+          </Label>
         <Select
           value={formData.propertyManagerId || EMPTY_OPTION_VALUE}
           onValueChange={(value) =>
@@ -1968,59 +2088,111 @@ function Step7PropertyManager({
 
         {/* Property Summary */}
         <div className="bg-muted border-border rounded-lg border p-4">
-          <h4 className="text-foreground mb-3 font-medium">Property Summary</h4>
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Property:</span>
-              <span className="font-medium">{formData.name || 'Not specified'}</span>
+          <Heading as="h4" size="h6" className="mb-3">
+            Property Summary
+          </Heading>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-3">
+              <Body as="span" size="sm" tone="muted">
+                Property:
+              </Body>
+              <Label as="span" size="sm">
+                {formData.name || 'Not specified'}
+              </Label>
             </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Type:</span>
-              <span className="bg-primary/10 text-primary rounded px-2 py-1 text-xs">
-                {formData.propertyType || 'Not selected'}
-              </span>
+            <div className="flex items-center justify-between gap-3">
+              <Body as="span" size="sm" tone="muted">
+                Type:
+              </Body>
+              {formData.propertyType ? (
+                <Badge variant="outline">{formData.propertyType}</Badge>
+              ) : (
+                <Body as="span" size="sm" tone="muted">
+                  Not selected
+                </Body>
+              )}
             </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Status:</span>
-              <span className="font-medium">{formData.status || 'Active'}</span>
+            <div className="flex items-center justify-between gap-3">
+              <Body as="span" size="sm" tone="muted">
+                Status:
+              </Body>
+              <Label as="span" size="sm">{formData.status || 'Active'}</Label>
             </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Address:</span>
-              <span className="font-medium">{formData.addressLine1 || 'Not specified'}</span>
+            <div className="flex items-center justify-between gap-3">
+              <Body as="span" size="sm" tone="muted">
+                Address:
+              </Body>
+              <Label as="span" size="sm">
+                {formData.addressLine1 || 'Not specified'}
+              </Label>
             </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Country:</span>
-              <span className="font-medium">{formData.country || 'Not specified'}</span>
+            <div className="flex items-center justify-between gap-3">
+              <Body as="span" size="sm" tone="muted">
+                Country:
+              </Body>
+              <Label as="span" size="sm">
+                {formData.country || 'Not specified'}
+              </Label>
             </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Year Built:</span>
-              <span className="font-medium">{formData.yearBuilt || 'Not specified'}</span>
+            <div className="flex items-center justify-between gap-3">
+              <Body as="span" size="sm" tone="muted">
+                Year Built:
+              </Body>
+              <Label as="span" size="sm">
+                {formData.yearBuilt || 'Not specified'}
+              </Label>
             </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Owners:</span>
-              <span className="font-medium">
-                {formData.owners.map((o) => o.name).join(', ') || 'None selected'}
-              </span>
+            <div className="flex items-center justify-between gap-3">
+              <Body as="span" size="sm" tone="muted">
+                Owners:
+              </Body>
+              {formData.owners.length ? (
+                <Label as="span" size="sm">{ownerNames}</Label>
+              ) : (
+                <Body as="span" size="sm" tone="muted">
+                  None selected
+                </Body>
+              )}
             </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Primary Owner:</span>
-              <span className="font-medium">
-                {formData.owners.find((o) => o.primary)?.name || 'None selected'}
-              </span>
+            <div className="flex items-center justify-between gap-3">
+              <Body as="span" size="sm" tone="muted">
+                Primary Owner:
+              </Body>
+              {primaryOwnerName ? (
+                <Label as="span" size="sm">
+                  {primaryOwnerName}
+                </Label>
+              ) : (
+                <Body as="span" size="sm" tone="muted">
+                  None selected
+                </Body>
+              )}
             </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Bank Account:</span>
-              <span className="font-medium">
-                {formData.operatingBankAccountName ||
-                  formData.operatingBankAccountId ||
-                  'None selected'}
-              </span>
+            <div className="flex items-center justify-between gap-3">
+              <Body as="span" size="sm" tone="muted">
+                Bank Account:
+              </Body>
+              {formData.operatingBankAccountName || formData.operatingBankAccountId ? (
+                <Label as="span" size="sm">
+                  {formData.operatingBankAccountName || formData.operatingBankAccountId}
+                </Label>
+              ) : (
+                <Body as="span" size="sm" tone="muted">
+                  None selected
+                </Body>
+              )}
             </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Deposit Trust:</span>
-              <span className="font-medium">
-                {formData.depositTrustAccountId || 'None selected'}
-              </span>
+            <div className="flex items-center justify-between gap-3">
+              <Body as="span" size="sm" tone="muted">
+                Deposit Trust:
+              </Body>
+              {formData.depositTrustAccountId ? (
+                <Label as="span" size="sm">{formData.depositTrustAccountId}</Label>
+              ) : (
+                <Body as="span" size="sm" tone="muted">
+                  None selected
+                </Body>
+              )}
             </div>
           </div>
         </div>
@@ -2056,31 +2228,40 @@ function Step4UnitDetails({
     <div>
       <div className="mb-6 text-center">
         <CurrentIcon className="text-primary mx-auto mb-4 h-16 w-16" />
-        <h3 className="text-foreground mb-2 text-xl font-semibold">Unit Details</h3>
-        <p className="text-muted-foreground">Add details for each unit in this property</p>
+        <Heading as="h3" size="h4" className="mb-2">
+          Unit Details
+        </Heading>
+        <Body as="p" tone="muted" size="sm">
+          Add details for each unit in this property
+        </Body>
       </div>
 
       <div className="space-y-4">
         {formData.units.map((u, idx) => (
           <div key={idx} className="border-border bg-card rounded-lg border p-4">
             <div className="mb-3 flex items-center justify-between">
-              <span className="font-medium">Unit {idx + 1}</span>
+              <Label as="span" size="sm">
+                Unit {idx + 1}
+              </Label>
               {formData.units.length > 1 && (
-                <button
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
                   onClick={() => removeUnit(idx)}
-                  className={`text-destructive text-sm hover:underline ${FOCUS_RING}`}
+                  className={`${FOCUS_RING} px-0 text-destructive hover:text-destructive`}
                   aria-label={`Remove unit ${idx + 1}`}
                 >
                   Remove
-                </button>
+                </Button>
               )}
             </div>
             <div className="grid grid-cols-1 gap-4">
               {/* Unit Number */}
               <div>
-                <label className="text-foreground mb-1 block text-sm font-medium">
+                <Label as="label" size="sm" className="mb-1 block">
                   Unit Number *
-                </label>
+                </Label>
                 <input
                   value={u.unitNumber}
                   onChange={(e) => updateUnit(idx, { unitNumber: e.target.value })}
@@ -2090,7 +2271,9 @@ function Step4UnitDetails({
               </div>
               {/* Bedrooms */}
               <div>
-                <label className="text-foreground mb-1 block text-sm font-medium">Bedrooms</label>
+                <Label as="label" size="sm" className="mb-1 block">
+                  Bedrooms
+                </Label>
                 <div className="border-border divide-border flex divide-x overflow-hidden rounded-md border">
                   {BEDROOMS.map((b) => {
                     const selected = (u.unitBedrooms || '') === b;
@@ -2099,10 +2282,12 @@ function Step4UnitDetails({
                         key={b}
                         type="button"
                         onClick={() => updateUnit(idx, { unitBedrooms: b })}
-                        className={`flex-1 py-1.5 text-center text-sm ${selected ? 'bg-primary/10 text-primary' : 'bg-background hover:bg-muted text-foreground'} ${FOCUS_RING}`}
+                        className={`flex-1 py-1.5 text-center ${selected ? 'bg-primary/10 text-primary' : 'bg-background hover:bg-muted text-foreground'} ${FOCUS_RING}`}
                         aria-label={`Select ${b} bedrooms for unit ${idx + 1}`}
                       >
-                        {b}
+                        <Body as="span" size="sm">
+                          {b}
+                        </Body>
                       </button>
                     );
                   })}
@@ -2110,7 +2295,9 @@ function Step4UnitDetails({
               </div>
               {/* Bathrooms */}
               <div>
-                <label className="text-foreground mb-1 block text-sm font-medium">Bathrooms</label>
+                <Label as="label" size="sm" className="mb-1 block">
+                  Bathrooms
+                </Label>
                 <div className="border-border divide-border flex divide-x overflow-hidden rounded-md border">
                   {BATHROOMS.map((b) => {
                     const selected = (u.unitBathrooms || '') === b;
@@ -2119,10 +2306,12 @@ function Step4UnitDetails({
                         key={b}
                         type="button"
                         onClick={() => updateUnit(idx, { unitBathrooms: b })}
-                        className={`flex-1 py-1.5 text-center text-sm ${selected ? 'bg-primary/10 text-primary' : 'bg-background hover:bg-muted text-foreground'} ${FOCUS_RING}`}
+                        className={`flex-1 py-1.5 text-center ${selected ? 'bg-primary/10 text-primary' : 'bg-background hover:bg-muted text-foreground'} ${FOCUS_RING}`}
                         aria-label={`Select ${b} bathrooms for unit ${idx + 1}`}
                       >
-                        {b}
+                        <Body as="span" size="sm">
+                          {b}
+                        </Body>
                       </button>
                     );
                   })}
@@ -2130,9 +2319,9 @@ function Step4UnitDetails({
               </div>
               {/* Description */}
               <div>
-                <label className="text-foreground mb-1 block text-sm font-medium">
+                <Label as="label" size="sm" className="mb-1 block">
                   Description
-                </label>
+                </Label>
                 <textarea
                   value={u.description || ''}
                   onChange={(e) => updateUnit(idx, { description: e.target.value || undefined })}

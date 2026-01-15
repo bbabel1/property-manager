@@ -3,6 +3,7 @@
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Download } from 'lucide-react'
+import { Body, Heading } from '@/ui/typography'
 
 interface PropertyComplianceHeaderProps {
   propertyName: string
@@ -29,14 +30,28 @@ export function PropertyComplianceHeader({
     <div className="space-y-4">
       <div className="flex items-start justify-between">
         <div>
-          <h2 className="text-xl font-semibold">{propertyName}</h2>
-          <p className="text-sm text-muted-foreground">{addressLine1}</p>
-          <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
-            {borough && <span>{borough}</span>}
+          <Heading as="h2" size="h4">
+            {propertyName}
+          </Heading>
+          <Body as="p" size="sm" tone="muted">
+            {addressLine1}
+          </Body>
+          <div className="mt-2 flex items-center gap-2 text-muted-foreground">
+            {borough && (
+              <Body as="span" size="sm" tone="muted">
+                {borough}
+              </Body>
+            )}
             {bin && (
               <>
-                {borough && <span>•</span>}
-                <span>BIN: {bin}</span>
+                {borough && (
+                  <Body as="span" size="sm" tone="muted">
+                    •
+                  </Body>
+                )}
+                <Body as="span" size="sm" tone="muted">
+                  BIN: {bin}
+                </Body>
               </>
             )}
           </div>
@@ -51,22 +66,22 @@ export function PropertyComplianceHeader({
 
       <div className="flex flex-wrap gap-2">
         {openViolations > 0 && (
-          <Badge variant="destructive">
+          <Badge variant="danger">
             {openViolations} Open Violation{openViolations !== 1 ? 's' : ''}
           </Badge>
         )}
         {overdueItems > 0 && (
-          <Badge variant="destructive">
+          <Badge variant="danger">
             {overdueItems} Overdue Item{overdueItems !== 1 ? 's' : ''}
           </Badge>
         )}
         {itemsDueNext30Days > 0 && (
-          <Badge variant="outline" className="border-warning text-warning">
+          <Badge variant="warning">
             {itemsDueNext30Days} Due in Next 30 Days
           </Badge>
         )}
         {openViolations === 0 && overdueItems === 0 && itemsDueNext30Days === 0 && (
-          <Badge variant="outline" className="border-success text-success">
+          <Badge variant="success">
             All Clear
           </Badge>
         )}
@@ -74,4 +89,3 @@ export function PropertyComplianceHeader({
     </div>
   )
 }
-

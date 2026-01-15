@@ -56,6 +56,7 @@ import {
 } from '@/components/ui/drawer';
 import { cn } from '@/components/ui/utils';
 import { ChevronDown, ChevronUp, Paperclip, Plus, Trash2, UploadCloud } from 'lucide-react';
+import { Body, Heading, Label } from '@/ui/typography';
 
 export type VendorOption = {
   id: string;
@@ -330,17 +331,25 @@ function RecordBillSectionCard({
       <Card className={cn('border-border border shadow-sm', className)}>
         <div className="border-border/60 flex flex-wrap items-center justify-between gap-3 border-b px-6 py-4">
           <div>
-            <h2 className="text-foreground text-sm font-semibold">{title}</h2>
-            {description ? <p className="text-muted-foreground text-xs">{description}</p> : null}
+            <Heading as="h2" size="h6">
+              {title}
+            </Heading>
+            {description ? (
+              <Body as="p" tone="muted" size="xs">
+                {description}
+              </Body>
+            ) : null}
           </div>
           <CollapsibleTrigger asChild>
             <Button
               type="button"
               variant="ghost"
               size="sm"
-              className="text-muted-foreground gap-2 text-xs font-semibold tracking-wide uppercase"
+              className="gap-2"
             >
-              {open ? 'Hide' : 'Show'}
+              <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                {open ? 'Hide' : 'Show'}
+              </Label>
               <ChevronDown
                 className={cn('h-4 w-4 transition-transform', open ? 'rotate-180' : 'rotate-0')}
               />
@@ -1048,9 +1057,13 @@ export default function RecordBillForm({
     <>
       <form ref={formRef} className="space-y-6 pb-24" onSubmit={submit} noValidate>
         {formError ? (
-          <div className="border-destructive/30 bg-destructive/10 text-destructive rounded-md border px-4 py-3 text-sm">
+          <Body
+            as="div"
+            size="sm"
+            className="border-destructive/30 bg-destructive/10 text-destructive rounded-md border px-4 py-3"
+          >
             {formError}
-          </div>
+          </Body>
         ) : null}
 
         <RecordBillSectionCard
@@ -1062,38 +1075,42 @@ export default function RecordBillForm({
             <section className="space-y-6">
               <div className="flex flex-wrap gap-4">
                 <label className="block space-y-1">
-                  <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                  <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
                     Date *
-                  </span>
+                  </Label>
                   <DateInput
                     value={form.bill_date}
                     onChange={onBillDateChange}
                     className="w-[18rem]"
                   />
                   {fieldErrors.bill_date ? (
-                    <p className="text-destructive text-xs">{fieldErrors.bill_date}</p>
+                    <Body as="p" size="xs" className="text-destructive">
+                      {fieldErrors.bill_date}
+                    </Body>
                   ) : null}
                 </label>
                 <label className="block space-y-1">
-                  <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                  <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
                     Due *
-                  </span>
+                  </Label>
                   <DateInput
                     value={form.due_date}
                     onChange={(value) => setFormValue('due_date', toIsoDate(value))}
                     className="w-[18rem]"
                   />
                   {fieldErrors.due_date ? (
-                    <p className="text-destructive text-xs">{fieldErrors.due_date}</p>
+                    <Body as="p" size="xs" className="text-destructive">
+                      {fieldErrors.due_date}
+                    </Body>
                   ) : null}
                 </label>
               </div>
 
               <div className="space-y-2">
                 <label className="block space-y-1">
-                  <span className="text-muted-foreground block text-xs font-semibold tracking-wide uppercase">
+                  <Label as="span" size="xs" tone="muted" className="block uppercase tracking-wide">
                     Pay to *
-                  </span>
+                  </Label>
                   <Select value={form.vendor_id} onValueChange={onVendorChange}>
                     <SelectTrigger className="w-full sm:w-[28rem]">
                       <SelectValue placeholder="Select vendor" />
@@ -1111,7 +1128,9 @@ export default function RecordBillForm({
                     </SelectContent>
                   </Select>
                   {fieldErrors.vendor_id ? (
-                    <p className="text-destructive text-xs">{fieldErrors.vendor_id}</p>
+                    <Body as="p" size="xs" className="text-destructive">
+                      {fieldErrors.vendor_id}
+                    </Body>
                   ) : null}
                 </label>
                 <div className="flex flex-wrap items-center gap-4 text-sm font-medium">
@@ -1134,9 +1153,9 @@ export default function RecordBillForm({
               </div>
 
               <label className="block space-y-1">
-                <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
                   Reference number
-                </span>
+                </Label>
                 <Input
                   value={form.reference_number}
                   onChange={(event) => setFormValue('reference_number', event.target.value)}
@@ -1144,14 +1163,16 @@ export default function RecordBillForm({
                   className="w-full"
                 />
                 {fieldErrors.reference_number ? (
-                  <p className="text-destructive text-xs">{fieldErrors.reference_number}</p>
+                  <Body as="p" size="xs" className="text-destructive">
+                    {fieldErrors.reference_number}
+                  </Body>
                 ) : null}
               </label>
 
               <label className="block space-y-1">
-                <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
                   Memo
-                </span>
+                </Label>
                 <Textarea
                   rows={4}
                   value={form.memo}
@@ -1166,11 +1187,31 @@ export default function RecordBillForm({
                 <Table className="text-sm">
                   <TableHeader>
                     <TableRow className="bg-muted/30">
-                      <TableHead className="w-[18rem]">Property or company</TableHead>
-                      <TableHead className="w-[12rem]">Unit</TableHead>
-                      <TableHead className="w-[18rem]">Account</TableHead>
-                      <TableHead>Description</TableHead>
-                      <TableHead className="w-[10rem] text-right">Initial amount</TableHead>
+                      <TableHead className="w-[18rem]">
+                        <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                          Property or company
+                        </Label>
+                      </TableHead>
+                      <TableHead className="w-[12rem]">
+                        <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                          Unit
+                        </Label>
+                      </TableHead>
+                      <TableHead className="w-[18rem]">
+                        <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                          Account
+                        </Label>
+                      </TableHead>
+                      <TableHead>
+                        <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                          Description
+                        </Label>
+                      </TableHead>
+                      <TableHead className="w-[10rem] text-right">
+                        <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                          Initial amount
+                        </Label>
+                      </TableHead>
                       <TableHead className="w-[8rem]" />
                     </TableRow>
                   </TableHeader>
@@ -1208,7 +1249,9 @@ export default function RecordBillForm({
                               </SelectContent>
                             </Select>
                             {errorsForRow.property_id ? (
-                              <p className="text-destructive text-xs">{errorsForRow.property_id}</p>
+                              <Body as="p" size="xs" className="text-destructive">
+                                {errorsForRow.property_id}
+                              </Body>
                             ) : null}
                           </TableCell>
                           <TableCell className="align-middle">
@@ -1233,7 +1276,9 @@ export default function RecordBillForm({
                               </SelectContent>
                             </Select>
                             {errorsForRow.unit_id ? (
-                              <p className="text-destructive text-xs">{errorsForRow.unit_id}</p>
+                              <Body as="p" size="xs" className="text-destructive">
+                                {errorsForRow.unit_id}
+                              </Body>
                             ) : null}
                           </TableCell>
                           <TableCell className="align-middle">
@@ -1249,9 +1294,14 @@ export default function RecordBillForm({
                               <SelectContent>
                                 {glAccountSections.map((section) => (
                                   <div key={section.label}>
-                                    <div className="text-foreground text-muted-foreground px-3 py-2 text-xs font-semibold tracking-wide uppercase">
+                                    <Label
+                                      as="div"
+                                      size="xs"
+                                      tone="muted"
+                                      className="px-3 py-2 uppercase tracking-wide"
+                                    >
                                       {section.label}
-                                    </div>
+                                    </Label>
                                     {section.items.map((account) => (
                                       <SelectItem key={account.value} value={account.value}>
                                         {account.label}
@@ -1262,9 +1312,9 @@ export default function RecordBillForm({
                               </SelectContent>
                             </Select>
                             {errorsForRow.gl_account_id ? (
-                              <p className="text-destructive text-xs">
+                              <Body as="p" size="xs" className="text-destructive">
                                 {errorsForRow.gl_account_id}
-                              </p>
+                              </Body>
                             ) : null}
                           </TableCell>
                           <TableCell className="align-middle">
@@ -1281,7 +1331,9 @@ export default function RecordBillForm({
                               </Badge>
                             ) : null}
                             {errorsForRow.description ? (
-                              <p className="text-destructive text-xs">{errorsForRow.description}</p>
+                              <Body as="p" size="xs" className="text-destructive">
+                                {errorsForRow.description}
+                              </Body>
                             ) : null}
                           </TableCell>
                           <TableCell className="text-right align-middle">
@@ -1295,9 +1347,9 @@ export default function RecordBillForm({
                               className="text-right"
                             />
                             {errorsForRow.amount ? (
-                              <p className="text-destructive text-right text-xs">
+                              <Body as="p" size="xs" className="text-destructive text-right">
                                 {errorsForRow.amount}
-                              </p>
+                              </Body>
                             ) : null}
                           </TableCell>
                           <TableCell className="align-middle">
@@ -1336,10 +1388,12 @@ export default function RecordBillForm({
             <section className="border-border/70 bg-background rounded-lg border px-6 py-5 shadow-sm">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h2 className="text-foreground text-sm font-semibold">Attachments</h2>
-                  <p className="text-muted-foreground text-xs">
+                  <Heading as="h2" size="h6">
+                    Attachments
+                  </Heading>
+                  <Body as="p" tone="muted" size="xs">
                     Drop invoices, receipts, or supporting docs to keep everything with the bill.
-                  </p>
+                  </Body>
                 </div>
                 <Button
                   type="button"
@@ -1363,7 +1417,7 @@ export default function RecordBillForm({
                     onDrop={handleDrop}
                   >
                     <UploadCloud className="text-muted-foreground mx-auto mb-3 h-6 w-6" />
-                    <p className="text-foreground text-sm font-medium">
+                    <Heading as="p" size="h6" className="text-foreground">
                       Drag &amp; drop vendor files, or{' '}
                       <button
                         type="button"
@@ -1372,11 +1426,11 @@ export default function RecordBillForm({
                       >
                         browse your computer
                       </button>
-                    </p>
-                    <p className="text-muted-foreground text-xs">
+                    </Heading>
+                    <Body as="p" size="xs" tone="muted">
                       Up to {MAX_ATTACHMENT_COUNT} files, {MAX_ATTACHMENT_SIZE_MB}MB each. PDF or
                       image formats are supported.
-                    </p>
+                    </Body>
                     <input
                       ref={attachmentInputRef}
                       type="file"
@@ -1387,7 +1441,9 @@ export default function RecordBillForm({
                     />
                   </div>
                   {attachmentError ? (
-                    <p className="text-destructive text-sm">{attachmentError}</p>
+                    <Body as="p" size="sm" className="text-destructive">
+                      {attachmentError}
+                    </Body>
                   ) : null}
                   {attachments.length ? (
                     <ul className="space-y-2">
@@ -1399,10 +1455,10 @@ export default function RecordBillForm({
                           <div className="flex items-center gap-3">
                             <Paperclip className="text-muted-foreground h-4 w-4" />
                             <div>
-                              <p className="text-foreground font-medium">{attachment.file.name}</p>
-                              <p className="text-muted-foreground text-xs">
+                              <Label as="p">{attachment.file.name}</Label>
+                              <Body as="p" size="xs" tone="muted">
                                 {formatFileSize(attachment.file.size)}
-                              </p>
+                              </Body>
                             </div>
                           </div>
                           <Button
@@ -1424,10 +1480,14 @@ export default function RecordBillForm({
         </RecordBillSectionCard>
 
         <div className="border-border bg-muted/10 sticky bottom-0 z-10 hidden flex-wrap items-center justify-between gap-3 border px-4 py-4 md:flex">
-          <div className="text-sm">
-            <span className="text-muted-foreground">Balance due:</span>{' '}
-            <span className="font-semibold">{formatCurrency(balanceDue)}</span>
-          </div>
+          <Body as="div" size="sm" className="flex items-center gap-1">
+            <Body as="span" size="sm" tone="muted">
+              Balance due:
+            </Body>
+            <Heading as="span" size="h6">
+              {formatCurrency(balanceDue)}
+            </Heading>
+          </Body>
           <div className="flex flex-wrap items-center gap-2">
             <Button
               type="submit"
@@ -1461,12 +1521,12 @@ export default function RecordBillForm({
               aria-label="Open bill summary drawer"
             >
               <div className="text-left">
-                <p className="text-muted-foreground text-[0.65rem] font-semibold tracking-wide uppercase">
+                <Label as="p" size="xs" tone="muted" className="tracking-wide uppercase">
                   Balance due
-                </p>
-                <p className="text-foreground text-base font-semibold">
+                </Label>
+                <Heading as="p" size="h6">
                   {formatCurrency(balanceDue)}
-                </p>
+                </Heading>
               </div>
               <ChevronUp className="text-muted-foreground h-5 w-5" />
             </button>
@@ -1474,10 +1534,12 @@ export default function RecordBillForm({
           <DrawerContent className="md:hidden">
             <DrawerHeader className="pb-2">
               <DrawerTitle>Bill actions</DrawerTitle>
-              <p className="text-muted-foreground text-sm">
+              <Body as="p" size="sm" tone="muted">
                 Balance due:{' '}
-                <span className="text-foreground font-semibold">{formatCurrency(balanceDue)}</span>
-              </p>
+                <Heading as="span" size="h6">
+                  {formatCurrency(balanceDue)}
+                </Heading>
+              </Body>
             </DrawerHeader>
             <div className="px-4 pb-6">
               <div className="flex flex-col gap-2">
@@ -1534,22 +1596,24 @@ export default function RecordBillForm({
           <form onSubmit={submitNewVendor} className="space-y-6">
             <div className="grid gap-4 md:grid-cols-2">
               <label className="space-y-1 text-sm">
-                <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                <Label as="span" size="xs" tone="muted" className="tracking-wide uppercase">
                   Vendor name *
-                </span>
+                </Label>
                 <Input
                   value={newVendorForm.name}
                   onChange={(event) => setNewVendorField('name', event.target.value)}
                   placeholder="Company or contractor name"
                 />
                 {newVendorErrors.name ? (
-                  <p className="text-destructive text-xs">{newVendorErrors.name}</p>
+                  <Body as="p" size="xs" className="text-destructive">
+                    {newVendorErrors.name}
+                  </Body>
                 ) : null}
               </label>
               <label className="space-y-1 text-sm">
-                <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                <Label as="span" size="xs" tone="muted" className="tracking-wide uppercase">
                   Category
-                </span>
+                </Label>
                 <Select
                   value={newVendorForm.categoryId}
                   onValueChange={(value) => setNewVendorField('categoryId', value)}
@@ -1571,9 +1635,9 @@ export default function RecordBillForm({
 
             <div className="grid gap-4 md:grid-cols-2">
               <label className="space-y-1 text-sm">
-                <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                <Label as="span" size="xs" tone="muted" className="tracking-wide uppercase">
                   Contact first name
-                </span>
+                </Label>
                 <Input
                   value={newVendorForm.contactFirstName}
                   onChange={(event) => setNewVendorField('contactFirstName', event.target.value)}
@@ -1581,9 +1645,9 @@ export default function RecordBillForm({
                 />
               </label>
               <label className="space-y-1 text-sm">
-                <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                <Label as="span" size="xs" tone="muted" className="tracking-wide uppercase">
                   Contact last name
-                </span>
+                </Label>
                 <Input
                   value={newVendorForm.contactLastName}
                   onChange={(event) => setNewVendorField('contactLastName', event.target.value)}
@@ -1591,9 +1655,9 @@ export default function RecordBillForm({
                 />
               </label>
               <label className="space-y-1 text-sm">
-                <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                <Label as="span" size="xs" tone="muted" className="tracking-wide uppercase">
                   Email
-                </span>
+                </Label>
                 <Input
                   type="email"
                   value={newVendorForm.contactEmail}
@@ -1602,9 +1666,9 @@ export default function RecordBillForm({
                 />
               </label>
               <label className="space-y-1 text-sm">
-                <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                <Label as="span" size="xs" tone="muted" className="tracking-wide uppercase">
                   Phone
-                </span>
+                </Label>
                 <Input
                   value={newVendorForm.contactPhone}
                   onChange={(event) => setNewVendorField('contactPhone', event.target.value)}
@@ -1615,9 +1679,9 @@ export default function RecordBillForm({
 
             <div className="grid gap-4 md:grid-cols-2">
               <label className="space-y-1 text-sm md:col-span-2">
-                <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                <Label as="span" size="xs" tone="muted" className="tracking-wide uppercase">
                   Address line 1
-                </span>
+                </Label>
                 <Input
                   value={newVendorForm.addressLine1}
                   onChange={(event) => setNewVendorField('addressLine1', event.target.value)}
@@ -1625,9 +1689,9 @@ export default function RecordBillForm({
                 />
               </label>
               <label className="space-y-1 text-sm md:col-span-2">
-                <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                <Label as="span" size="xs" tone="muted" className="tracking-wide uppercase">
                   Address line 2
-                </span>
+                </Label>
                 <Input
                   value={newVendorForm.addressLine2}
                   onChange={(event) => setNewVendorField('addressLine2', event.target.value)}
@@ -1635,36 +1699,36 @@ export default function RecordBillForm({
                 />
               </label>
               <label className="space-y-1 text-sm">
-                <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                <Label as="span" size="xs" tone="muted" className="tracking-wide uppercase">
                   City
-                </span>
+                </Label>
                 <Input
                   value={newVendorForm.city}
                   onChange={(event) => setNewVendorField('city', event.target.value)}
                 />
               </label>
               <label className="space-y-1 text-sm">
-                <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                <Label as="span" size="xs" tone="muted" className="tracking-wide uppercase">
                   State / Region
-                </span>
+                </Label>
                 <Input
                   value={newVendorForm.state}
                   onChange={(event) => setNewVendorField('state', event.target.value)}
                 />
               </label>
               <label className="space-y-1 text-sm">
-                <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                <Label as="span" size="xs" tone="muted" className="tracking-wide uppercase">
                   Postal code
-                </span>
+                </Label>
                 <Input
                   value={newVendorForm.postalCode}
                   onChange={(event) => setNewVendorField('postalCode', event.target.value)}
                 />
               </label>
               <label className="space-y-1 text-sm">
-                <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                <Label as="span" size="xs" tone="muted" className="tracking-wide uppercase">
                   Country
-                </span>
+                </Label>
                 <Input
                   value={newVendorForm.country}
                   onChange={(event) => setNewVendorField('country', event.target.value)}
@@ -1674,9 +1738,9 @@ export default function RecordBillForm({
             </div>
 
             <label className="space-y-1 text-sm">
-              <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+              <Label as="span" size="xs" tone="muted" className="tracking-wide uppercase">
                 Notes
-              </span>
+              </Label>
               <Textarea
                 rows={3}
                 value={newVendorForm.notes}
@@ -1685,7 +1749,11 @@ export default function RecordBillForm({
               />
             </label>
 
-            {newVendorStatus ? <p className="text-destructive text-sm">{newVendorStatus}</p> : null}
+            {newVendorStatus ? (
+              <Body as="p" size="sm" className="text-destructive">
+                {newVendorStatus}
+              </Body>
+            ) : null}
 
             <DialogFooter>
               <Button

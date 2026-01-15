@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import ProgressBar from '@/components/ui/progress-bar';
 import type { MonthlyLogStage, MonthlyLogStatus } from './types';
+import { Body, Label } from '@/ui/typography';
 
 interface ResponsiveStageNavigationProps {
   stages: MonthlyLogStage[];
@@ -108,10 +109,12 @@ export default function ResponsiveStageNavigation({
       <div className="space-y-3">
         {/* Progress Indicator */}
         <div className="flex items-center justify-between">
-          <div className="text-sm font-medium text-slate-700">
+          <Body as="div" size="sm">
             Progress: {completedStages} of {stages.length} stages
-          </div>
-          <div className="text-sm text-slate-600">{progressPercentage}%</div>
+          </Body>
+          <Body as="div" size="sm" tone="muted">
+            {progressPercentage}%
+          </Body>
         </div>
         <ProgressBar percentage={progressPercentage} />
 
@@ -155,10 +158,12 @@ export default function ResponsiveStageNavigation({
                   <Icon className="h-4 w-4" />
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-medium">{config.label}</span>
-                      {isCompleted && <Check className="h-3.5 w-3.5 text-[var(--color-action-600)]" />}
+                      <Label as="span">{config.label}</Label>
+                      {isCompleted && <Check className="h-3.5 w-3.5 text-primary-600" />}
                     </div>
-                    <div className="text-xs text-slate-600">{config.description}</div>
+                    <Body as="div" size="xs" tone="muted">
+                      {config.description}
+                    </Body>
                   </div>
                 </DropdownMenuItem>
               );
@@ -174,10 +179,12 @@ export default function ResponsiveStageNavigation({
     <div className="space-y-4">
       {/* Progress Indicator */}
       <div className="flex items-center justify-between">
-        <div className="text-sm font-medium text-slate-700">
+        <Body as="div" size="sm">
           Progress: {completedStages} of {stages.length} stages complete
-        </div>
-        <div className="text-sm text-slate-600">{progressPercentage}%</div>
+        </Body>
+        <Body as="div" size="sm" tone="muted">
+          {progressPercentage}%
+        </Body>
       </div>
       <ProgressBar percentage={progressPercentage} />
 
@@ -200,7 +207,7 @@ export default function ResponsiveStageNavigation({
               size="sm"
               onClick={() => handleStageClick(stage)}
               className={cn(
-                'flex items-center gap-2 px-3 py-2 text-sm font-medium transition-colors',
+                'flex items-center gap-2 px-3 py-2 transition-colors',
                 isActive
                   ? 'border border-blue-200 bg-blue-50 text-blue-700'
                   : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
@@ -212,7 +219,7 @@ export default function ResponsiveStageNavigation({
               <Icon className="h-4 w-4" />
               <span className="flex items-center gap-1">
                 {config.label}
-                {isCompleted && <Check className="h-3.5 w-3.5 text-[var(--color-action-600)]" />}
+                {isCompleted && <Check className="h-3.5 w-3.5 text-primary-600" />}
               </span>
             </Button>
           );

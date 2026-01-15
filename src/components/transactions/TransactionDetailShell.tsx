@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { DialogTitle } from '@/components/ui/dialog';
 import { cn } from '@/components/ui/utils';
 import { amountToneClassName } from '@/lib/amount-formatting';
+import { Body, Heading, Label } from '@/ui/typography';
 
 type DetailItem = {
   label: string;
@@ -50,10 +51,7 @@ export default function TransactionDetailShell({
   detailItems = [],
   actions,
 }: TransactionDetailShellProps) {
-  const amountClass = cn(
-    'text-3xl font-semibold leading-tight',
-    amountToneClassName(amountTone),
-  );
+  const amountClass = amountToneClassName(amountTone);
 
   const effectiveHint = actions?.editDisabledReason ?? actions?.hint ?? null;
   const showActions = actions?.onEdit || actions?.onDelete;
@@ -63,13 +61,13 @@ export default function TransactionDetailShell({
       <DialogTitle className="sr-only">{title}</DialogTitle>
       <div className="border-b border-slate-100 px-6 pt-6 pr-12 pb-4">
         <div className="space-y-1">
-          <p className="text-xl leading-tight font-semibold" aria-hidden>
+          <Heading as="p" size="h4" aria-hidden>
             {title}
-          </p>
+          </Heading>
           {scopeLabel || dateLabel ? (
-            <p className="text-sm text-slate-600">
+            <Body as="p" size="sm" tone="muted">
               {[scopeLabel, dateLabel].filter(Boolean).join(' • ')}
-            </p>
+            </Body>
           ) : null}
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -89,32 +87,47 @@ export default function TransactionDetailShell({
       <div className="space-y-6 px-6 pb-6">
         <div className="flex flex-col gap-4 rounded-lg border border-slate-300 bg-slate-100 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-1">
-            <p className="text-xs font-semibold tracking-wide text-slate-600 uppercase">Amount</p>
-            <div className={amountClass}>
+            <Label as="p" size="xs" tone="muted" className="tracking-wide uppercase">
+              Amount
+            </Label>
+            <Heading as="div" size="h2" className={amountClass}>
               {amountPrefix}
               {amountLabel}
-            </div>
-            {dateLabel ? <p className="text-xs text-slate-600">Posted {dateLabel}</p> : null}
+            </Heading>
+            {dateLabel ? (
+              <Body as="p" size="xs" tone="muted">
+                Posted {dateLabel}
+              </Body>
+            ) : null}
           </div>
           {(transactionId || referenceNumber) && (
             <div className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 sm:w-auto">
               {transactionId ? (
                 <>
-                  <p className="text-[11px] font-semibold tracking-wide text-slate-600 uppercase">
-                    Transaction ID
-                  </p>
-                  <p className="font-mono text-sm break-words text-slate-700">{transactionId}</p>
-                </>
-              ) : null}
-              {referenceNumber ? (
+              <Label as="p" size="xs" tone="muted" className="tracking-wide uppercase">
+                Transaction ID
+              </Label>
+              <Body as="p" size="sm" tone="muted" className="break-words font-mono">
+                {transactionId}
+              </Body>
+            </>
+          ) : null}
+          {referenceNumber ? (
                 <>
-                  <p className="mt-3 text-[11px] font-semibold tracking-wide text-slate-600 uppercase">
-                    Reference #
-                  </p>
-                  <p className="font-mono text-sm break-words text-slate-700">{referenceNumber}</p>
-                </>
-              ) : null}
-            </div>
+                  <Label
+                    as="p"
+                    size="xs"
+                    tone="muted"
+                className="mt-3 tracking-wide uppercase"
+              >
+                Reference #
+              </Label>
+              <Body as="p" size="sm" tone="muted" className="break-words font-mono">
+                {referenceNumber}
+              </Body>
+            </>
+          ) : null}
+        </div>
           )}
         </div>
 
@@ -125,17 +138,17 @@ export default function TransactionDetailShell({
                 key={item.label}
                 className="rounded-lg border border-slate-300 bg-white px-3 py-3"
               >
-                <p className="text-xs font-semibold tracking-wide text-slate-600 uppercase">
+                <Label as="p" size="xs" tone="muted" className="tracking-wide uppercase">
                   {item.label}
-                </p>
-                <div
-                  className={cn(
-                    'mt-1 text-sm text-slate-800',
-                    item.mono ? 'font-mono break-words text-slate-700' : '',
-                  )}
+                </Label>
+                <Body
+                  as="div"
+                  size="sm"
+                  tone={item.mono ? 'muted' : 'default'}
+                  className={cn('mt-1', item.mono ? 'font-mono break-words' : '')}
                 >
                   {item.value}
-                </div>
+                </Body>
               </div>
             ))}
           </div>
@@ -144,10 +157,14 @@ export default function TransactionDetailShell({
         {showActions ? (
           <div className="flex flex-col gap-3 rounded-lg border border-slate-300 bg-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="space-y-1">
-              <p className="text-xs font-semibold tracking-wide text-slate-600 uppercase">
+              <Label as="p" size="xs" tone="muted" className="tracking-wide uppercase">
                 Actions
-              </p>
-              {effectiveHint ? <p className="text-sm text-slate-600">{effectiveHint}</p> : null}
+              </Label>
+              {effectiveHint ? (
+                <Body as="p" size="sm" tone="muted">
+                  {effectiveHint}
+                </Body>
+              ) : null}
             </div>
             <div className="flex items-center gap-2 sm:justify-end">
               {actions?.onDelete ? (

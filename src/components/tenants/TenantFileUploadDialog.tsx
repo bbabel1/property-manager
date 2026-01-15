@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Select } from '@/ui/select';
 import { CheckCircle2 } from 'lucide-react';
 import { fetchWithSupabaseAuth } from '@/lib/supabase/fetch';
 import type { TenantFileRow, TenantFileUploadDialogProps } from './tenant-file-types';
@@ -220,7 +221,7 @@ const TenantFileUploadDialog = ({
               </div>
               <div className="bg-background grid grid-cols-12 items-center gap-3 border-t px-3 py-3">
                 <div className="col-span-4 flex items-center gap-3">
-                  <CheckCircle2 className="h-5 w-5 text-[var(--color-action-600)]" />
+                  <CheckCircle2 className="h-5 w-5 text-primary-600" />
                   <Input
                     id="tenant-file-title"
                     value={title}
@@ -228,17 +229,16 @@ const TenantFileUploadDialog = ({
                   />
                 </div>
                 <div className="col-span-3">
-                  <select
+                  <Select
                     id="tenant-file-category"
                     value={category}
                     onChange={(event) => setCategory(event.target.value)}
-                    className="border-input bg-background focus-visible:ring-primary w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:outline-none"
                   >
                     <option value="Uncategorized">Uncategorized</option>
                     <option value="Lease">Lease</option>
                     <option value="Statement">Statement</option>
                     <option value="Other">Other</option>
-                  </select>
+                  </Select>
                 </div>
                 <div className="col-span-5">
                   <Input

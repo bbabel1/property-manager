@@ -5,11 +5,11 @@ import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { useAuth } from '@/components/providers'
 import { getSupabaseBrowserClient } from '@/lib/supabase/client'
+import { Body, Heading, Label } from '@/ui/typography'
 
 type ChannelState = { email: boolean; sms: boolean; app: boolean }
 type NotificationRow = { key: string; label: string; description?: string }
@@ -107,22 +107,26 @@ export default function NotificationsPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-2">
-        <h1 className="text-2xl font-bold text-foreground">Notifications</h1>
-        <p className="text-sm text-muted-foreground">
+        <Heading as="h1" size="h2">
+          Notifications
+        </Heading>
+        <Body as="p" tone="muted" size="sm">
           Tune what you hear about and through which channels. Critical alerts stay on even when you pause.
-        </p>
+        </Body>
       </div>
 
       <Card>
         <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <CardTitle>Global controls</CardTitle>
-            <p className="text-sm text-muted-foreground">
+            <Body as="p" tone="muted" size="sm">
               Pause non-critical emails or change how Ora reaches you.
-            </p>
+            </Body>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <Label className="text-xs uppercase tracking-wide text-muted-foreground">Pause non-critical email</Label>
+            <Label as="span" size="xs" tone="muted" className="tracking-wide uppercase">
+              Pause non-critical email
+            </Label>
             <Select value={pauseWindow} onValueChange={setPauseWindow}>
               <SelectTrigger className="w-[180px]">
                 <SelectValue />
@@ -137,9 +141,9 @@ export default function NotificationsPage() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="text-xs text-muted-foreground">
+          <Body as="div" tone="muted" size="xs">
             {enabledCount} channel toggles are on across {GROUPS.reduce((acc, g) => acc + g.rows.length, 0)} events.
-          </div>
+          </Body>
         </CardContent>
       </Card>
 
@@ -158,15 +162,21 @@ export default function NotificationsPage() {
                 return (
                   <div key={row.key} className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="space-y-1">
-                      <div className="text-sm font-medium">{row.label}</div>
+                      <Label as="div" size="sm">
+                        {row.label}
+                      </Label>
                       {row.description ? (
-                        <div className="text-xs text-muted-foreground">{row.description}</div>
+                        <Body as="div" size="xs" tone="muted">
+                          {row.description}
+                        </Body>
                       ) : null}
                     </div>
                     <div className="flex flex-wrap items-center gap-3">
                       {(['email', 'sms', 'app'] as (keyof ChannelState)[]).map((channel) => (
-                        <div key={channel} className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                          <span className="capitalize">{channel}</span>
+                        <div key={channel} className="flex items-center gap-2">
+                          <Label as="span" size="xs" tone="muted" className="capitalize">
+                            {channel}
+                          </Label>
                           <Switch
                             checked={Boolean(rowState?.[channel])}
                             onCheckedChange={(checked) => changeChannel(row.key, channel, checked)}

@@ -38,6 +38,7 @@ import {
 import { TableRowLink } from '@/components/ui/table-row-link';
 import { cn } from '@/components/ui/utils';
 import BillRowActions from '@/components/financials/BillRowActions';
+import { Body, Heading, Label } from '@/ui/typography';
 import type { Database } from '@/types/database';
 
 type ContactRow = Database['public']['Tables']['contacts']['Row'];
@@ -323,9 +324,9 @@ function VendorInlineEditCard({
         {showIdentity ? (
           <div className="space-y-4">
             <div className="space-y-1.5">
-              <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+              <Label as="div" size="xs" tone="muted" className="tracking-wide uppercase">
                 First name
-              </div>
+</Label>
               <Input
                 value={state.firstName}
                 onChange={(event) => onChange({ firstName: event.target.value })}
@@ -333,9 +334,9 @@ function VendorInlineEditCard({
               />
             </div>
             <div className="space-y-1.5">
-              <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+              <Label as="div" size="xs" tone="muted" className="tracking-wide uppercase">
                 Last name
-              </div>
+</Label>
               <Input
                 value={state.lastName}
                 onChange={(event) => onChange({ lastName: event.target.value })}
@@ -348,28 +349,30 @@ function VendorInlineEditCard({
           {showIdentity ? (
             <>
               <div className="space-y-1.5">
-                <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                <Label as="div" size="xs" tone="muted" className="tracking-wide uppercase">
                   Category
-                </div>
-                <select
-                  className="border-border/60 bg-background focus-visible:ring-primary h-9 w-full rounded-md border px-3 text-sm focus-visible:ring-1 focus-visible:outline-none"
+</Label>
+                <Select
                   value={state.categoryId ?? ''}
-                  onChange={(event) => onChange({ categoryId: event.target.value || null })}
-                  aria-label="Select vendor category"
-                  title="Select vendor category"
+                  onValueChange={(value) => onChange({ categoryId: value || null })}
                 >
-                  <option value="">Uncategorized</option>
-                  {categories.map((cat) => (
-                    <option key={cat.id} value={cat.id}>
-                      {cat.name}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger className="h-9" aria-label="Select vendor category" title="Select vendor category">
+                    <SelectValue placeholder="Uncategorized" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Uncategorized</SelectItem>
+                    {categories.map((cat) => (
+                      <SelectItem key={cat.id} value={cat.id}>
+                        {cat.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-1.5">
-                <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                <Label as="div" size="xs" tone="muted" className="tracking-wide uppercase">
                   Company name
-                </div>
+</Label>
                 <Input
                   value={state.companyName}
                   onChange={(event) => onChange({ companyName: event.target.value })}
@@ -379,33 +382,35 @@ function VendorInlineEditCard({
             </>
           ) : null}
           {extended ? (
-            <div className="space-y-1.5">
-              <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
-                Expense account
+              <div className="space-y-1.5">
+                <Label as="div" size="xs" tone="muted" className="tracking-wide uppercase">
+                  Expense account
+</Label>
+                <Select
+                  value={state.expenseAccountId}
+                  onValueChange={(value) => onChange({ expenseAccountId: value })}
+                >
+                  <SelectTrigger className="h-9" aria-label="Select expense account" title="Select expense account">
+                    <SelectValue placeholder="No default" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">No default</SelectItem>
+                    {expenseAccounts.map((account) => (
+                      <SelectItem key={account.id} value={String(account.id)}>
+                        {[account.accountNumber, account.name].filter(Boolean).join(' • ') ||
+                          account.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              <select
-                className="border-border/60 bg-background focus-visible:ring-primary h-9 w-full rounded-md border px-3 text-sm focus-visible:ring-1 focus-visible:outline-none"
-                value={state.expenseAccountId}
-                onChange={(event) => onChange({ expenseAccountId: event.target.value })}
-                aria-label="Select expense account"
-                title="Select expense account"
-              >
-                <option value="">No default</option>
-                {expenseAccounts.map((account) => (
-                  <option key={account.id} value={String(account.id)}>
-                    {[account.accountNumber, account.name].filter(Boolean).join(' • ') ||
-                      account.name}
-                  </option>
-                ))}
-              </select>
-            </div>
           ) : null}
           {showContact ? (
             <>
               <div className="space-y-1.5">
-                <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                <Label as="div" size="xs" tone="muted" className="tracking-wide uppercase">
                   Cell phone
-                </div>
+</Label>
                 <Input
                   value={state.phone}
                   onChange={(event) => onChange({ phone: event.target.value })}
@@ -413,9 +418,9 @@ function VendorInlineEditCard({
                 />
               </div>
               <div className="space-y-1.5">
-                <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                <Label as="div" size="xs" tone="muted" className="tracking-wide uppercase">
                   Work phone
-                </div>
+</Label>
                 <Input
                   value={state.workPhone}
                   onChange={(event) => onChange({ workPhone: event.target.value })}
@@ -423,9 +428,9 @@ function VendorInlineEditCard({
                 />
               </div>
               <div className="space-y-1.5">
-                <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                <Label as="div" size="xs" tone="muted" className="tracking-wide uppercase">
                   Email
-                </div>
+</Label>
                 <Input
                   type="email"
                   value={state.email}
@@ -437,9 +442,9 @@ function VendorInlineEditCard({
           ) : null}
           {extended ? (
             <div className="space-y-1.5">
-              <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+              <Label as="div" size="xs" tone="muted" className="tracking-wide uppercase">
                 Website
-              </div>
+</Label>
               <Input
                 value={state.website}
                 onChange={(event) => onChange({ website: event.target.value })}
@@ -451,9 +456,9 @@ function VendorInlineEditCard({
         {showContact ? (
           <div className="space-y-4 lg:col-span-2">
             <div className="space-y-1.5">
-              <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+              <Label as="div" size="xs" tone="muted" className="tracking-wide uppercase">
                 Address line 1
-              </div>
+</Label>
               <Input
                 value={state.addressLine1}
                 onChange={(event) => onChange({ addressLine1: event.target.value })}
@@ -461,9 +466,9 @@ function VendorInlineEditCard({
               />
             </div>
             <div className="space-y-1.5">
-              <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+              <Label as="div" size="xs" tone="muted" className="tracking-wide uppercase">
                 Address line 2
-              </div>
+</Label>
               <Input
                 value={state.addressLine2}
                 onChange={(event) => onChange({ addressLine2: event.target.value })}
@@ -472,9 +477,9 @@ function VendorInlineEditCard({
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div className="space-y-1.5">
-                <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                <Label as="div" size="xs" tone="muted" className="tracking-wide uppercase">
                   City
-                </div>
+</Label>
                 <Input
                   value={state.addressCity}
                   onChange={(event) => onChange({ addressCity: event.target.value })}
@@ -482,9 +487,9 @@ function VendorInlineEditCard({
                 />
               </div>
               <div className="space-y-1.5">
-                <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                <Label as="div" size="xs" tone="muted" className="tracking-wide uppercase">
                   State
-                </div>
+</Label>
                 <Input
                   value={state.addressState}
                   onChange={(event) => onChange({ addressState: event.target.value })}
@@ -492,9 +497,9 @@ function VendorInlineEditCard({
                 />
               </div>
               <div className="space-y-1.5">
-                <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                <Label as="div" size="xs" tone="muted" className="tracking-wide uppercase">
                   Postal code
-                </div>
+</Label>
                 <Input
                   value={state.addressPostalCode}
                   onChange={(event) => onChange({ addressPostalCode: event.target.value })}
@@ -506,9 +511,9 @@ function VendorInlineEditCard({
         ) : null}
         {extended ? (
           <div className="space-y-1.5 lg:col-span-2">
-            <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+            <Label as="div" size="xs" tone="muted" className="tracking-wide uppercase">
               Notes
-            </div>
+</Label>
             <Textarea
               value={state.notes}
               onChange={(event) => onChange({ notes: event.target.value })}
@@ -518,7 +523,11 @@ function VendorInlineEditCard({
           </div>
         ) : null}
       </div>
-      {error ? <p className="text-destructive text-sm">{error}</p> : null}
+      {error ? (
+        <Body as="p" size="sm" className="text-destructive">
+          {error}
+        </Body>
+      ) : null}
       <div className="flex items-center gap-3">
         <Button onClick={onSave} disabled={saving}>
           {saving ? 'Saving…' : 'Save'}
@@ -607,9 +616,9 @@ export function VendorsDetailsClient({
           <a
             key={item}
             href={`mailto:${item}`}
-            className="text-primary flex items-center gap-2 hover:underline"
+            className="flex items-center gap-2 hover:underline"
           >
-            <Mail className="text-muted-foreground h-4 w-4" />
+            <Mail className="h-4 w-4 text-muted-foreground" />
             <span>{item}</span>
           </a>
         ))}
@@ -627,7 +636,7 @@ export function VendorsDetailsClient({
             <a
               key={key}
               href={`tel:${telHref}`}
-              className="text-foreground hover:text-primary flex items-center gap-2"
+              className="flex items-center gap-2 hover:text-primary"
             >
               <Icon className="text-muted-foreground h-4 w-4" />
               <span>{value}</span>
@@ -867,48 +876,58 @@ export function VendorsDetailsClient({
       <div className="flex items-start justify-between">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-foreground text-2xl font-semibold">{vendorName}</h1>
+            <Heading as="h1" size="h3">
+              {vendorName}
+            </Heading>
             {vendor.is_active !== null ? (
               <Badge
                 variant="outline"
                 className={
                   vendor.is_active
-                    ? 'border-[var(--color-action-200)] bg-[var(--color-action-50)] text-xs text-[var(--color-action-600)]'
-                    : 'border-slate-200 bg-slate-100 text-xs text-slate-600'
+                    ? 'border-primary-200 bg-primary-50 text-primary-600'
+                    : 'border-border bg-muted text-muted-foreground'
                 }
               >
                 {vendor.is_active ? 'Active' : 'Inactive'}
               </Badge>
             ) : null}
             {vendor.buildium_vendor_id ? (
-              <Badge variant="secondary" className="text-xs">
+              <Badge variant="secondary">
                 {vendor.buildium_vendor_id}
               </Badge>
             ) : (
-              <Badge variant="outline" className="text-xs">
+              <Badge variant="outline">
                 Not in Buildium
               </Badge>
             )}
           </div>
-          <div className="text-muted-foreground space-y-1 text-sm">
+          <div className="space-y-1">
             <div className="flex flex-wrap items-center gap-2">
-              <span>{companyLabel}</span>
-              <span aria-hidden className="text-muted-foreground">
+              <Body as="span" size="sm">
+                {companyLabel}
+              </Body>
+              <Body as="span" size="sm" tone="muted" aria-hidden>
                 |
-              </span>
-              <span>{categoryName}</span>
+              </Body>
+              <Body as="span" size="sm">
+                {categoryName}
+              </Body>
               <Button
                 type="button"
                 variant="link"
                 size="sm"
-                className="h-auto px-0 text-sm font-medium"
+                className="h-auto px-0"
                 onClick={handleHeaderEditClick}
                 disabled={saving || isPending}
               >
                 Edit
               </Button>
             </div>
-            {addressLine ? <p>{addressLine}</p> : null}
+            {addressLine ? (
+              <Body as="p" size="sm" tone="muted">
+                {addressLine}
+              </Body>
+            ) : null}
           </div>
         </div>
       </div>
@@ -955,9 +974,9 @@ export function VendorsDetailsClient({
                 {
                   label: 'Website',
                   value: websiteHref ? (
-                    <a href={websiteHref} className="text-primary hover:underline">
+                    <Label as="a" href={websiteHref} size="sm" className="hover:underline">
                       {website}
-                    </a>
+                    </Label>
                   ) : (
                     '—'
                   ),
@@ -969,10 +988,12 @@ export function VendorsDetailsClient({
               ]}
               bottomContent={
                 <div>
-                  <div className="text-muted-foreground mb-1 text-xs font-medium uppercase">
+                  <Label as="div" size="xs" tone="muted" className="mb-1 uppercase tracking-wide">
                     Comments
-                  </div>
-                  <div className="text-foreground">{vendor.notes || '—'}</div>
+                  </Label>
+                  <Body as="div" size="sm">
+                    {vendor.notes || '—'}
+                  </Body>
                 </div>
               }
             />
@@ -1030,35 +1051,39 @@ export function VendorsDetailsClient({
             />
             <Card className="border-border overflow-hidden border shadow-sm">
               <CardHeader className="border-border bg-muted/40 border-b px-4 py-3">
-                <CardTitle className="text-base font-semibold">Recent work orders</CardTitle>
+                <CardTitle>Recent work orders</CardTitle>
               </CardHeader>
               {recentWorkOrders.length === 0 ? (
-                <CardContent className="text-muted-foreground py-8 text-center text-sm">
-                  No work orders linked to this vendor yet.
+                <CardContent className="py-8 text-center">
+                  <Body as="span" size="sm" tone="muted">
+                    No work orders linked to this vendor yet.
+                  </Body>
                 </CardContent>
               ) : (
                 <CardContent className="p-0">
-                  <Table className="text-sm">
+                  <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="w-[34%]">Subject</TableHead>
-                        <TableHead className="w-[16%]">Status</TableHead>
-                        <TableHead className="w-[16%]">Priority</TableHead>
-                        <TableHead className="w-[18%]">Property</TableHead>
-                        <TableHead className="w-[16%]">Scheduled</TableHead>
+                        <TableHead className="w-[34%]"><Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">Subject</Label></TableHead>
+                        <TableHead className="w-[16%]"><Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">Status</Label></TableHead>
+                        <TableHead className="w-[16%]"><Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">Priority</Label></TableHead>
+                        <TableHead className="w-[18%]"><Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">Property</Label></TableHead>
+                        <TableHead className="w-[16%]"><Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">Scheduled</Label></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {recentWorkOrders.map((workOrder) => (
                         <TableRow key={workOrder.id}>
-                          <TableCell className="text-foreground font-medium">
-                            {workOrder.subject}
+                          <TableCell><Label as="span" size="sm">{workOrder.subject}</Label></TableCell>
+                          <TableCell>
+                            <Body as="span" size="sm" tone="muted">
+                              {formatWorkOrderLabel(workOrder.status)}
+                            </Body>
                           </TableCell>
-                          <TableCell className="text-muted-foreground">
-                            {formatWorkOrderLabel(workOrder.status)}
-                          </TableCell>
-                          <TableCell className="text-muted-foreground">
-                            {formatWorkOrderLabel(workOrder.priority)}
+                          <TableCell>
+                            <Body as="span" size="sm" tone="muted">
+                              {formatWorkOrderLabel(workOrder.priority)}
+                            </Body>
                           </TableCell>
                           <TableCell className="text-muted-foreground">
                             {workOrder.propertyId ? (
@@ -1084,11 +1109,17 @@ export function VendorsDetailsClient({
             </Card>
           </div>
           <aside className="space-y-4">
-            <Card className="border border-blue-100 bg-blue-50 text-sm text-blue-800">
+            <Card className="border border-blue-100 bg-blue-50 text-blue-800">
               <CardContent className="space-y-2 p-4">
-                <div className="font-medium text-blue-900">{vendorName}</div>
-                <div>Category: {categoryName}</div>
-                <div>Account #: {vendor.account_number || '—'}</div>
+                <Heading as="div" size="h6" className="text-blue-900">
+                  {vendorName}
+                </Heading>
+                <Body as="div" size="sm" className="text-blue-800">
+                  Category: {categoryName}
+                </Body>
+                <Body as="div" size="sm" className="text-blue-800">
+                  Account #: {vendor.account_number || '—'}
+                </Body>
               </CardContent>
             </Card>
           </aside>
@@ -1100,8 +1131,12 @@ export function VendorsDetailsClient({
           <CardHeader className="border-border bg-muted/40 border-b px-4 py-3">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <CardTitle className="text-base font-semibold">Financials</CardTitle>
-                <p className="text-muted-foreground text-sm">Bills linked to this vendor.</p>
+                <Heading as="div" size="h5">
+                  Financials
+                </Heading>
+                <Body as="p" size="sm" tone="muted">
+                  Bills linked to this vendor.
+                </Body>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <Button size="sm" asChild>
@@ -1114,20 +1149,48 @@ export function VendorsDetailsClient({
             </div>
           </CardHeader>
           <CardContent className="p-0">
-            <Table className="text-sm">
+            <Table>
               <TableHeader>
                 <TableRow className="border-border border-b">
-                  <TableHead className="text-muted-foreground w-[10rem]">Date</TableHead>
-                  <TableHead className="text-muted-foreground w-[8rem]">Number</TableHead>
-                  <TableHead className="text-muted-foreground w-[10rem]">Ref. No.</TableHead>
-                  <TableHead className="text-muted-foreground w-[7rem]">Type</TableHead>
-                  <TableHead className="text-muted-foreground min-w-[14rem]">
-                    Property / Unit
+                  <TableHead className="w-[10rem]">
+                    <Label as="span" size="xs" tone="muted" className="tracking-wide uppercase">
+                      Date
+                    </Label>
                   </TableHead>
-                  <TableHead className="text-muted-foreground min-w-[12rem]">Account</TableHead>
-                  <TableHead className="text-muted-foreground min-w-[12rem]">Memo</TableHead>
-                  <TableHead className="text-muted-foreground w-[8rem] text-right">
-                    Amount
+                  <TableHead className="w-[8rem]">
+                    <Label as="span" size="xs" tone="muted" className="tracking-wide uppercase">
+                      Number
+                    </Label>
+                  </TableHead>
+                  <TableHead className="w-[10rem]">
+                    <Label as="span" size="xs" tone="muted" className="tracking-wide uppercase">
+                      Ref. No.
+                    </Label>
+                  </TableHead>
+                  <TableHead className="w-[7rem]">
+                    <Label as="span" size="xs" tone="muted" className="tracking-wide uppercase">
+                      Type
+                    </Label>
+                  </TableHead>
+                  <TableHead className="min-w-[14rem]">
+                    <Label as="span" size="xs" tone="muted" className="tracking-wide uppercase">
+                      Property / Unit
+                    </Label>
+                  </TableHead>
+                  <TableHead className="min-w-[12rem]">
+                    <Label as="span" size="xs" tone="muted" className="tracking-wide uppercase">
+                      Account
+                    </Label>
+                  </TableHead>
+                  <TableHead className="min-w-[12rem]">
+                    <Label as="span" size="xs" tone="muted" className="tracking-wide uppercase">
+                      Memo
+                    </Label>
+                  </TableHead>
+                  <TableHead className="w-[8rem] text-right">
+                    <Label as="span" size="xs" tone="muted" className="tracking-wide uppercase">
+                      Amount
+                    </Label>
                   </TableHead>
                   <TableHead className="w-[3rem]" />
                 </TableRow>
@@ -1135,32 +1198,54 @@ export function VendorsDetailsClient({
               <TableBody className="divide-border divide-y">
                 {bills.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-muted-foreground py-8 text-center">
-                      No bills have been recorded for this vendor yet.
+                    <TableCell colSpan={9} className="py-8 text-center">
+                      <Body as="span" size="sm" tone="muted">
+                        No bills have been recorded for this vendor yet.
+                      </Body>
                     </TableCell>
                   </TableRow>
                 ) : (
                   bills.map((bill) => (
                     <TableRowLink key={bill.id} href={`/bills/${bill.id}`}>
-                      <TableCell className="text-primary font-medium">
-                        {formatBillDate(bill.billDate)}
+                      <TableCell>
+                        <Label as="span" size="sm" className="text-primary">
+                          {formatBillDate(bill.billDate)}
+                        </Label>
                       </TableCell>
-                      <TableCell className="text-foreground">
-                        {bill.buildiumBillId ?? '—'}
+                      <TableCell>
+                        <Body as="span" size="sm">
+                          {bill.buildiumBillId ?? '—'}
+                        </Body>
                       </TableCell>
-                      <TableCell className="text-foreground">
-                        {bill.referenceNumber || '—'}
+                      <TableCell>
+                        <Body as="span" size="sm">
+                          {bill.referenceNumber || '—'}
+                        </Body>
                       </TableCell>
-                      <TableCell className="text-foreground">Bill</TableCell>
-                      <TableCell className="text-foreground">
-                        {formatPropertyUnit(bill.propertyName, bill.unitLabel)}
+                      <TableCell>
+                        <Body as="span" size="sm">
+                          Bill
+                        </Body>
                       </TableCell>
-                      <TableCell className="text-foreground">
-                        {formatAccountLabel(bill.accountName, bill.accountNumber)}
+                      <TableCell>
+                        <Body as="span" size="sm">
+                          {formatPropertyUnit(bill.propertyName, bill.unitLabel)}
+                        </Body>
                       </TableCell>
-                      <TableCell className="text-foreground">{bill.memo || '—'}</TableCell>
-                      <TableCell className="text-right font-medium">
-                        {formatBillAmount(bill.totalAmount)}
+                      <TableCell>
+                        <Body as="span" size="sm">
+                          {formatAccountLabel(bill.accountName, bill.accountNumber)}
+                        </Body>
+                      </TableCell>
+                      <TableCell>
+                        <Body as="span" size="sm">
+                          {bill.memo || '—'}
+                        </Body>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Label as="span" size="sm">
+                          {formatBillAmount(bill.totalAmount)}
+                        </Label>
                       </TableCell>
                       <TableCell className="text-right" data-row-link-ignore="true">
                         <BillRowActions billId={bill.id} />
@@ -1215,9 +1300,9 @@ function VendorTaxEditCard({
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+            <Label as="div" size="xs" tone="muted" className="tracking-wide uppercase">
               Tax ID
-            </div>
+</Label>
             <Input
               value={state.taxId}
               onChange={(event) => onChange({ taxId: event.target.value })}
@@ -1225,9 +1310,9 @@ function VendorTaxEditCard({
             />
           </div>
           <div className="space-y-1.5">
-            <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+            <Label as="div" size="xs" tone="muted" className="tracking-wide uppercase">
               Taxpayer name 1
-            </div>
+</Label>
             <Input
               value={state.taxpayerName1}
               onChange={(event) => onChange({ taxpayerName1: event.target.value })}
@@ -1235,9 +1320,9 @@ function VendorTaxEditCard({
             />
           </div>
           <div className="space-y-1.5">
-            <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+            <Label as="div" size="xs" tone="muted" className="tracking-wide uppercase">
               Taxpayer name 2
-            </div>
+</Label>
             <Input
               value={state.taxpayerName2}
               onChange={(event) => onChange({ taxpayerName2: event.target.value })}
@@ -1247,9 +1332,9 @@ function VendorTaxEditCard({
         </div>
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+            <Label as="div" size="xs" tone="muted" className="tracking-wide uppercase">
               Taxpayer type
-            </div>
+</Label>
             <Select
               value={state.taxpayerType || TAXPAYER_TYPE_UNSPECIFIED_OPTION_VALUE}
               onValueChange={handleTaxpayerTypeChange}
@@ -1269,21 +1354,21 @@ function VendorTaxEditCard({
               </SelectContent>
             </Select>
           </div>
-          <label className="text-foreground flex items-center gap-2 text-sm">
+          <Label as="label" size="sm" className="flex items-center gap-2">
             <Checkbox
               checked={state.include1099}
               onCheckedChange={(checked) => onChange({ include1099: Boolean(checked) })}
             />
             Include 1099
-          </label>
+          </Label>
         </div>
       </div>
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+            <Label as="div" size="xs" tone="muted" className="tracking-wide uppercase">
               Address line 1
-            </div>
+</Label>
             <Input
               value={state.addressLine1}
               onChange={(event) => onChange({ addressLine1: event.target.value })}
@@ -1291,9 +1376,9 @@ function VendorTaxEditCard({
             />
           </div>
           <div className="space-y-1.5">
-            <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+            <Label as="div" size="xs" tone="muted" className="tracking-wide uppercase">
               Address line 2
-            </div>
+</Label>
             <Input
               value={state.addressLine2}
               onChange={(event) => onChange({ addressLine2: event.target.value })}
@@ -1301,9 +1386,9 @@ function VendorTaxEditCard({
             />
           </div>
           <div className="space-y-1.5">
-            <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+            <Label as="div" size="xs" tone="muted" className="tracking-wide uppercase">
               Address line 3
-            </div>
+</Label>
             <Textarea
               value={state.addressLine3}
               onChange={(event) => onChange({ addressLine3: event.target.value })}
@@ -1313,9 +1398,9 @@ function VendorTaxEditCard({
         </div>
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+            <Label as="div" size="xs" tone="muted" className="tracking-wide uppercase">
               City
-            </div>
+</Label>
             <Input
               value={state.city}
               onChange={(event) => onChange({ city: event.target.value })}
@@ -1323,9 +1408,9 @@ function VendorTaxEditCard({
             />
           </div>
           <div className="space-y-1.5">
-            <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+            <Label as="div" size="xs" tone="muted" className="tracking-wide uppercase">
               State
-            </div>
+</Label>
             <Input
               value={state.state}
               onChange={(event) => onChange({ state: event.target.value })}
@@ -1333,9 +1418,9 @@ function VendorTaxEditCard({
             />
           </div>
           <div className="space-y-1.5">
-            <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+            <Label as="div" size="xs" tone="muted" className="tracking-wide uppercase">
               Postal code
-            </div>
+</Label>
             <Input
               value={state.postalCode}
               onChange={(event) => onChange({ postalCode: event.target.value })}
@@ -1343,9 +1428,9 @@ function VendorTaxEditCard({
             />
           </div>
           <div className="space-y-1.5">
-            <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+            <Label as="div" size="xs" tone="muted" className="tracking-wide uppercase">
               Country
-            </div>
+</Label>
             <Input
               value={state.country}
               onChange={(event) => onChange({ country: event.target.value })}
@@ -1354,7 +1439,11 @@ function VendorTaxEditCard({
           </div>
         </div>
       </div>
-      {error ? <p className="text-destructive text-sm">{error}</p> : null}
+      {error ? (
+        <Body as="p" size="xs" className="text-destructive">
+          {error}
+        </Body>
+      ) : null}
       <div className="flex items-center gap-3">
         <Button onClick={onSave} disabled={saving}>
           {saving ? 'Saving…' : 'Save'}
@@ -1385,9 +1474,9 @@ function VendorInsuranceEditCard({
     <EditFormPanel onClose={onCancel}>
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="space-y-1.5">
-          <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+          <Label as="div" size="xs" tone="muted" className="tracking-wide uppercase">
             Provider
-          </div>
+</Label>
           <Input
             value={state.provider}
             onChange={(event) => onChange({ provider: event.target.value })}
@@ -1395,9 +1484,9 @@ function VendorInsuranceEditCard({
           />
         </div>
         <div className="space-y-1.5">
-          <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+          <Label as="div" size="xs" tone="muted" className="tracking-wide uppercase">
             Policy number
-          </div>
+</Label>
           <Input
             value={state.policyNumber}
             onChange={(event) => onChange({ policyNumber: event.target.value })}
@@ -1405,16 +1494,20 @@ function VendorInsuranceEditCard({
           />
         </div>
         <div className="space-y-1.5">
-          <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+          <Label as="div" size="xs" tone="muted" className="tracking-wide uppercase">
             Expiration
-          </div>
+</Label>
           <DateInput
             value={state.expirationDate}
             onChange={(nextValue) => onChange({ expirationDate: nextValue })}
           />
         </div>
       </div>
-      {error ? <p className="text-destructive text-sm">{error}</p> : null}
+      {error ? (
+        <Body as="p" size="xs" className="text-destructive">
+          {error}
+        </Body>
+      ) : null}
       <div className="flex items-center gap-3">
         <Button onClick={onSave} disabled={saving}>
           {saving ? 'Saving…' : 'Save'}
@@ -1449,28 +1542,34 @@ function SectionCard({
   return (
     <div className="border-border border-b pb-6">
       <div className="mb-4 flex items-center gap-2">
-        <h2 className="text-foreground text-lg font-semibold">{title}</h2>
+        <Heading as="h2" size="h5" className="text-foreground">
+          {title}
+        </Heading>
         {actionLabel && !editing && onAction ? (
           <Button
             variant="link"
             size="sm"
-            className="h-auto px-0 text-sm font-medium"
+            className="h-auto px-0"
             onClick={onAction}
           >
-            {actionLabel}
+            <Label as="span" size="sm" className="text-primary">
+              {actionLabel}
+            </Label>
           </Button>
         ) : null}
       </div>
       {editing && editContent ? (
         editContent
       ) : (
-        <div className={cn('grid grid-cols-1 gap-6 text-sm', gridClassName)}>
+        <div className={cn('grid grid-cols-1 gap-6', gridClassName)}>
           {rows.map((row) => (
             <div key={row.label} className={row.className}>
-              <div className="text-muted-foreground mb-1 text-xs font-medium uppercase">
+              <Label as="div" size="xs" tone="muted" className="mb-1 uppercase tracking-wide">
                 {row.label}
-              </div>
-              <div className="text-foreground">{row.value}</div>
+              </Label>
+              <Body as="div" size="sm">
+                {row.value}
+              </Body>
             </div>
           ))}
           {bottomContent ? <div className="col-span-full">{bottomContent}</div> : null}
@@ -1483,7 +1582,11 @@ function SectionCard({
 function EmptyPanel({ message }: { message: string }) {
   return (
     <Card>
-      <CardContent className="text-muted-foreground py-6 text-sm">{message}</CardContent>
+      <CardContent className="py-6">
+        <Body as="div" size="sm" tone="muted">
+          {message}
+        </Body>
+      </CardContent>
     </Card>
   );
 }

@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { DatePicker } from '@/components/ui/date-picker'
 import { Dropdown } from '@/components/ui/Dropdown'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Body, Heading, Label } from '@/ui/typography'
 
 const RentScheduleFormSchema = z.object({
   start_date: z.string().min(1, 'Start date is required'),
@@ -242,8 +243,12 @@ export function RentScheduleForm({
   return (
     <div className="mx-auto w-full max-w-6xl space-y-8">
       <div className="space-y-2">
-        <h1 className="text-2xl font-semibold text-foreground">Add rent</h1>
-        <p className="text-sm text-muted-foreground">Create a future or historical rent schedule for this lease.</p>
+        <Heading as="h1" size="h3">
+          Add rent
+        </Heading>
+        <Body as="p" size="sm" tone="muted">
+          Create a future or historical rent schedule for this lease.
+        </Body>
       </div>
 
       <Card className="border border-border/70 shadow-sm">
@@ -253,83 +258,132 @@ export function RentScheduleForm({
               <div className="space-y-10">
                 <section className="space-y-5">
                   <div className="space-y-1">
-                    <h2 className="text-base font-semibold text-foreground">When does this rent start?</h2>
-                    <p className="text-sm text-muted-foreground">Set the start and optional end date for the rent schedule.</p>
+                    <Heading as="h2" size="h6">
+                      When does this rent start?
+                    </Heading>
+                    <Body as="p" size="sm" tone="muted">
+                      Set the start and optional end date for the rent schedule.
+                    </Body>
                   </div>
                   <div className="grid gap-5 sm:grid-cols-2">
                     <label className="space-y-2">
-                      <span className="flex items-center gap-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                        Start date *
-                        <Info className="h-3.5 w-3.5" />
-                      </span>
+                      <Label
+                        as="span"
+                        size="xs"
+                        tone="muted"
+                        className="flex items-center gap-1 uppercase tracking-wide"
+                      >
+                        Start date * <Info className="h-3.5 w-3.5" />
+                      </Label>
                       <DatePicker
                         value={formValues.start_date}
                         onChange={(value) => updateField('start_date', value)}
                         placeholder="mm/dd/yyyy"
                       />
-                      {errors.start_date ? <p className="text-xs text-destructive">{errors.start_date}</p> : null}
+                      {errors.start_date ? (
+                        <Body as="p" size="xs" className="text-destructive">
+                          {errors.start_date}
+                        </Body>
+                      ) : null}
                     </label>
                     <label className="space-y-2">
-                      <span className="flex items-center gap-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      <Label
+                        as="span"
+                        size="xs"
+                        tone="muted"
+                        className="flex items-center gap-1 uppercase tracking-wide"
+                      >
                         End date
                         <Info className="h-3.5 w-3.5 text-muted-foreground" />
-                      </span>
+                      </Label>
                       <DatePicker
                         value={formValues.end_date}
                         onChange={(value) => updateField('end_date', value)}
                         placeholder="mm/dd/yyyy"
                       />
-                      {errors.end_date ? <p className="text-xs text-destructive">{errors.end_date}</p> : null}
+                      {errors.end_date ? (
+                        <Body as="p" size="xs" className="text-destructive">
+                          {errors.end_date}
+                        </Body>
+                      ) : null}
                     </label>
                   </div>
                 </section>
 
                 <section className="space-y-5">
                   <div className="space-y-1">
-                    <h2 className="text-base font-semibold text-foreground">When is rent charged?</h2>
-                    <p className="text-sm text-muted-foreground">Choose the billing cadence and status for this schedule.</p>
+                    <Heading as="h2" size="h6">
+                      When is rent charged?
+                    </Heading>
+                    <Body as="p" size="sm" tone="muted">
+                      Choose the billing cadence and status for this schedule.
+                    </Body>
                   </div>
                   <div className="grid gap-5 sm:grid-cols-2">
                     <label className="space-y-2">
-                      <span className="flex items-center gap-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      <Label
+                        as="span"
+                        size="xs"
+                        tone="muted"
+                        className="flex items-center gap-1 uppercase tracking-wide"
+                      >
                         Rent cycle *
                         <Info className="h-3.5 w-3.5" />
-                      </span>
+                      </Label>
                       <Dropdown
                         value={formValues.rent_cycle}
                         onChange={(value) => updateField('rent_cycle', value)}
                         options={cycleDropdown}
                         placeholder="Select cycle"
                       />
-                      {errors.rent_cycle ? <p className="text-xs text-destructive">{errors.rent_cycle}</p> : null}
+                      {errors.rent_cycle ? (
+                        <Body as="p" size="xs" className="text-destructive">
+                          {errors.rent_cycle}
+                        </Body>
+                      ) : null}
                     </label>
                     <label className="space-y-2">
-                      <span className="flex items-center gap-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      <Label
+                        as="span"
+                        size="xs"
+                        tone="muted"
+                        className="flex items-center gap-1 uppercase tracking-wide"
+                      >
                         Status *
                         <Info className="h-3.5 w-3.5" />
-                      </span>
+                      </Label>
                       <Dropdown
                         value={formValues.status}
                         onChange={(value) => updateField('status', value)}
                         options={statusDropdown}
                         placeholder="Select status"
                       />
-                      {errors.status ? <p className="text-xs text-destructive">{errors.status}</p> : null}
+                      {errors.status ? (
+                        <Body as="p" size="xs" className="text-destructive">
+                          {errors.status}
+                        </Body>
+                      ) : null}
                     </label>
                   </div>
                 </section>
 
                 <section className="space-y-5">
                   <div className="space-y-1">
-                    <h2 className="text-base font-semibold text-foreground">Charge details</h2>
-                    <p className="text-sm text-muted-foreground">Provide the amount that should be charged for this schedule.</p>
+                    <Heading as="h2" size="h6">
+                      Charge details
+                    </Heading>
+                    <Body as="p" size="sm" tone="muted">
+                      Provide the amount that should be charged for this schedule.
+                    </Body>
                   </div>
                   <div className="space-y-4">
                     <div className="relative overflow-hidden rounded-lg border border-border bg-background shadow-sm">
-                      <div className="absolute left-0 top-0 h-full w-1 bg-[var(--color-action-50)]0" aria-hidden="true" />
+                      <div className="absolute left-0 top-0 h-full w-1 bg-primary-50" aria-hidden="true" />
                       <div className="grid gap-5 p-6 sm:grid-cols-2">
                         <label className="space-y-2">
-                          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Amount *</span>
+                          <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                            Amount *
+                          </Label>
                           <Input
                             type="number"
                             inputMode="decimal"
@@ -338,20 +392,24 @@ export function RentScheduleForm({
                             onChange={(event) => updateField('total_amount', event.target.value)}
                             placeholder="$0.00"
                           />
-                          {errors.total_amount ? <p className="text-xs text-destructive">{errors.total_amount}</p> : null}
+                          {errors.total_amount ? (
+                            <Body as="p" size="xs" className="text-destructive">
+                              {errors.total_amount}
+                            </Body>
+                          ) : null}
                         </label>
-                        <div className="flex items-center gap-3 pt-6 text-sm">
+                        <div className="flex items-center gap-3 pt-6">
                           <Checkbox
                             id="backdate"
                             checked={formValues.backdate_charges}
                             onCheckedChange={(checked) => updateField('backdate_charges', Boolean(checked))}
                           />
-                          <label htmlFor="backdate" className="text-sm text-foreground">
-                            Backdate charges for this schedule
-                          </label>
+                          <Label htmlFor="backdate">Backdate charges for this schedule</Label>
                         </div>
                         <label className="space-y-2">
-                          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Account</span>
+                          <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                            Account
+                          </Label>
                           <Dropdown
                             value={glAccountId}
                             onChange={(value) => setGlAccountId(String(value))}
@@ -363,11 +421,15 @@ export function RentScheduleForm({
                           />
                         </label>
                         <label className="space-y-2 sm:col-span-2">
-                          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Memo</span>
+                          <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                            Memo
+                          </Label>
                           <Input value={memo} onChange={(e) => setMemo(e.target.value)} placeholder="Rent" />
                         </label>
                         <label className="space-y-2">
-                          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Post day</span>
+                          <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                            Post day
+                          </Label>
                           <Input
                             type="number"
                             inputMode="numeric"
@@ -379,7 +441,9 @@ export function RentScheduleForm({
                           />
                         </label>
                         <label className="space-y-2">
-                          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Days in advance</span>
+                          <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                            Days in advance
+                          </Label>
                           <Input
                             type="number"
                             inputMode="numeric"
@@ -402,37 +466,61 @@ export function RentScheduleForm({
                 </section>
               </div>
 
-              <aside className="self-start rounded-lg border border-border/60 bg-muted/10 px-6 py-5 text-sm shadow-sm">
-                <h4 className="mb-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Lease information</h4>
+              <aside className="self-start rounded-lg border border-border/60 bg-muted/10 px-6 py-5 shadow-sm">
+                <Label as="h4" size="xs" tone="muted" className="mb-4 uppercase tracking-wide">
+                  Lease information
+                </Label>
                 <div className="space-y-4">
                   <div className="flex items-start justify-between gap-6">
-                    <span className="text-xs uppercase text-muted-foreground">Lease type</span>
-                    <span className="font-medium text-foreground">{leaseSummary?.leaseType || '—'}</span>
+                    <Label as="span" size="xs" tone="muted" className="uppercase">
+                      Lease type
+                    </Label>
+                    <Label as="span">{leaseSummary?.leaseType || '—'}</Label>
                   </div>
                   <div className="flex items-start justify-between gap-6">
-                    <span className="text-xs uppercase text-muted-foreground">Lease start/end date</span>
-                    <span className="text-right text-foreground">{leaseSummary?.leaseRange || '—'}</span>
+                    <Label as="span" size="xs" tone="muted" className="uppercase">
+                      Lease start/end date
+                    </Label>
+                    <Body as="span" size="sm" className="text-right">
+                      {leaseSummary?.leaseRange || '—'}
+                    </Body>
                   </div>
                   <div className="flex items-start justify-between gap-6">
-                    <span className="text-xs uppercase text-muted-foreground">Tenants</span>
-                    <span className="text-right text-foreground">{leaseSummary?.tenants || '—'}</span>
+                    <Label as="span" size="xs" tone="muted" className="uppercase">
+                      Tenants
+                    </Label>
+                    <Body as="span" size="sm" className="text-right">
+                      {leaseSummary?.tenants || '—'}
+                    </Body>
                   </div>
                   <div className="flex items-start justify-between gap-6">
-                    <span className="text-xs uppercase text-muted-foreground">Property • Unit</span>
-                    <span className="text-right text-foreground">{leaseSummary?.propertyUnit || '—'}</span>
+                    <Label as="span" size="xs" tone="muted" className="uppercase">
+                      Property • Unit
+                    </Label>
+                    <Body as="span" size="sm" className="text-right">
+                      {leaseSummary?.propertyUnit || '—'}
+                    </Body>
                   </div>
                   <div className="flex items-start justify-between gap-6">
-                    <span className="text-xs uppercase text-muted-foreground">Current market rent</span>
-                    <span className="text-right font-semibold text-foreground">{leaseSummary?.currentMarketRent || '—'}</span>
+                    <Label as="span" size="xs" tone="muted" className="uppercase">
+                      Current market rent
+                    </Label>
+                    <Heading as="span" size="h6" className="text-right">
+                      {leaseSummary?.currentMarketRent || '—'}
+                    </Heading>
                   </div>
                 </div>
               </aside>
             </div>
 
             {formError ? (
-              <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              <Body
+                as="div"
+                size="sm"
+                className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-destructive"
+              >
                 {formError}
-              </div>
+              </Body>
             ) : null}
 
             <div className="flex items-center gap-3">

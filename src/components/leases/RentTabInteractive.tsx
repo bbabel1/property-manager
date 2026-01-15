@@ -20,6 +20,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Body, Heading, Label } from '@/ui/typography';
 import DynamicOverlay from '@/components/ui/DynamicOverlay';
 import RentScheduleForm, {
   RentScheduleFormDefaults,
@@ -208,29 +209,29 @@ export default function RentTabInteractive({
           <CardContent className="flex h-full flex-col gap-4 p-6">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                <Label as="p" size="xs" tone="muted" className="tracking-wide uppercase">
                   Current rent
-                </p>
-                <p className="text-muted-foreground mt-1 text-xs">
+                </Label>
+                <Body size="xs" tone="muted" className="mt-1">
                   {currentCard?.rangeLabel ?? 'No current rent schedule recorded.'}
-                </p>
+                </Body>
               </div>
               {currentCard ? <Badge variant="default">Current</Badge> : null}
             </div>
             {currentCard ? (
               <div className="space-y-1">
-                <p className="text-foreground text-2xl font-semibold">
+                <Heading as="p" size="h3">
                   {currentCard.amountLabel}{' '}
                   {currentCard.cycleLabel ? (
-                    <span className="text-muted-foreground text-base font-normal">
+                    <Body as="span" tone="muted">
                       {currentCard.cycleLabel.toLowerCase()}
-                    </span>
+                    </Body>
                   ) : null}
-                </p>
-                <p className="text-muted-foreground text-sm">{currentCard.chargeLabel}</p>
+                </Heading>
+                <Body tone="muted">{currentCard.chargeLabel}</Body>
               </div>
             ) : (
-              <p className="text-muted-foreground text-sm">No current rent schedule recorded.</p>
+              <Body tone="muted">No current rent schedule recorded.</Body>
             )}
           </CardContent>
         </Card>
@@ -239,25 +240,27 @@ export default function RentTabInteractive({
           <CardContent className="flex h-full flex-col gap-4 p-6">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                <Label as="p" size="xs" tone="muted" className="tracking-wide uppercase">
                   Upcoming rent
-                </p>
-                <p className="text-muted-foreground mt-1 text-xs">
+                </Label>
+                <Body size="xs" tone="muted" className="mt-1">
                   {upcomingCard?.rangeLabel ?? 'No upcoming rent changes are scheduled.'}
-                </p>
+                </Body>
               </div>
               {upcomingCard ? <Badge variant="secondary">Future</Badge> : null}
             </div>
             {upcomingCard ? (
               <div className="space-y-1">
-                <p className="text-foreground text-xl font-semibold">{upcomingCard.amountLabel}</p>
-                <p className="text-muted-foreground text-sm">{upcomingCard.cycleLabel ?? '—'}</p>
+                <Heading as="p" size="h4">
+                  {upcomingCard.amountLabel}
+                </Heading>
+                <Body tone="muted">{upcomingCard.cycleLabel ?? '—'}</Body>
               </div>
             ) : (
-              <div className="text-muted-foreground flex flex-1 items-center justify-center text-sm">
-                <span className="text-center leading-relaxed">
+              <div className="flex flex-1 items-center justify-center">
+                <Body as="span" tone="muted" className="text-center leading-relaxed">
                   No upcoming rent changes are scheduled.
-                </span>
+                </Body>
               </div>
             )}
           </CardContent>
@@ -266,12 +269,12 @@ export default function RentTabInteractive({
         <Card className="border-border/70 bg-muted/10 border border-dashed shadow-none">
           <CardContent className="flex h-full flex-col items-start justify-between gap-4 p-6">
             <div>
-              <p className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+              <Label as="p" size="xs" tone="muted" className="tracking-wide uppercase">
                 Add a rent change
-              </p>
-              <p className="text-muted-foreground mt-2 text-sm">
+              </Label>
+              <Body tone="muted" className="mt-2">
                 Add a new future or past rent schedule to keep the rent roll accurate.
-              </p>
+              </Body>
             </div>
             <Button onClick={() => setIsAdding(true)}>Add</Button>
           </CardContent>
@@ -280,21 +283,57 @@ export default function RentTabInteractive({
 
       <div className="space-y-3">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <h3 className="text-foreground text-sm font-semibold">Rent log</h3>
-          <span className="text-muted-foreground text-xs">{rentLogSummary}</span>
+          <Heading as="h3" size="h6">
+            Rent log
+          </Heading>
+          <Body as="span" size="xs" tone="muted">
+            {rentLogSummary}
+          </Body>
         </div>
         <div className="border-border overflow-hidden rounded-lg border">
           <Table className="divide-border min-w-full divide-y">
             <TableHeader>
               <TableRow>
-                <TableHead className="w-32">Status</TableHead>
-                <TableHead>Start date</TableHead>
-              <TableHead>End date</TableHead>
-              <TableHead>Cycle</TableHead>
-              <TableHead>Posting</TableHead>
-              <TableHead>Memo</TableHead>
-              <TableHead className="text-right">Amount</TableHead>
-              <TableHead className="w-16 text-right">Actions</TableHead>
+                <TableHead className="w-32">
+                  <Label as="span" size="xs">
+                    Status
+                  </Label>
+                </TableHead>
+                <TableHead>
+                  <Label as="span" size="xs">
+                    Start date
+                  </Label>
+                </TableHead>
+              <TableHead>
+                <Label as="span" size="xs">
+                  End date
+                </Label>
+              </TableHead>
+              <TableHead>
+                <Label as="span" size="xs">
+                  Cycle
+                </Label>
+              </TableHead>
+              <TableHead>
+                <Label as="span" size="xs">
+                  Posting
+                </Label>
+              </TableHead>
+              <TableHead>
+                <Label as="span" size="xs">
+                  Memo
+                </Label>
+              </TableHead>
+              <TableHead className="text-right">
+                <Label as="span" size="xs">
+                  Amount
+                </Label>
+              </TableHead>
+              <TableHead className="w-16 text-right">
+                <Label as="span" size="xs">
+                  Actions
+                </Label>
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody className="divide-border bg-card divide-y">
@@ -303,38 +342,60 @@ export default function RentTabInteractive({
                 <TableRow key={row.id}>
                   <TableCell>
                     <Badge variant={row.statusVariant} className="tracking-wide uppercase">
-                        {row.statusLabel}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-foreground text-sm">{row.startLabel}</TableCell>
-                    <TableCell className="text-foreground text-sm">{row.endLabel}</TableCell>
-                    <TableCell className="text-foreground text-sm">{row.cycleLabel}</TableCell>
-                    <TableCell className="text-foreground text-sm">{row.postingLabel}</TableCell>
-                    <TableCell className="text-foreground text-sm">{row.memo || '—'}</TableCell>
-                    <TableCell className="text-foreground text-right text-sm">
-                      {row.amountLabel}
-                    </TableCell>
-                  <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <ActionButton aria-label="Rent schedule actions" />
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => setEditTarget(row)}>
-                          Edit
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                      {row.statusLabel}
+                    </Badge>
                   </TableCell>
-                </TableRow>
-              ))
-            ) : (
+                    <TableCell>
+                      <Body as="span" size="sm">
+                        {row.startLabel}
+                      </Body>
+                    </TableCell>
+                    <TableCell>
+                      <Body as="span" size="sm">
+                        {row.endLabel}
+                      </Body>
+                    </TableCell>
+                    <TableCell>
+                      <Body as="span" size="sm">
+                        {row.cycleLabel}
+                      </Body>
+                    </TableCell>
+                    <TableCell>
+                      <Body as="span" size="sm">
+                        {row.postingLabel}
+                      </Body>
+                    </TableCell>
+                    <TableCell>
+                      <Body as="span" size="sm">
+                        {row.memo || '—'}
+                      </Body>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Body as="span" size="sm">
+                        {row.amountLabel}
+                      </Body>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <ActionButton aria-label="Rent schedule actions" />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => setEditTarget(row)}>
+                            Edit
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-muted-foreground py-6 text-center text-sm">
-                    No rent schedules recorded yet.
+                  <TableCell colSpan={8} className="py-6 text-center">
+                    <Body tone="muted">No rent schedules recorded yet.</Body>
                   </TableCell>
                 </TableRow>
-            )}
+              )}
             </TableBody>
           </Table>
         </div>

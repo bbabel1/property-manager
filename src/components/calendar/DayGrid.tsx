@@ -4,6 +4,7 @@ import React from 'react'
 import { CalendarEvent } from '@/types/calendar'
 import { format, isSameDay, parseISO, startOfDay, addDays, isWithinInterval } from 'date-fns'
 import { Button } from '@/components/ui/button'
+import { Body, Heading, Label } from '@/ui/typography'
 
 type DayGridProps = {
   currentDate: Date
@@ -76,19 +77,15 @@ export function DayGrid({
   const dayEvents = getEventsForDay()
 
   return (
-    <div className="flex-1 flex flex-col bg-white overflow-hidden">
+    <div className="flex flex-1 flex-col overflow-hidden bg-white">
       {/* Day header */}
-      <div className="border-b border-gray-200 py-2 px-4">
-        <div className="text-sm font-medium text-gray-500 mb-1">
+      <div className="border-b border-gray-200 px-4 py-2">
+        <Label as="div" tone="muted" size="sm" className="mb-1">
           {format(currentDate, 'EEEE')}
-        </div>
-        <div
-          className={`text-2xl font-medium ${
-            isToday ? 'text-[#1a73e8]' : 'text-gray-700'
-          }`}
-        >
+        </Label>
+        <Heading as="div" size="h4" className={isToday ? 'text-primary' : ''}>
           {format(currentDate, 'MMMM d, yyyy')}
-        </div>
+        </Heading>
       </div>
 
       {/* Time grid */}
@@ -102,9 +99,11 @@ export function DayGrid({
               return (
                 <div
                   key={hour}
-                  className="h-[60px] border-b border-gray-100 text-xs text-gray-500 px-2 pt-1"
+                  className="h-[60px] border-b border-gray-100 px-2 pt-1"
                 >
-                  {format(hourDate, 'ha')}
+                  <Body as="span" tone="muted" size="xs">
+                    {format(hourDate, 'ha')}
+                  </Body>
                 </div>
               )
             })}
@@ -134,8 +133,8 @@ export function DayGrid({
                   onClick={() => onEventClick(event)}
                   variant="ghost"
                   className={`
-                    absolute left-2 right-2 text-xs text-white px-3 py-2 rounded
-                    ${getEventColor(event.color)} hover:opacity-90 transition-opacity
+                    absolute left-2 right-2 rounded px-3 py-2 text-left
+                    ${getEventColor(event.color)} hover:opacity-90 transition-opacity text-primary-foreground
                     overflow-hidden
                   `}
                   style={{
@@ -143,16 +142,19 @@ export function DayGrid({
                     height: `${Math.max(height, 40)}px`,
                   }}
                 >
-                  <div className="font-medium truncate">{event.title}</div>
+                  <Body as="div" size="sm" className="truncate text-primary-foreground">
+                    {event.title}
+                  </Body>
                   {!event.allDay && (
-                    <div className="text-[11px] opacity-90 mt-1">
-                      {format(parseISO(event.start), 'ha')} - {event.end ? format(parseISO(event.end), 'ha') : ''}
-                    </div>
+                    <Body as="div" size="xs" className="mt-1 opacity-90 text-primary-foreground">
+                      {format(parseISO(event.start), 'ha')} -{' '}
+                      {event.end ? format(parseISO(event.end), 'ha') : ''}
+                    </Body>
                   )}
                   {event.location && (
-                    <div className="text-[10px] opacity-80 mt-1 truncate">
+                    <Body as="div" size="xs" className="mt-1 truncate opacity-80 text-primary-foreground">
                       📍 {event.location}
-                    </div>
+                    </Body>
                   )}
                 </Button>
               )
@@ -163,4 +165,3 @@ export function DayGrid({
     </div>
   )
 }
-

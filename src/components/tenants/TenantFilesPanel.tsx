@@ -20,6 +20,9 @@ import { Mail, Trash2, Download, Eye } from 'lucide-react';
 import ActionButton from '@/components/ui/ActionButton';
 import TenantFileUploadDialog from '@/components/tenants/TenantFileUploadDialog';
 import { fetchWithSupabaseAuth } from '@/lib/supabase/fetch';
+import { Checkbox } from '@/ui/checkbox';
+import { Select } from '@/ui/select';
+import { Body } from '@/ui/typography';
 import type {
   TenantFileRow,
   TenantFileUploadDialogProps,
@@ -157,13 +160,10 @@ export default function TenantFilesPanel({
     <div className="space-y-4">
       <div className="border-border bg-background rounded-lg border shadow-sm">
         <div className="border-border flex flex-col gap-4 border-b px-4 py-4 md:flex-row md:items-center md:justify-between">
-          <div className="text-muted-foreground flex flex-wrap items-center gap-3 text-sm">
-            <select
-              className="border-input bg-background focus-visible:ring-primary h-9 rounded-md border px-3 py-1 text-sm focus-visible:ring-2 focus-visible:outline-none"
-              aria-label="Filter by category"
-            >
+          <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+            <Select aria-label="Filter by category">
               <option>All categories</option>
-            </select>
+            </Select>
             <button type="button" className="text-primary hover:underline">
               Add filter option
             </button>
@@ -177,14 +177,16 @@ export default function TenantFilesPanel({
             </Button>
           </div>
         </div>
-        <div className="text-muted-foreground px-4 py-3 text-xs">{matchesLabel}</div>
+        <Body tone="muted" size="sm" className="px-4 py-3 text-xs">
+          {matchesLabel}
+        </Body>
 
         {loading ? (
-          <div className="border-border text-muted-foreground border-t px-4 py-6 text-center text-sm">
+          <Body tone="muted" size="sm" className="border-border border-t px-4 py-6 text-center">
             Loading files…
-          </div>
+          </Body>
         ) : files.length === 0 ? (
-          <div className="border-border text-muted-foreground border-t px-4 py-6 text-sm">
+          <Body tone="muted" size="sm" className="border-border border-t px-4 py-6">
             {emptyCopy}{' '}
             <button
               type="button"
@@ -194,7 +196,7 @@ export default function TenantFilesPanel({
             >
               Upload your first file.
             </button>
-          </div>
+          </Body>
         ) : (
           <div className="border-border border-t">
             <Table>
@@ -212,7 +214,7 @@ export default function TenantFilesPanel({
                 {files.map((file) => (
                   <TableRow key={file.id}>
                     <TableCell>
-                      <input type="checkbox" aria-label="Select file" />
+                      <Checkbox aria-label="Select file" />
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-3">
@@ -220,9 +222,13 @@ export default function TenantFilesPanel({
                           {file.title?.split('.').pop() || 'FILE'}
                         </div>
                         <div className="space-y-1">
-                          <div className="text-foreground font-medium">{file.title}</div>
+                          <Body as="div" className="font-medium">
+                            {file.title}
+                          </Body>
                           {file.description ? (
-                            <div className="text-muted-foreground text-xs">{file.description}</div>
+                            <Body tone="muted" size="xs">
+                              {file.description}
+                            </Body>
                           ) : null}
                         </div>
                       </div>
@@ -231,7 +237,9 @@ export default function TenantFilesPanel({
                     <TableCell className="text-sm">{file.category || DEFAULT_CATEGORY}</TableCell>
                     <TableCell className="space-y-1 text-sm">
                       <div>{formatDateTime(file.uploadedAt)}</div>
-                      <div className="text-muted-foreground text-xs">by {file.uploadedBy}</div>
+                      <Body tone="muted" size="xs">
+                        by {file.uploadedBy}
+                      </Body>
                     </TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
@@ -272,7 +280,11 @@ export default function TenantFilesPanel({
             </Table>
           </div>
         )}
-        {error ? <div className="text-destructive px-4 py-2 text-sm">{error}</div> : null}
+        {error ? (
+          <Body size="sm" className="text-destructive px-4 py-2">
+            {error}
+          </Body>
+        ) : null}
       </div>
 
       <TenantFileUploadDialog

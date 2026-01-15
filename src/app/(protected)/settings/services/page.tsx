@@ -1,5 +1,6 @@
 import { PageBody, PageShell, Stack } from '@/components/layout/page-shell';
 import ServiceCatalogAdmin from '@/components/settings/ServiceCatalogAdmin';
+import { Body, Heading } from '@/ui/typography';
 
 export default function ServiceCatalogAdminPage() {
   return (
@@ -7,10 +8,12 @@ export default function ServiceCatalogAdminPage() {
       <PageBody>
         <Stack gap="lg">
           <div>
-            <h1 className="text-foreground text-2xl font-bold">Service Catalog Administration</h1>
-            <p className="text-muted-foreground mt-1 text-sm">
+            <Heading as="h1" size="h3">
+              Service Catalog Administration
+            </Heading>
+            <Body tone="muted" size="sm" className="mt-1">
               Manage service offerings, plan defaults, and automation rules
-            </p>
+            </Body>
           </div>
           <ServiceCatalogAdmin />
         </Stack>

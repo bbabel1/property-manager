@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/components/ui/utils';
 import { toast } from 'sonner';
 import CreatePaymentForm from './CreatePaymentForm';
+import { Body, Heading, Label } from '@/ui/typography';
 
 interface PaymentsStageProps {
   monthlyLogId: string;
@@ -106,7 +107,9 @@ export default function PaymentsStage({ monthlyLogId }: PaymentsStageProps) {
         <CardContent>
           <div className="flex items-center gap-2 rounded-lg bg-red-50 p-4 text-red-600">
             <AlertCircle className="h-5 w-5" />
-            <p>{error || 'Failed to load payments data'}</p>
+            <Body as="p" size="sm">
+              {error || 'Failed to load payments data'}
+            </Body>
           </div>
         </CardContent>
       </Card>
@@ -140,50 +143,50 @@ export default function PaymentsStage({ monthlyLogId }: PaymentsStageProps) {
             {/* Total Rent Owed */}
             <div className="flex items-center justify-between border-b border-slate-100 pb-4">
               <div>
-                <p className="text-sm font-medium text-slate-600">Total Rent Owed</p>
-                <p className="mt-1 text-xs text-slate-600">Previous Balance + Charges – Credits</p>
+                <Label size="sm" tone="muted">Total Rent Owed</Label>
+                <Body as="p" size="xs" tone="muted" className="mt-1">Previous Balance + Charges – Credits</Body>
               </div>
               <div className="text-right">
-                <p className="text-lg font-semibold text-slate-900">
+                <Heading as="p" size="h5">
                   {formatCurrency(data.totalRentOwed)}
-                </p>
+                </Heading>
               </div>
             </div>
 
             {/* Breakdown */}
             <div className="space-y-3">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-600">Previous Month Balance</span>
-                <span className="font-medium text-slate-900">
+              <div className="flex items-center justify-between">
+                <Body as="span" size="sm" tone="muted">Previous Month Balance</Body>
+                <Heading as="span" size="h6">
                   {formatCurrency(data.previousLeaseBalance)}
-                </span>
+                </Heading>
               </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="flex items-center gap-1 text-slate-600">
+              <div className="flex items-center justify-between">
+                <Body as="span" size="sm" tone="muted" className="flex items-center gap-1">
                   <TrendingUp className="h-3 w-3 text-green-600" />
                   Charges This Month
-                </span>
-                <span className="font-medium text-green-600">
+                </Body>
+                <Heading as="span" size="h6" className="text-green-600">
                   +{formatCurrency(data.leaseCharges)}
-                </span>
+                </Heading>
               </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="flex items-center gap-1 text-slate-600">
+              <div className="flex items-center justify-between">
+                <Body as="span" size="sm" tone="muted" className="flex items-center gap-1">
                   <TrendingDown className="h-3 w-3 text-blue-600" />
                   Credits This Month
-                </span>
-                <span className="font-medium text-blue-600">
+                </Body>
+                <Heading as="span" size="h6" className="text-blue-600">
                   -{formatCurrency(data.leaseCredits)}
-                </span>
+                </Heading>
               </div>
-              <div className="flex items-center justify-between border-t border-slate-100 pt-3 text-sm">
-                <span className="flex items-center gap-1 text-slate-600">
+              <div className="flex items-center justify-between border-t border-slate-100 pt-3">
+                <Body as="span" size="sm" tone="muted" className="flex items-center gap-1">
                   <TrendingDown className="h-3 w-3 text-purple-600" />
                   Payments Applied
-                </span>
-                <span className="font-medium text-purple-600">
+                </Body>
+                <Heading as="span" size="h6" className="text-purple-600">
                   -{formatCurrency(data.paymentsApplied)}
-                </span>
+                </Heading>
               </div>
             </div>
 
@@ -195,19 +198,18 @@ export default function PaymentsStage({ monthlyLogId }: PaymentsStageProps) {
               )}
             >
               <div>
-                <p className="text-sm font-medium text-slate-700">Remaining Balance</p>
-                <p className="mt-1 text-xs text-slate-600">
+                <Label size="sm">Remaining Balance</Label>
+                <Body as="p" size="xs" tone="muted" className="mt-1">
                   {isBalancePositive ? 'Amount owed by tenant' : 'Overpayment/credit'}
-                </p>
+                </Body>
               </div>
-              <p
-                className={cn(
-                  'text-lg font-semibold',
-                  isBalancePositive ? 'text-amber-600' : 'text-green-600',
-                )}
+              <Heading
+                as="p"
+                size="h4"
+                className={cn(isBalancePositive ? "text-amber-600" : "text-green-600")}
               >
                 {formatCurrency(Math.abs(data.remainingRentBalance))}
-              </p>
+              </Heading>
             </div>
           </div>
         </CardContent>
@@ -217,14 +219,18 @@ export default function PaymentsStage({ monthlyLogId }: PaymentsStageProps) {
       {data.feeCharges > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Payment Processing Fees</CardTitle>
+            <CardTitle>
+              <Heading as="p" size="h6">
+                Payment Processing Fees
+              </Heading>
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
-              <p className="text-sm text-slate-600">Total fees for this period</p>
-              <p className="text-lg font-semibold text-red-600">
+              <Body as="p" size="sm" tone="muted">Total fees for this period</Body>
+              <Heading as="p" size="h5" className="text-red-600">
                 {formatCurrency(data.feeCharges)}
-              </p>
+              </Heading>
             </div>
           </CardContent>
         </Card>

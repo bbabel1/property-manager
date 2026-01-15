@@ -36,6 +36,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { PropertyProgramsManager } from '@/components/compliance/PropertyProgramsManager';
+import { Body, Heading, Label } from '@/ui/typography';
 
 interface PropertyComplianceData {
   property: {
@@ -489,7 +490,9 @@ export default function PropertyComplianceView({ propertyIdOverride }: PropertyC
   if (error || !data) {
     return wrap(
       <div className="border-destructive bg-destructive/10 rounded-lg border p-4">
-        <p className="text-destructive text-sm">Error: {error || 'Failed to load compliance data'}</p>
+        <Body as="p" size="sm" className="text-destructive">
+          Error: {error || 'Failed to load compliance data'}
+        </Body>
         <Button onClick={fetchData} variant="outline" size="sm" className="mt-2">
           Retry
         </Button>
@@ -769,11 +772,15 @@ export default function PropertyComplianceView({ propertyIdOverride }: PropertyC
           {(!data.building ||
             data.building.residential_units === null ||
             data.building.residential_units === undefined) && (
-            <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            <Body
+              as="div"
+              size="sm"
+              className="rounded-md border border-amber-200 bg-amber-50 p-3 text-amber-900"
+            >
               Residential unit count is missing for this building. If PLUTO did not return UnitsRes,
               enter the total residential units on the building record to ensure programs like HPD
               registrations apply correctly.
-            </div>
+            </Body>
           )}
 
           <LargeDialogContent>
@@ -815,7 +822,9 @@ export default function PropertyComplianceView({ propertyIdOverride }: PropertyC
               <TabsContent value="checklist" className="space-y-4">
                 <Collapsible open={checklistOpen} onOpenChange={setChecklistOpen}>
                   <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-semibold">Compliance Items</h3>
+                    <Heading as="h3" size="h5">
+                      Compliance Items
+                    </Heading>
                   </div>
                   <CollapsibleContent className="pt-2">
                     <ComplianceChecklistTable items={itemsForDisplay} onViewItem={handleViewItem} />
@@ -825,7 +834,9 @@ export default function PropertyComplianceView({ propertyIdOverride }: PropertyC
 
               <TabsContent value="violations" className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold">Violations</h3>
+                  <Heading as="h3" size="h5">
+                    Violations
+                  </Heading>
                   <Button onClick={handleViolationsRefresh} variant="outline" size="sm" disabled={syncingViolations}>
                     <RefreshCw className="mr-2 h-4 w-4" />
                     Refresh
@@ -847,7 +858,9 @@ export default function PropertyComplianceView({ propertyIdOverride }: PropertyC
 
               <TabsContent value="filings" className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold">Filings</h3>
+                  <Heading as="h3" size="h5">
+                    Filings
+                  </Heading>
                   <Button onClick={handleFilingsRefresh} variant="outline" size="sm" disabled={syncingFilings}>
                     <RefreshCw className="mr-2 h-4 w-4" />
                     Refresh
@@ -941,10 +954,12 @@ export default function PropertyComplianceView({ propertyIdOverride }: PropertyC
                   View filings
                 </Button>
               </CardHeader>
-              <CardContent className="text-muted-foreground text-sm">
-                {(data.filings || []).length
-                  ? `${data.filings.length} filing${data.filings.length === 1 ? '' : 's'} imported`
-                  : 'No filings imported for this property yet.'}
+              <CardContent>
+                <Body size="sm" tone="muted">
+                  {(data.filings || []).length
+                    ? `${data.filings.length} filing${data.filings.length === 1 ? '' : 's'} imported`
+                    : 'No filings imported for this property yet.'}
+                </Body>
               </CardContent>
             </Card>
           </div>
@@ -997,13 +1012,17 @@ export default function PropertyComplianceView({ propertyIdOverride }: PropertyC
                     <div className="flex items-center gap-3">
                       {icon}
                       <div>
-                        <p className="text-sm font-medium">{step.label}</p>
-                        <p className="text-xs text-muted-foreground">{description}</p>
+                        <Label as="p" size="sm">
+                          {step.label}
+                        </Label>
+                        <Body as="p" size="xs" tone="muted">
+                          {description}
+                        </Body>
                       </div>
                     </div>
-                    <div className="text-xs text-muted-foreground">
+                    <Body as="div" size="xs" tone="muted">
                       {status === 'running' ? '—' : `${step.count || 0} rows`}
-                    </div>
+                    </Body>
                   </div>
                 );
               })}
@@ -1180,31 +1199,43 @@ export default function PropertyComplianceView({ propertyIdOverride }: PropertyC
                         selectedViolation.asset_id,
                     ],
                   ]
-                    .filter(([, value]) => value !== undefined)
-                    .map(([label, value]) => (
-                      <div key={label} className="rounded-md border bg-muted/30 px-3 py-2">
-                        <p className="text-xs uppercase text-muted-foreground">{label}</p>
-                        <p className="text-sm break-words">
-                          {value && String(value).trim().length ? String(value) : '—'}
-                        </p>
-                      </div>
-                    ))}
-                </div>
+                  .filter(([, value]) => value !== undefined)
+                  .map(([label, value]) => (
+                    <div key={label} className="rounded-md border bg-muted/30 px-3 py-2">
+                      <Label size="xs" tone="muted" className="uppercase">
+                        {label}
+                      </Label>
+                      <Body as="p" size="sm" className="break-words">
+                        {value && String(value).trim().length ? String(value) : '—'}
+                      </Body>
+                    </div>
+                  ))}
+              </div>
 
-                <div className="space-y-2">
-                  <p className="text-sm font-semibold">Description</p>
-                  <p className="text-sm leading-snug">{selectedViolation.description || '—'}</p>
-                </div>
+              <div className="space-y-2">
+                <Label as="p" size="sm">
+                  Description
+                </Label>
+                <Body as="p" size="sm" className="leading-snug">
+                  {selectedViolation.description || '—'}
+                </Body>
+              </div>
 
-                <div className="space-y-2">
-                  <p className="text-sm font-semibold">Raw data</p>
-                  <div className="rounded-md border bg-muted/30 px-3 py-2">
-                    <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words text-xs">
-                      {JSON.stringify(selectedViolation.metadata || selectedViolation, null, 2)}
-                    </pre>
-                  </div>
+              <div className="space-y-2">
+                <Label as="p" size="sm">
+                  Raw data
+                </Label>
+                <div className="rounded-md border bg-muted/30 px-3 py-2">
+                  <Body
+                    as="pre"
+                    size="xs"
+                    className="max-h-80 overflow-auto whitespace-pre-wrap break-words"
+                  >
+                    {JSON.stringify(selectedViolation.metadata || selectedViolation, null, 2)}
+                  </Body>
                 </div>
               </div>
+            </div>
             )}
 
             <div className="flex justify-end">
@@ -1229,13 +1260,41 @@ export default function PropertyComplianceView({ propertyIdOverride }: PropertyC
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Registration ID</TableHead>
-                    <TableHead>Building ID</TableHead>
-                    <TableHead>BIN</TableHead>
-                    <TableHead>Address</TableHead>
-                    <TableHead>Last Registration</TableHead>
-                    <TableHead>End Date</TableHead>
-                    <TableHead>Community Board</TableHead>
+                    <TableHead>
+                      <Label as="span" size="xs" tone="muted">
+                        Registration ID
+                      </Label>
+                    </TableHead>
+                    <TableHead>
+                      <Label as="span" size="xs" tone="muted">
+                        Building ID
+                      </Label>
+                    </TableHead>
+                    <TableHead>
+                      <Label as="span" size="xs" tone="muted">
+                        BIN
+                      </Label>
+                    </TableHead>
+                    <TableHead>
+                      <Label as="span" size="xs" tone="muted">
+                        Address
+                      </Label>
+                    </TableHead>
+                    <TableHead>
+                      <Label as="span" size="xs" tone="muted">
+                        Last Registration
+                      </Label>
+                    </TableHead>
+                    <TableHead>
+                      <Label as="span" size="xs" tone="muted">
+                        End Date
+                      </Label>
+                    </TableHead>
+                    <TableHead>
+                      <Label as="span" size="xs" tone="muted">
+                        Community Board
+                      </Label>
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                   <TableBody>
@@ -1278,9 +1337,9 @@ export default function PropertyComplianceView({ propertyIdOverride }: PropertyC
                   </TableBody>
                 </Table>
             ) : (
-              <p className="text-muted-foreground text-sm">
+              <Body size="sm" tone="muted">
                 No HPD filings found for this property.
-              </p>
+              </Body>
             )}
             <div className="flex justify-end">
               <Button variant="outline" onClick={() => setHpdFilingsOpen(false)}>
@@ -1302,36 +1361,90 @@ export default function PropertyComplianceView({ propertyIdOverride }: PropertyC
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Job #</TableHead>
-                    <TableHead>Source</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Work Type</TableHead>
-                    <TableHead>Address</TableHead>
-                    <TableHead>Approved</TableHead>
-                    <TableHead>Issued</TableHead>
+                    <TableHead>
+                      <Label as="span" size="xs" tone="muted">
+                        Job #
+                      </Label>
+                    </TableHead>
+                    <TableHead>
+                      <Label as="span" size="xs" tone="muted">
+                        Source
+                      </Label>
+                    </TableHead>
+                    <TableHead>
+                      <Label as="span" size="xs" tone="muted">
+                        Status
+                      </Label>
+                    </TableHead>
+                    <TableHead>
+                      <Label as="span" size="xs" tone="muted">
+                        Work Type
+                      </Label>
+                    </TableHead>
+                    <TableHead>
+                      <Label as="span" size="xs" tone="muted">
+                        Address
+                      </Label>
+                    </TableHead>
+                    <TableHead>
+                      <Label as="span" size="xs" tone="muted">
+                        Approved
+                      </Label>
+                    </TableHead>
+                    <TableHead>
+                      <Label as="span" size="xs" tone="muted">
+                        Issued
+                      </Label>
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {data.filings.map((f) => (
                     <TableRow key={f.id}>
-                      <TableCell className="font-medium">{f.job_filing_number}</TableCell>
-                      <TableCell className="text-muted-foreground text-xs">{f.source}</TableCell>
-                      <TableCell>{f.permit_status || '—'}</TableCell>
-                      <TableCell>{f.work_type || '—'}</TableCell>
+                      <TableCell>
+                        <Label as="span" size="sm">
+                          {f.job_filing_number}
+                        </Label>
+                      </TableCell>
+                      <TableCell>
+                        <Body as="span" size="xs" tone="muted">
+                          {f.source}
+                        </Body>
+                      </TableCell>
+                      <TableCell>
+                        <Body as="span" size="sm">
+                          {f.permit_status || '—'}
+                        </Body>
+                      </TableCell>
+                      <TableCell>
+                        <Body as="span" size="sm">
+                          {f.work_type || '—'}
+                        </Body>
+                      </TableCell>
                       <TableCell>
                         {(() => {
                           const parts = [f.house_no, f.street_name, f.borough].filter(Boolean);
                           return parts.length ? parts.join(', ') : '—';
                         })()}
                       </TableCell>
-                      <TableCell>{f.approved_date || '—'}</TableCell>
-                      <TableCell>{f.issued_date || '—'}</TableCell>
+                      <TableCell>
+                        <Body as="span" size="sm">
+                          {f.approved_date || '—'}
+                        </Body>
+                      </TableCell>
+                      <TableCell>
+                        <Body as="span" size="sm">
+                          {f.issued_date || '—'}
+                        </Body>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
             ) : (
-              <p className="text-muted-foreground text-sm">No filings found.</p>
+              <Body size="sm" tone="muted">
+                No filings found.
+              </Body>
             )}
             <div className="flex justify-end">
               <Button variant="outline" onClick={() => setFilingsOpen(false)}>

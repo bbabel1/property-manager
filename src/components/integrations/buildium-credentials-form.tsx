@@ -17,6 +17,7 @@ import { Switch } from '@/components/ui/switch';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import DestructiveActionModal from '@/components/common/DestructiveActionModal';
+import { Body, Heading } from '@/ui/typography';
 
 type BuildiumIntegrationStatus = {
   is_enabled: boolean;
@@ -238,10 +239,16 @@ export function BuildiumCredentialsForm({
       >
       <DialogContent className="max-h-[90vh] w-[680px] max-w-[680px] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Buildium Integration Settings</DialogTitle>
-          <DialogDescription>
-            Configure your Buildium API credentials. Leave fields empty to keep existing values
-            unchanged.
+          <DialogTitle asChild>
+            <Heading as="h3" size="h4">
+              Buildium Integration Settings
+            </Heading>
+          </DialogTitle>
+          <DialogDescription asChild>
+            <Body tone="muted" size="sm">
+              Configure your Buildium API credentials. Leave fields empty to keep existing values
+              unchanged.
+            </Body>
           </DialogDescription>
         </DialogHeader>
 
@@ -249,21 +256,23 @@ export function BuildiumCredentialsForm({
           {/* Status Information */}
           {initialStatus && (
             <div className="bg-muted space-y-2 rounded-lg p-4">
-              <div className="text-sm font-medium">Status Information</div>
+              <Body size="sm" className="font-medium">
+                Status Information
+              </Body>
               {initialStatus.last_tested_at && (
-                <div className="text-muted-foreground text-xs">
+                <Body tone="muted" size="xs">
                   Last tested: {formatDate(initialStatus.last_tested_at)}
-                </div>
+                </Body>
               )}
               {initialStatus.webhook_secret_rotated_at && (
-                <div className="text-muted-foreground text-xs">
+                <Body tone="muted" size="xs">
                   Webhook secret rotated: {formatDate(initialStatus.webhook_secret_rotated_at)}
-                </div>
+                </Body>
               )}
               {initialStatus.has_credentials && (
-                <div className="text-muted-foreground text-xs">
+                <Body tone="muted" size="xs">
                   Current credentials: {initialStatus.masked_client_id || '***'}
-                </div>
+                </Body>
               )}
             </div>
           )}
@@ -279,9 +288,9 @@ export function BuildiumCredentialsForm({
               placeholder="https://apisandbox.buildium.com/v1"
               required
             />
-            <p className="text-muted-foreground text-xs">
+            <Body tone="muted" size="xs">
               Must be apisandbox.buildium.com (sandbox) or api.buildium.com (production)
-            </p>
+            </Body>
           </div>
 
           {/* Client ID */}
@@ -295,11 +304,11 @@ export function BuildiumCredentialsForm({
               placeholder={initialStatus?.masked_client_id || 'Enter Client ID'}
               required={!initialStatus?.has_credentials}
             />
-            <p className="text-muted-foreground text-xs">
+            <Body tone="muted" size="xs">
               {initialStatus?.has_credentials
                 ? 'Leave empty to keep existing value'
                 : 'Required for new integration'}
-            </p>
+            </Body>
           </div>
 
           {/* Client Secret */}
@@ -313,11 +322,11 @@ export function BuildiumCredentialsForm({
               placeholder={initialStatus?.masked_client_secret || 'Enter Client Secret'}
               required={!initialStatus?.has_credentials}
             />
-            <p className="text-muted-foreground text-xs">
+            <Body tone="muted" size="xs">
               {initialStatus?.has_credentials
                 ? 'Leave empty to keep existing value'
                 : 'Required for new integration'}
-            </p>
+            </Body>
           </div>
 
           {/* Webhook Secret */}

@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle } from 'lucide-react';
 import type { TemplateRenderResult } from '@/types/email-templates';
+import { Body, Heading, Label } from '@/ui/typography';
 
 interface TemplatePreviewProps {
   open: boolean;
@@ -27,26 +28,42 @@ export function TemplatePreview({ open, onOpenChange, preview, loading }: Templa
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] w-[680px] max-w-[680px] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Template Preview</DialogTitle>
-          <DialogDescription>Preview how the rendered template will appear</DialogDescription>
+          <DialogTitle>
+            <Heading as="h2" size="h4">
+              Template Preview
+            </Heading>
+          </DialogTitle>
+          <DialogDescription>
+            <Body as="p" size="sm" tone="muted">
+              Preview how the rendered template will appear
+            </Body>
+          </DialogDescription>
         </DialogHeader>
 
         {loading ? (
-          <div className="text-muted-foreground p-8 text-center">Loading preview...</div>
+          <div className="p-8 text-center">
+            <Body as="p" size="sm" tone="muted">
+              Loading preview...
+            </Body>
+          </div>
         ) : preview ? (
           <div className="space-y-4">
             {preview.warnings && preview.warnings.length > 0 && (
               <Alert className="border-yellow-500/50 bg-yellow-50 dark:bg-yellow-950/20">
                 <AlertTriangle className="h-4 w-4 text-yellow-600 dark:text-yellow-500" />
                 <AlertDescription>
-                  <div className="mb-2 font-semibold text-yellow-900 dark:text-yellow-100">
+                  <Heading
+                    as="div"
+                    size="h5"
+                    className="mb-2 text-yellow-900 dark:text-yellow-100"
+                  >
                     Warnings:
-                  </div>
+                  </Heading>
                   <ul className="list-inside list-disc space-y-1 text-yellow-800 dark:text-yellow-200">
                     {preview.warnings.map((warning, idx) => (
-                      <li key={idx} className="text-sm">
+                      <Body as="li" key={idx} size="sm">
                         {warning}
-                      </li>
+                      </Body>
                     ))}
                   </ul>
                 </AlertDescription>
@@ -54,7 +71,7 @@ export function TemplatePreview({ open, onOpenChange, preview, loading }: Templa
             )}
 
             <div>
-              <label className="mb-2 block text-sm font-medium">Subject:</label>
+              <Label className="mb-2 block">Subject:</Label>
               <div className="bg-muted rounded-md border p-3">{preview.subject}</div>
             </div>
 
@@ -79,7 +96,11 @@ export function TemplatePreview({ open, onOpenChange, preview, loading }: Templa
             </Tabs>
           </div>
         ) : (
-          <div className="text-muted-foreground p-8 text-center">No preview available</div>
+          <div className="p-8 text-center">
+            <Body as="p" size="sm" tone="muted">
+              No preview available
+            </Body>
+          </div>
         )}
       </DialogContent>
     </Dialog>

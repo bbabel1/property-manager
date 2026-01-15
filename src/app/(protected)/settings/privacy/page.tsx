@@ -3,17 +3,20 @@
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Label } from '@/components/ui/label'
+import { Label as FormLabel } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Body, Heading, Label } from '@/ui/typography'
 
 export default function PrivacyPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-2">
-        <h1 className="text-2xl font-bold text-foreground">Data &amp; Privacy</h1>
-        <p className="text-sm text-muted-foreground">
+        <Heading as="h1" size="h3" className="font-bold">
+          Data &amp; Privacy
+        </Heading>
+        <Body tone="muted" size="sm">
           Control exports, audit visibility, and how long operational data is retained.
-        </p>
+        </Body>
       </div>
 
       <Card>
@@ -21,9 +24,9 @@ export default function PrivacyPage() {
           <CardTitle>Data export</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="text-sm text-muted-foreground">
+          <Body tone="muted" size="sm">
             Request a full export of your personal data (JSON + CSV) emailed to your login address.
-          </div>
+          </Body>
           <Button onClick={() => toast.info('Export requested', { description: 'Wire to export endpoint.' })}>
             Request export
           </Button>
@@ -35,9 +38,9 @@ export default function PrivacyPage() {
           <CardTitle>Audit visibility</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <p className="text-sm text-muted-foreground">
+          <Body tone="muted" size="sm">
             Show recent login and security events in your personal activity feed.
-          </p>
+          </Body>
           <Button variant="outline" size="sm" onClick={() => toast.info('Audit feed toggled')}>
             View my audit log
           </Button>
@@ -49,11 +52,11 @@ export default function PrivacyPage() {
           <CardTitle>Data retention</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <p className="text-sm text-muted-foreground">
+          <Body tone="muted" size="sm">
             Pick how long personal logs (sessions, notifications) are retained before archival.
-          </p>
+          </Body>
           <div className="max-w-xs space-y-2">
-            <Label htmlFor="retention">Retention window</Label>
+            <FormLabel htmlFor="retention">Retention window</FormLabel>
             <Select defaultValue="90" onValueChange={(value) => toast.info(`Set retention to ${value} days`)}>
               <SelectTrigger id="retention">
                 <SelectValue />
