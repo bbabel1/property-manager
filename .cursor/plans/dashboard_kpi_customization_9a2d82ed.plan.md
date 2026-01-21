@@ -153,8 +153,6 @@ todos:
 └─────────────────────────────────────────────────────────────┘
 ```
 
-
-
 ### 1.2 Data Flow
 
 1. **Dashboard Load**: Fetch user's saved cards → Render in grid → Apply layout order
@@ -250,8 +248,6 @@ from public.dashboard_cards c
 join public.dashboard_metric_registry m on c.metric_id = m.metric_id
 where m.is_active = true;
 ```
-
-
 
 ### 2.2 Seed Data: Initial Metric Registry
 
@@ -375,8 +371,6 @@ export interface MetricValue {
 }
 ```
 
-
-
 ### 3.2 Zod Schemas: `src/schemas/dashboard.ts`
 
 ```typescript
@@ -412,8 +406,6 @@ export const DashboardLayoutUpdateSchema = z.object({
 });
 ```
 
-
-
 ## 4. Component Architecture
 
 ### 4.1 Dashboard Page Updates: `src/app/(protected)/dashboard/page.tsx`
@@ -433,8 +425,6 @@ const [isEditMode, setIsEditMode] = useState(false);
 const [draftCards, setDraftCards] = useState<DashboardCardWithMetric[]>([]);
 const { data: customCards, isLoading: cardsLoading } = useDashboardCards(orgId);
 ```
-
-
 
 ### 4.2 New Components
 
@@ -506,8 +496,6 @@ export function useDashboardCards(orgId: string | null) {
 }
 ```
 
-
-
 #### `src/hooks/useDashboardCardValue.ts`
 
 ```typescript
@@ -521,8 +509,6 @@ export function useDashboardCardValue(
   // Return MetricValue with loading/error states
 }
 ```
-
-
 
 #### `src/hooks/useDashboardMetrics.ts` (update existing)
 
@@ -571,8 +557,6 @@ export async function POST(
 }
 ```
 
-
-
 ### 5.2 `src/app/api/dashboard/[orgId]/cards/[id]/route.ts`
 
 **PUT** - Update card:
@@ -602,8 +586,6 @@ export async function DELETE(
 }
 ```
 
-
-
 ### 5.3 `src/app/api/dashboard/metrics/route.ts`
 
 **GET** - Fetch metric registry:
@@ -618,8 +600,6 @@ export async function GET(req: Request) {
   // Return filtered metrics array
 }
 ```
-
-
 
 ### 5.4 `src/app/api/dashboard/[orgId]/cards/[id]/value/route.ts`
 
@@ -639,8 +619,6 @@ export async function GET(
 }
 ```
 
-
-
 ### 5.5 `src/app/api/dashboard/[orgId]/layout/route.ts`
 
 **POST** - Update card positions:
@@ -658,8 +636,6 @@ export async function POST(
   // Return success
 }
 ```
-
-
 
 ## 6. Metric Calculation Engine
 
@@ -703,8 +679,6 @@ export async function calculateMetricValue(
   };
 }
 ```
-
-
 
 ### 6.2 Query Builders: `src/lib/dashboard/query-builders.ts`
 
@@ -954,8 +928,6 @@ Each builder:
 'kpi_builder_cancelled'
 ```
 
-
-
 ### 12.2 Implementation
 
 Update `src/lib/dashboard-telemetry.ts`:
@@ -972,8 +944,6 @@ export function emitDashboardTelemetry(
 }
 ```
 
-
-
 ## 13. Rollout Plan
 
 ### 13.1 Feature Flag
@@ -989,8 +959,6 @@ Check in code:
 ```typescript
 const isCustomizationEnabled = process.env.ENABLE_DASHBOARD_CUSTOMIZATION === 'true';
 ```
-
-
 
 ### 13.2 Phased Rollout
 
@@ -1112,8 +1080,6 @@ supabase/migrations/
 ├── YYYYMMDDHHMMSS_create_dashboard_customization.sql
 └── YYYYMMDDHHMMSS_seed_dashboard_metrics.sql
 ```
-
-
 
 ## 17. Timeline Estimate
 

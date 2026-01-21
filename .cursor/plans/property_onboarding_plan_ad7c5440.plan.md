@@ -4,7 +4,7 @@ overview: "Create a schema-aligned, implementation-ready onboarding plan for new
 todos: []
 ---
 
-# Revised Property Onboarding Plan (Reuse-First, Schema-Aligned)
+# Property Onboarding Plan
 
 ## A) Reuse Inventory
 
@@ -172,16 +172,22 @@ BUILDIUM_SYNC_FAILED → READY_FOR_BUILDIUM (Retry sync)
 
 **Minimal Changes:**
 
-- Add conditional UI section in `Step1PropertyType` component
+- Add conditional UI section in `Step1PropertyType` component.
+- Do **not** auto-select `property_type` when choosing management scope; require explicit property type choice.
 - No schema changes needed (fields already exist)
 
 ---
 
 ### Step 2: Property Details (CREATE PROPERTY RECORD HERE)
 
-**Purpose:** Collect address and basic property information; **CREATE PROPERTY RECORD IMMEDIATELYFields Collected:**
+**Purpose:** Collect address and basic property information; **CREATE PROPERTY RECORD IMMEDIATELY**
 
-- `name`, `address_line1`, `address_line2`, `address_line3`, `city`, `state`, `postal_code`, `country`, `year_built`, `structure_description`
+**Fields Collected:**
+
+- `name`, `address_line1`, `city`, `state`, `postal_code`, `country`, `structure_description` (hide Status + Year Built fields)
+- Mode selector: **Create new** (show full property fields) vs **Select existing** (dropdown of org properties; property fields hidden, only units entry shown)
+- For onboarding, collect units inline within this step (new or existing property) to keep the flow concise; the dedicated Units step becomes informational/review-only.
+- Step header remains compact but includes a small context line (Step X of Y · current step name) beneath the numbered progress.
 
 **Reuse Mapping:**
 
@@ -193,10 +199,10 @@ BUILDIUM_SYNC_FAILED → READY_FOR_BUILDIUM (Retry sync)
 **Minimal Changes:**
 
 - **NEW:** `POST /api/onboarding` - Create property + onboarding stub
-  - Body (camelCase): `{ propertyType, name?, addressLine1, city?, state?, postalCode, country, borough?, neighborhood?, latitude?, longitude?, service_assignment, management_scope }`
+  - Body (camelCase): either `{ propertyId }` to onboard an existing property **or** `{ propertyType, name?, addressLine1, city?, state?, postalCode, country, borough?, neighborhood?, latitude?, longitude?, service_assignment, management_scope }` to create new
   - Uses `buildNormalizedAddressKey()` to build `normalized_address_key`
-  - Checks for open onboarding with same `normalized_address_key` + `org_id` → returns `409 { existingOnboardingId }` if found
-  - Creates property stub (status=Active, required normalized enums) + onboarding row (status=DRAFT, progress=0, current_stage={})
+  - Checks for open onboarding with same `normalized_address_key` + `org_id` **or** same `property_id` → returns `409 { existingOnboardingId, existingPropertyId }` if found
+  - Creates property stub for new flow (status=Active, required normalized enums) + onboarding row (status=DRAFT, progress=0, current_stage={}); existing-property flow creates only the onboarding row tied to the chosen property
   - Uses `requireAuth()`, `resolveOrgIdFromRequest()`, `requireOrgMember()`
   - Uses normalization helpers: `normalizePropertyType()`, `normalizeAssignmentLevel()`, `normalizeCountryWithDefault()`
   - Maps camelCase payload to snake_case DB columns
@@ -236,7 +242,7 @@ BUILDIUM_SYNC_FAILED → READY_FOR_BUILDIUM (Retry sync)
   - Cleans stub property + children if no downstream references
   - Returns `204 No Content`
 
-- Trigger onboarding creation on `postal_code` blur (instead of final submit)
+- Trigger onboarding creation on `postal_code` blur (new-property path) instead of final submit; existing-property path triggers create on Next
 - **UX:** If duplicate draft exists (409 response), prompt "Resume draft?" before creating new one
 
 **Schema Changes:**

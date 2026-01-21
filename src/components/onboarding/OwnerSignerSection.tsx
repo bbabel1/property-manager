@@ -11,12 +11,14 @@ export interface Signer {
   email: string;
   name: string;
   ownerId?: string;
+  ownerClientRowId?: string;
 }
 
 interface OwnerSignerSectionProps {
   signers: Signer[];
   onSignersChange: (signers: Signer[]) => void;
   disabled?: boolean;
+  defaultOwnerClientRowId?: string;
 }
 
 function generateClientRowId(): string {
@@ -31,6 +33,7 @@ export default function OwnerSignerSection({
   signers,
   onSignersChange,
   disabled = false,
+  defaultOwnerClientRowId,
 }: OwnerSignerSectionProps) {
   const [newEmail, setNewEmail] = useState('');
   const [newName, setNewName] = useState('');
@@ -56,6 +59,7 @@ export default function OwnerSignerSection({
       clientRowId: generateClientRowId(),
       email: newEmail,
       name: newName || newEmail.split('@')[0],
+      ownerClientRowId: defaultOwnerClientRowId,
     };
 
     onSignersChange([...signers, newSigner]);

@@ -32,6 +32,23 @@ export default function OnboardingPage() {
       serviceAssignment?: string | null
     }
     signers?: Signer[]
+    owners?: Array<{
+      id: string
+      name: string
+      clientRowId?: string
+      ownershipPercentage: number
+      disbursementPercentage: number
+      primary: boolean
+    }>
+    units?: Array<{
+      clientRowId: string
+      unitNumber: string
+      unitBedrooms: string
+      unitBathrooms: string
+      unitSize: number | null
+      description: string
+      saved: boolean
+    }>
   } | null>(null)
 
   useEffect(() => {
@@ -46,6 +63,33 @@ export default function OnboardingPage() {
         if (!onboarding || cancelled) return
         const prop = onboarding.property || onboarding.properties
         const stage = onboarding.currentStage || {}
+        const owners =
+          Array.isArray(onboarding.owners) && onboarding.owners.length > 0
+            ? onboarding.owners.map((o: any) => ({
+                id: o.id,
+                name: o.name,
+                clientRowId: o.clientRowId || crypto.randomUUID(),
+                ownershipPercentage: Number(o.ownershipPercentage ?? 0),
+                disbursementPercentage:
+                  typeof o.disbursementPercentage === 'number'
+                    ? o.disbursementPercentage
+                    : Number(o.ownershipPercentage ?? 0),
+                primary: Boolean(o.primary),
+              }))
+            : []
+
+        const units =
+          Array.isArray(onboarding.units) && onboarding.units.length > 0
+            ? onboarding.units.map((u: any) => ({
+                clientRowId: u.clientRowId || crypto.randomUUID(),
+                unitNumber: u.unitNumber || '',
+                unitBedrooms: u.unitBedrooms || '',
+                unitBathrooms: u.unitBathrooms || '',
+                unitSize: u.unitSize ?? null,
+                description: u.description || '',
+                saved: true,
+              }))
+            : []
         setResumeData({
           onboardingId: onboarding.id,
           propertyId: onboarding.propertyId,
@@ -64,8 +108,12 @@ export default function OnboardingPage() {
                 clientRowId: s.clientRowId || crypto.randomUUID(),
                 email: s.email,
                 name: s.name || '',
+                ownerClientRowId: s.ownerClientRowId,
+                ownerId: s.ownerId,
               }))
             : [],
+          owners,
+          units,
         })
         setIsModalOpen(true)
       } catch (e) {

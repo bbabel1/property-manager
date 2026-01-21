@@ -56,7 +56,18 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
 
     const propertyId = onboarding.property_id;
-    const property = onboarding.properties as {
+    const propertyRecord = Array.isArray(onboarding.properties)
+      ? onboarding.properties[0]
+      : onboarding.properties;
+
+    if (!propertyRecord) {
+      return NextResponse.json(
+        { error: { code: 'PROPERTY_NOT_FOUND', message: 'Property details missing on onboarding' } },
+        { status: 404 },
+      );
+    }
+
+    const property = propertyRecord as {
       id: string;
       name: string;
       address_line1: string;

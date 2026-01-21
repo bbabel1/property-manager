@@ -38,7 +38,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     // Fetch onboarding to get property_id
     const { data: onboarding, error: fetchError } = await db
       .from('property_onboarding')
-      .select('id, property_id, org_id, status, current_stage')
+      .select('id, property_id, org_id, status, progress, current_stage')
       .eq('id', onboardingId)
       .eq('org_id', orgId)
       .single();

@@ -214,7 +214,7 @@ export function VendorsTable({ vendors, categories }: VendorsTableProps) {
                             variant={complianceVariant}
                             className={`w-max ${
                               vendor.complianceStatus === 'expiring'
-                                ? 'border-[var(--color-warning-600)] bg-[var(--color-warning-50)] text-[var(--color-warning-600)]'
+                                ? 'border-amber-600 bg-amber-50 text-amber-700'
                                 : ''
                             }`}
                           >

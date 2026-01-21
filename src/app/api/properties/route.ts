@@ -1196,7 +1196,7 @@ async function recordSyncStatus(
 }
 
 // Validate required fields for Buildium property create
-function validateBuildiumPropertyPayload(
+export function validateBuildiumPropertyPayload(
   payload:
     | Record<string, unknown>
     | { Name?: string; Address?: unknown; RentalType?: string; RentalSubType?: string },

@@ -1,6 +1,15 @@
 'use client';
 
-import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from 'react';
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from 'react';
 import type { LucideIcon } from 'lucide-react';
 import {
   Building,
@@ -43,7 +52,7 @@ import type { Signer } from '@/components/onboarding/OwnerSignerSection';
 import { Step1ManagementScope } from '@/components/onboarding';
 import type { UnitRow } from '@/components/onboarding/BulkUnitCreator';
 
-interface AddPropertyFormData {
+export interface AddPropertyFormData {
   // Step 1: Property Type
   propertyType: string;
 
@@ -69,10 +78,12 @@ interface AddPropertyFormData {
   owners: Array<{
     id: string;
     name: string;
+    clientRowId?: string;
     ownershipPercentage: number;
     disbursementPercentage: number;
     primary: boolean;
     status?: string | null;
+    saved?: boolean;
   }>;
 
   // Step 4: Units
@@ -100,6 +111,21 @@ interface AddPropertyFormData {
   active_services?: string[] | string | null;
   included_services?: string[] | string | null;
 }
+
+type PropertyEntryMode = 'new' | 'existing';
+
+type ExistingPropertyOption = {
+  id: string;
+  name: string;
+  addressLine1?: string | null;
+  city?: string | null;
+  state?: string | null;
+  postalCode?: string | null;
+  country?: string | null;
+  propertyType?: string | null;
+  serviceAssignment?: string | null;
+  managementScope?: string | null;
+};
 
 // Single source of truth for an empty form
 const INITIAL_FORM_DATA: AddPropertyFormData = {
@@ -308,6 +334,15 @@ export default function AddPropertyModal({
       serviceAssignment?: string | null;
     };
     signers?: Signer[];
+    owners?: Array<{
+      id: string;
+      name: string;
+      clientRowId?: string;
+      ownershipPercentage: number;
+      disbursementPercentage: number;
+      primary: boolean;
+    }>;
+    units?: UnitRow[];
   };
 }) {
   // Determine which steps to use based on mode
@@ -328,6 +363,10 @@ export default function AddPropertyModal({
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
+  const [propertyEntryMode, setPropertyEntryMode] = useState<PropertyEntryMode>('new');
+  const [existingProperties, setExistingProperties] = useState<ExistingPropertyOption[]>([]);
+  const [existingPropertiesLoading, setExistingPropertiesLoading] = useState(false);
+  const [selectedExistingPropertyId, setSelectedExistingPropertyId] = useState<string>('');
 
   // Onboarding mode state
   const [onboardingId, setOnboardingId] = useState<string | null>(null);
@@ -337,6 +376,173 @@ export default function AddPropertyModal({
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | undefined>();
   const [selectedTemplateName, setSelectedTemplateName] = useState<string | undefined>();
   const [agreementSending, setAgreementSending] = useState(false);
+  const [autosaveStatus, setAutosaveStatus] = useState<'idle' | 'saving' | 'saved' | 'offline' | 'error'>('idle');
+  const [autosaveError, setAutosaveError] = useState<string | null>(null);
+  const autosaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const autosaveRetryRef = useRef(0);
+  const latestAutosavePayloadRef = useRef<Record<string, unknown> | null>(null);
+  const autosaveInFlightRef = useRef<AbortController | null>(null);
+  const [draftCreationAttempted, setDraftCreationAttempted] = useState(false);
+
+  const ensureOwnerClientRowIds = useCallback(
+    (
+      ownersList: AddPropertyFormData['owners'],
+    ): { ownersWithIds: AddPropertyFormData['owners']; updated: boolean } => {
+      let updated = false;
+      const ownersWithIds = ownersList.map((owner) => {
+        if (owner.clientRowId) return owner;
+        updated = true;
+        return { ...owner, clientRowId: crypto.randomUUID() };
+      });
+      return { ownersWithIds, updated };
+    },
+    [],
+  );
+
+  const remapSignersToOwners = useCallback(
+    (signersList: Signer[], ownersList: AddPropertyFormData['owners']): Signer[] => {
+      if (!ownersList.length) {
+        return signersList.map((signer) => ({
+          ...signer,
+          ownerClientRowId: undefined,
+        }));
+      }
+
+      const { ownersWithIds } = ensureOwnerClientRowIds(ownersList);
+      const ownerIds = new Set(ownersWithIds.map((o) => o.id));
+      const ownerClientRowIds = new Set(
+        ownersWithIds.map((o) => o.clientRowId).filter(Boolean) as string[],
+      );
+      const defaultOwner = ownersWithIds.find((o) => o.primary) || ownersWithIds[0];
+
+      return signersList.map((signer) => {
+        if (signer.ownerClientRowId && ownerClientRowIds.has(signer.ownerClientRowId)) {
+          return signer;
+        }
+
+        if (signer.ownerId && ownerIds.has(signer.ownerId)) {
+          const ownerMatch = ownersWithIds.find((o) => o.id === signer.ownerId);
+          if (ownerMatch?.clientRowId) {
+            return { ...signer, ownerClientRowId: ownerMatch.clientRowId };
+          }
+        }
+
+        if (defaultOwner?.clientRowId) {
+          return {
+            ...signer,
+            ownerClientRowId: defaultOwner.clientRowId,
+            ownerId: defaultOwner.id ?? signer.ownerId,
+          };
+        }
+
+        return signer;
+      });
+    },
+    [ensureOwnerClientRowIds],
+  );
+
+  const setSignersWithOwnerMapping = useCallback(
+    (nextSigners: Signer[]) => {
+      setSigners(remapSignersToOwners(nextSigners, formData.owners));
+    },
+    [formData.owners, remapSignersToOwners],
+  );
+
+  const loadExistingProperties = useCallback(async () => {
+    if (!onboardingMode) return;
+    setExistingPropertiesLoading(true);
+    try {
+      const res = await fetchWithSupabaseAuth('/api/properties?page=1&pageSize=100&status=Active', {
+        cache: 'no-store',
+      });
+      if (!res.ok) throw new Error(`Failed to load properties (${res.status})`);
+      const json = await res.json();
+      const list = Array.isArray(json?.data) ? json.data : Array.isArray(json) ? json : [];
+      setExistingProperties(
+        list.map((p: Record<string, unknown>) => ({
+          id: String(p.id),
+          name: String(p.name || 'Unnamed property'),
+          addressLine1: (p.addressLine1 ?? p.address_line1 ?? null) as string | null | undefined,
+          city: (p.city ?? null) as string | null | undefined,
+          state: (p.state ?? null) as string | null | undefined,
+          postalCode: (p.postalCode ?? p.postal_code ?? null) as string | null | undefined,
+          country: (p.country ?? null) as string | null | undefined,
+          propertyType: (p.propertyType ?? p.property_type ?? null) as string | null | undefined,
+          serviceAssignment: (p.serviceAssignment ?? p.service_assignment ?? null) as
+            | string
+            | null
+            | undefined,
+          managementScope: (p.managementScope ?? p.management_scope ?? null) as
+            | string
+            | null
+            | undefined,
+        })),
+      );
+    } catch (e) {
+      console.warn('Failed to load existing properties', e);
+    } finally {
+      setExistingPropertiesLoading(false);
+    }
+  }, [onboardingMode]);
+
+  const handleExistingPropertySelect = useCallback(
+    async (propertyIdValue: string) => {
+      setSelectedExistingPropertyId(propertyIdValue);
+      if (!propertyIdValue) {
+        if (!onboardingId) {
+          setPropertyId(null);
+        }
+        return;
+      }
+
+      const option = existingProperties.find((p) => p.id === propertyIdValue);
+      if (option) {
+        setFormData((prev) => ({
+          ...prev,
+          propertyType: option.propertyType || prev.propertyType,
+          name: option.name || prev.name,
+          addressLine1: option.addressLine1 || prev.addressLine1,
+          city: option.city || prev.city,
+          state: option.state || prev.state,
+          postalCode: option.postalCode || prev.postalCode,
+          country: option.country || prev.country,
+          service_assignment: option.serviceAssignment || prev.service_assignment,
+          management_scope: option.managementScope || prev.management_scope,
+        }));
+      }
+
+      setPropertyId(propertyIdValue);
+
+      try {
+        const res = await fetchWithSupabaseAuth(`/api/properties/${propertyIdValue}/details`);
+        if (!res.ok) return;
+        const detail = await res.json();
+        setFormData((prev) => ({
+          ...prev,
+          propertyType:
+            (detail?.property_type as string | undefined) ??
+            (detail?.propertyType as string | undefined) ??
+            prev.propertyType,
+          name: (detail?.name as string | undefined) ?? prev.name,
+          addressLine1: (detail?.address_line1 as string | undefined) ?? prev.addressLine1,
+          addressLine2: (detail?.address_line2 as string | undefined) ?? prev.addressLine2,
+          city: (detail?.city as string | undefined) ?? prev.city,
+          state: (detail?.state as string | undefined) ?? prev.state,
+          postalCode: (detail?.postal_code as string | undefined) ?? prev.postalCode,
+          country: (detail?.country as string | undefined) ?? prev.country,
+          borough: (detail?.borough as string | undefined) ?? prev.borough,
+          neighborhood: (detail?.neighborhood as string | undefined) ?? prev.neighborhood,
+          service_assignment:
+            (detail?.service_assignment as string | undefined) ?? prev.service_assignment,
+          management_scope:
+            (detail?.management_scope as string | undefined) ?? prev.management_scope,
+        }));
+      } catch (err) {
+        console.warn('Failed to hydrate existing property', err);
+      }
+    },
+    [existingProperties, onboardingId, setFormData],
+  );
 
   const canProceed = (step: number, data: AddPropertyFormData) => {
     if (onboardingMode) {
@@ -346,7 +552,10 @@ export default function AddPropertyModal({
           return !!data.service_assignment;
         case 2:
           return !!data.propertyType;
-        case 3:
+        case 3: {
+          if (propertyEntryMode === 'existing') {
+            return !!selectedExistingPropertyId;
+          }
           return (
             !!data.addressLine1 &&
             !!data.city &&
@@ -354,6 +563,7 @@ export default function AddPropertyModal({
             !!data.postalCode &&
             !!data.country
           );
+        }
         case 4: {
           // Owners & Signers: need at least one owner and one signer email
           const total = (data.owners || []).reduce(
@@ -439,6 +649,13 @@ export default function AddPropertyModal({
     }
   }, [isOpen]);
 
+  useEffect(() => {
+    if (!isOpen) {
+      setPropertyEntryMode('new');
+      setSelectedExistingPropertyId('');
+    }
+  }, [isOpen]);
+
   const startTourNow = () => {
     setIsTourActive(true);
     setShowTourIntro(false);
@@ -489,12 +706,27 @@ export default function AddPropertyModal({
     };
   }, [isOpen]);
 
+  useEffect(() => {
+    if (!isOpen || !onboardingMode) return;
+    if (propertyEntryMode !== 'existing') return;
+    if (existingProperties.length > 0 || existingPropertiesLoading) return;
+    void loadExistingProperties();
+  }, [
+    existingProperties.length,
+    existingPropertiesLoading,
+    isOpen,
+    loadExistingProperties,
+    onboardingMode,
+    propertyEntryMode,
+  ]);
+
   // When resuming an onboarding draft, hydrate basic fields and IDs
   useEffect(() => {
     if (!isOpen || !onboardingMode || !resumeOnboarding) return;
     setOnboardingId(resumeOnboarding.onboardingId);
     setPropertyId(resumeOnboarding.propertyId);
-    setSigners(resumeOnboarding.signers || []);
+    setSignersWithOwnerMapping(resumeOnboarding.signers || []);
+    setDraftCreationAttempted(true);
     setFormData((prev) => ({
       ...prev,
       propertyType: resumeOnboarding.property?.propertyType || prev.propertyType,
@@ -505,8 +737,53 @@ export default function AddPropertyModal({
       postalCode: resumeOnboarding.property?.postalCode || prev.postalCode,
       country: resumeOnboarding.property?.country || prev.country,
       service_assignment: resumeOnboarding.property?.serviceAssignment || prev.service_assignment,
+      owners:
+        resumeOnboarding.owners && resumeOnboarding.owners.length > 0
+          ? resumeOnboarding.owners.map((owner) => ({
+              ...owner,
+              clientRowId: owner.clientRowId || crypto.randomUUID(),
+              saved: true,
+            }))
+          : prev.owners,
     }));
+    if (resumeOnboarding.units && resumeOnboarding.units.length > 0) {
+      setOnboardingUnits(
+        resumeOnboarding.units.map((unit) => ({
+          ...unit,
+          clientRowId: unit.clientRowId || crypto.randomUUID(),
+          saved: true,
+        })),
+      );
+    }
   }, [isOpen, onboardingMode, resumeOnboarding]);
+
+  // Reset draft creation flag when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      setDraftCreationAttempted(false);
+    }
+  }, [isOpen]);
+
+  // Ensure owners always carry a stable clientRowId
+  useEffect(() => {
+    if (formData.owners.some((o) => !o.clientRowId)) {
+      setFormData((prev) => {
+        const { ownersWithIds, updated } = ensureOwnerClientRowIds(prev.owners);
+        return updated ? { ...prev, owners: ownersWithIds } : prev;
+      });
+    }
+  }, [formData.owners, ensureOwnerClientRowIds]);
+
+  // Keep signer → owner association aligned to stable keys
+  useEffect(() => {
+    setSigners((prev) => {
+      const mapped = remapSignersToOwners(prev, formData.owners);
+      const changed =
+        mapped.length !== prev.length ||
+        mapped.some((signer, idx) => signer !== prev[idx]);
+      return changed ? mapped : prev;
+    });
+  }, [formData.owners, remapSignersToOwners]);
 
   // Auto-calculate property name from Street Address and Primary Owner
   useEffect(() => {
@@ -527,6 +804,160 @@ export default function AddPropertyModal({
   }, [formData.service_assignment, formData.service_plan, serviceDraft.plan_name]);
 
   const stepReady = canProceed(currentStep, formData);
+
+  const computedOnboardingProgress = useMemo(() => {
+    if (!onboardingMode) return undefined;
+    const stepProgress = Math.max(
+      10,
+      Math.min(90, Math.round((currentStep / ONBOARDING_STEPS.length) * 90)),
+    );
+    return stepProgress;
+  }, [onboardingMode, currentStep]);
+
+  const currentStagePayload = useMemo(() => {
+    if (!onboardingMode || !onboardingId) return null;
+    const basePayload: Record<string, unknown> = {
+        currentStage: {
+          step: currentStep,
+          property: {
+            entryMode: propertyEntryMode,
+            existingPropertyId: selectedExistingPropertyId || null,
+            propertyType: formData.propertyType,
+            name: formData.name,
+            addressLine1: formData.addressLine1,
+            addressLine2: formData.addressLine2,
+            city: formData.city,
+          state: formData.state,
+          postalCode: formData.postalCode,
+          country: formData.country,
+          borough: formData.borough,
+          neighborhood: formData.neighborhood,
+        },
+        owners: formData.owners,
+        signers,
+        units: onboardingUnits,
+      },
+    };
+    if (typeof computedOnboardingProgress === 'number') {
+      basePayload.progress = computedOnboardingProgress;
+    }
+    return basePayload;
+  }, [
+    onboardingMode,
+    onboardingId,
+    currentStep,
+    propertyEntryMode,
+    selectedExistingPropertyId,
+    formData.propertyType,
+    formData.name,
+    formData.addressLine1,
+    formData.addressLine2,
+    formData.city,
+    formData.state,
+    formData.postalCode,
+    formData.country,
+    formData.borough,
+    formData.neighborhood,
+    formData.owners,
+    signers,
+    onboardingUnits,
+    computedOnboardingProgress,
+  ]);
+
+  const performAutosave = useCallback(
+    async (payload: Record<string, unknown>) => {
+      if (!onboardingId) return;
+      latestAutosavePayloadRef.current = payload;
+      autosaveRetryRef.current = 0;
+      autosaveInFlightRef.current?.abort();
+      const controller = new AbortController();
+      autosaveInFlightRef.current = controller;
+
+      const save = async (attempt: number) => {
+        try {
+          setAutosaveStatus('saving');
+          setAutosaveError(null);
+          const response = await fetchWithSupabaseAuth(`/api/onboarding/${onboardingId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            signal: controller.signal,
+          });
+
+          if (!response.ok) {
+            const data = await response.json().catch(() => ({}));
+            throw new Error(data?.error?.message || 'Autosave failed');
+          }
+
+          setAutosaveStatus('saved');
+          setAutosaveError(null);
+          autosaveRetryRef.current = 0;
+        } catch (err) {
+          const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+          if (controller.signal.aborted) return;
+          if (offline) {
+            setAutosaveStatus('offline');
+          } else {
+            setAutosaveStatus('error');
+            setAutosaveError(err instanceof Error ? err.message : 'Autosave failed');
+          }
+
+          const nextAttempt = attempt + 1;
+          if (nextAttempt <= 3) {
+            const backoffMs = Math.min(30000, 2000 * 2 ** attempt);
+            autosaveRetryRef.current = nextAttempt;
+            autosaveTimerRef.current = setTimeout(() => save(nextAttempt), backoffMs);
+          }
+        }
+      };
+
+      autosaveTimerRef.current = setTimeout(() => save(autosaveRetryRef.current), 800);
+    },
+    [onboardingId],
+  );
+
+  const scheduleAutosave = useCallback(
+    (payload: Record<string, unknown> | null) => {
+      if (!payload || !onboardingId) return;
+      if (autosaveTimerRef.current) {
+        clearTimeout(autosaveTimerRef.current);
+        autosaveTimerRef.current = null;
+      }
+      performAutosave(payload);
+    },
+    [onboardingId, performAutosave],
+  );
+
+  useEffect(() => {
+    if (!currentStagePayload) return;
+    scheduleAutosave(currentStagePayload);
+    return () => {
+      if (autosaveTimerRef.current) {
+        clearTimeout(autosaveTimerRef.current);
+      }
+    };
+  }, [currentStagePayload, scheduleAutosave]);
+
+  useEffect(() => {
+    const handleOnline = () => {
+      if (autosaveStatus === 'offline' && latestAutosavePayloadRef.current && onboardingId) {
+        scheduleAutosave(latestAutosavePayloadRef.current);
+      }
+    };
+    window.addEventListener('online', handleOnline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+    };
+  }, [autosaveStatus, onboardingId, scheduleAutosave]);
+
+  useEffect(() => {
+    return () => {
+      if (autosaveTimerRef.current) {
+        clearTimeout(autosaveTimerRef.current);
+      }
+      autosaveInFlightRef.current?.abort();
+    };
+  }, []);
 
   const handleNext = async () => {
     if (onboardingMode) {
@@ -555,9 +986,64 @@ export default function AddPropertyModal({
   };
 
   // Onboarding API functions
-  const createOnboardingDraft = async () => {
+  const createOnboardingDraft = async (opts?: { fromBlur?: boolean }) => {
+    if (propertyEntryMode === 'existing') {
+      if (!selectedExistingPropertyId) return;
+      try {
+        setDraftCreationAttempted(true);
+        if (!opts?.fromBlur) setSubmitting(true);
+        setSubmitError(null);
+        const response = await fetchWithSupabaseAuth('/api/onboarding', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ propertyId: selectedExistingPropertyId }),
+        });
+
+        if (response.status === 409) {
+          const data = await response.json();
+          const shouldResume =
+            typeof window === 'undefined'
+              ? true
+              : window.confirm('A draft already exists for this property. Resume draft?');
+          if (shouldResume && data.existingOnboardingId) {
+            setOnboardingId(data.existingOnboardingId);
+            setPropertyId(data.existingPropertyId || selectedExistingPropertyId);
+            setSubmitSuccess('Resumed existing onboarding draft for this property.');
+          } else {
+            setSubmitError('A draft already exists for this property.');
+          }
+          setDraftCreationAttempted(true);
+          return;
+        }
+
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          throw new Error(data.error || 'Failed to create onboarding draft');
+        }
+
+        const data = await response.json();
+        setOnboardingId(data.onboarding.id);
+        setPropertyId(data.property.id);
+        setDraftCreationAttempted(true);
+      } catch (error) {
+        setSubmitError(error instanceof Error ? error.message : 'Failed to create draft');
+      } finally {
+        if (!opts?.fromBlur) setSubmitting(false);
+      }
+      return;
+    }
+
+    const requiredBasics =
+      formData.propertyType &&
+      formData.addressLine1 &&
+      formData.city &&
+      formData.state &&
+      formData.postalCode &&
+      formData.country;
+    if (!requiredBasics) return;
     try {
-      setSubmitting(true);
+      setDraftCreationAttempted(true);
+      if (!opts?.fromBlur) setSubmitting(true);
       setSubmitError(null);
       const response = await fetchWithSupabaseAuth('/api/onboarding', {
         method: 'POST',
@@ -582,13 +1068,17 @@ export default function AddPropertyModal({
 
       if (response.status === 409) {
         const data = await response.json();
-        // Existing draft found - offer to resume
-        if (data.existingOnboardingId) {
+        const shouldResume =
+          typeof window === 'undefined' ? true : window.confirm('A draft already exists for this address. Resume draft?');
+        if (shouldResume && data.existingOnboardingId) {
           setOnboardingId(data.existingOnboardingId);
           setPropertyId(data.existingPropertyId);
-          setSubmitError('An existing draft was found for this address. Resuming...');
-          return;
+          setSubmitSuccess('Resumed existing onboarding draft for this address.');
+        } else {
+          setSubmitError('A draft already exists for this address.');
         }
+        setDraftCreationAttempted(true);
+        return;
       }
 
       if (!response.ok) {
@@ -599,10 +1089,11 @@ export default function AddPropertyModal({
       const data = await response.json();
       setOnboardingId(data.onboarding.id);
       setPropertyId(data.property.id);
+      setDraftCreationAttempted(true);
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : 'Failed to create draft');
     } finally {
-      setSubmitting(false);
+      if (!opts?.fromBlur) setSubmitting(false);
     }
   };
 
@@ -610,15 +1101,46 @@ export default function AddPropertyModal({
     if (!onboardingId) return;
     try {
       setSubmitting(true);
-      const ownersPayload = formData.owners.map((o, idx) => ({
-        clientRowId: crypto.randomUUID(),
-        ownerId: o.id,
-        ownershipPercentage: o.ownershipPercentage,
-        disbursementPercentage: o.disbursementPercentage,
-        primary: o.primary,
-        signerEmail: signers[idx]?.email,
-        signerName: signers[idx]?.name,
-      }));
+      const { ownersWithIds, updated } = ensureOwnerClientRowIds(formData.owners);
+      if (updated) {
+        setFormData((prev) => ({ ...prev, owners: ownersWithIds }));
+      }
+
+      const remappedSigners = remapSignersToOwners(signers, ownersWithIds);
+      const signersChanged =
+        remappedSigners.length !== signers.length ||
+        remappedSigners.some((s, idx) => s !== signers[idx]);
+      if (signersChanged) {
+        setSigners(remappedSigners);
+      }
+
+      const ownersById = new Map(ownersWithIds.map((owner) => [owner.id, owner]));
+      const signerByClientRowId = new Map<string, Signer>();
+      remappedSigners.forEach((signer) => {
+        if (signer.ownerClientRowId) {
+          signerByClientRowId.set(signer.ownerClientRowId, signer);
+          return;
+        }
+        if (signer.ownerId) {
+          const owner = ownersById.get(signer.ownerId);
+          if (owner?.clientRowId) {
+            signerByClientRowId.set(owner.clientRowId, { ...signer, ownerClientRowId: owner.clientRowId });
+          }
+        }
+      });
+
+      const ownersPayload = ownersWithIds.map((o) => {
+        const signer = o.clientRowId ? signerByClientRowId.get(o.clientRowId) : undefined;
+        return {
+          clientRowId: o.clientRowId as string,
+          ownerId: o.id,
+          ownershipPercentage: o.ownershipPercentage,
+          disbursementPercentage: o.disbursementPercentage,
+          primary: o.primary,
+          signerEmail: signer?.email,
+          signerName: signer?.name,
+        };
+      });
 
       const response = await fetchWithSupabaseAuth(`/api/onboarding/${onboardingId}/owners`, {
         method: 'POST',
@@ -630,6 +1152,14 @@ export default function AddPropertyModal({
         const data = await response.json();
         throw new Error(data.error || 'Failed to save owners');
       }
+
+      setFormData((prev) => ({
+        ...prev,
+        owners: prev.owners.map((owner) => ({
+          ...owner,
+          saved: true,
+        })),
+      }));
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : 'Failed to save owners');
     } finally {
@@ -711,7 +1241,35 @@ export default function AddPropertyModal({
 
       if (response.status === 409) {
         const data = await response.json();
-        setSubmitError(`Agreement already sent: ${data.sentAt}`);
+        const recipients = (data.recipients || []).map((r: any) => r.email || '').join(', ');
+        const confirmResend = window.confirm(
+          `Agreement already sent to ${recipients || 'these recipients'} at ${data.sentAt}. Resend anyway?`,
+        );
+        if (!confirmResend) {
+          setSubmitError(`Agreement already sent: ${data.sentAt}`);
+          return;
+        }
+        // If user chooses to resend, drop idempotency by adding a noise param
+        const retry = await fetchWithSupabaseAuth('/api/agreements/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            onboardingId,
+            propertyId,
+            recipients: signers.map((s) => ({ email: s.email, name: s.name })),
+            templateId: selectedTemplateId,
+            templateName: selectedTemplateName,
+            webhookPayload: { ...{ retry: true }, timestamp: new Date().toISOString() },
+          }),
+        });
+        if (!retry.ok) {
+          const retryData = await retry.json();
+          throw new Error(retryData.error || 'Failed to send agreement');
+        }
+        setSubmitSuccess('Agreement resent successfully!');
+        onClose();
+        if (onSuccess) onSuccess();
+        router.push(`/properties/${propertyId}`);
         return;
       }
 
@@ -900,27 +1458,31 @@ export default function AddPropertyModal({
     const fallback = owners.find((o) => o.id === ownerId);
     const name = ownerName || fallback?.name;
     if (name && !formData.owners.find((o) => o.id === ownerId)) {
+      const clientRowId = crypto.randomUUID();
+      const newOwner = {
+        id: ownerId,
+        name,
+        clientRowId,
+        ownershipPercentage: 100,
+        disbursementPercentage: 100,
+        primary: formData.owners.length === 0, // First owner is primary
+      };
+      const nextOwners = [...formData.owners, newOwner];
       setFormData((prev) => ({
         ...prev,
-        owners: [
-          ...prev.owners,
-          {
-            id: ownerId,
-            name,
-            ownershipPercentage: 100,
-            disbursementPercentage: 100,
-            primary: prev.owners.length === 0, // First owner is primary
-          },
-        ],
+        owners: nextOwners,
       }));
+      setSigners((prev) => remapSignersToOwners(prev, nextOwners));
     }
   };
 
   const removeOwner = (ownerId: string) => {
+    const nextOwners = formData.owners.filter((o) => o.id !== ownerId);
     setFormData((prev) => ({
       ...prev,
-      owners: prev.owners.filter((o) => o.id !== ownerId),
+      owners: nextOwners,
     }));
+    setSigners((prev) => remapSignersToOwners(prev, nextOwners));
   };
 
   const updateOwnerPercentage = (
@@ -944,6 +1506,34 @@ export default function AddPropertyModal({
       return { ...prev, owners };
     });
   };
+
+  const inlineUnitsContent = useMemo(() => {
+    const shouldCollectInline =
+      onboardingMode || formData.management_scope === 'Unit' || propertyEntryMode === 'existing';
+    if (!shouldCollectInline) return null;
+    if (onboardingMode) {
+      return (
+        <BulkUnitCreator
+          units={onboardingUnits}
+          onUnitsChange={setOnboardingUnits}
+          onSaveUnits={saveOnboardingUnits}
+          disabled={!onboardingId}
+          isSaving={submitting}
+        />
+      );
+    }
+    return <Step4UnitDetails formData={formData} setFormData={setFormData} />;
+  }, [
+    formData,
+    propertyEntryMode,
+    onboardingMode,
+    onboardingUnits,
+    onboardingId,
+    saveOnboardingUnits,
+    submitting,
+    setOnboardingUnits,
+    setFormData,
+  ]);
 
   const nextEnabled = !submitting && stepReady;
 
@@ -970,12 +1560,12 @@ export default function AddPropertyModal({
       >
         {/* Header */}
         <DialogHeader className="border-border border-b p-6">
-            <DialogTitle>
-              <Heading as="h3" size="h4">
-                Add New Property
-              </Heading>
-            </DialogTitle>
-          </DialogHeader>
+          <DialogTitle>
+            <Heading as="h3" size="h4">
+              {onboardingMode ? 'New Onboarding' : 'Add New Property'}
+            </Heading>
+          </DialogTitle>
+        </DialogHeader>
 
         {/* Progress Steps */}
         <div className="border-border border-b px-6 py-4">
@@ -986,14 +1576,14 @@ export default function AddPropertyModal({
               </Body>
             </div>
           ) : null}
-          <div className="flex items-center justify-between">
+          <div className="flex items-center gap-0 w-full">
             {activeSteps.map((step, index) => (
-              <div key={step.id} className="flex items-center">
+              <Fragment key={step.id}>
                 <div
-                  className={`flex h-8 w-8 items-center justify-center rounded-full border-2 ${
+                  className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border ${
                     currentStep >= step.id
-                      ? 'bg-primary border-primary text-primary-foreground'
-                      : 'border-input text-muted-foreground'
+                      ? 'bg-primary border-primary text-primary-foreground shadow-sm'
+                      : 'border-border text-muted-foreground'
                   }`}
                 >
                   <Label as="span" size="sm" className="text-current">
@@ -1001,15 +1591,14 @@ export default function AddPropertyModal({
                   </Label>
                 </div>
                 {index < activeSteps.length - 1 && (
-                  <div
-                    className={`mx-2 h-0.5 w-16 ${
-                      currentStep > step.id ? 'bg-primary' : 'bg-border'
-                    }`}
-                  />
+                  <div className="mx-2 h-px flex-1 bg-border" aria-hidden />
                 )}
-              </div>
+              </Fragment>
             ))}
           </div>
+          <Body as="div" size="xs" tone="muted" className="mt-2">
+            Step {currentStep} of {totalSteps} · {activeSteps.find((s) => s.id === currentStep)?.title}
+          </Body>
         </div>
 
         {/* Step Content */}
@@ -1026,6 +1615,25 @@ export default function AddPropertyModal({
               <Body as="p" size="sm" className="text-success">
                 {submitSuccess}
               </Body>
+            </div>
+          )}
+          {onboardingMode && onboardingId && (
+            <div className="mb-3 flex items-center justify-between rounded-md border border-dashed border-border/70 px-3 py-2 text-xs text-muted-foreground">
+              <span>
+                Autosave:{' '}
+                {autosaveStatus === 'saving'
+                  ? 'Saving...'
+                  : autosaveStatus === 'saved'
+                    ? 'Saved'
+                    : autosaveStatus === 'offline'
+                      ? 'Offline - will retry'
+                      : autosaveStatus === 'error'
+                        ? 'Needs retry'
+                        : 'Idle'}
+              </span>
+              {autosaveError && (
+                <span className="text-destructive">Last error: {autosaveError}</span>
+              )}
             </div>
           )}
           {isTourActive && showTourIntro && (
@@ -1055,7 +1663,29 @@ export default function AddPropertyModal({
           )}
 
           {currentStep === (onboardingMode ? 3 : 2) && (
-            <Step2PropertyDetails formData={formData} setFormData={setFormData} />
+            <Step2PropertyDetails
+              formData={formData}
+              setFormData={setFormData}
+              onboardingMode={onboardingMode}
+              onboardingId={onboardingId}
+              draftCreationAttempted={draftCreationAttempted}
+              onPostalBlur={() => void createOnboardingDraft({ fromBlur: true })}
+              inlineUnitsContent={inlineUnitsContent}
+              propertyEntryMode={propertyEntryMode}
+              onPropertyEntryModeChange={(mode) => {
+                setPropertyEntryMode(mode);
+                if (mode === 'new') {
+                  setSelectedExistingPropertyId('');
+                  if (!onboardingId) {
+                    setPropertyId(null);
+                  }
+                }
+              }}
+              existingProperties={existingProperties}
+              existingPropertiesLoading={existingPropertiesLoading}
+              selectedExistingPropertyId={selectedExistingPropertyId}
+              onSelectExistingProperty={handleExistingPropertySelect}
+            />
           )}
 
           {currentStep === (onboardingMode ? 4 : 3) && !onboardingMode && (
@@ -1070,29 +1700,41 @@ export default function AddPropertyModal({
           )}
 
           {currentStep === (onboardingMode ? 4 : 3) && onboardingMode && (
-            <Step3OwnersAndSigners
-              formData={formData}
-              setFormData={setFormData}
-              addOwner={addOwner}
-              removeOwner={removeOwner}
-              updateOwnerPercentage={updateOwnerPercentage}
-              setPrimaryOwner={setPrimaryOwner}
-              signers={signers}
-              onSignersChange={setSigners}
-            />
-          )}
+          <Step3OwnersAndSigners
+            formData={formData}
+            setFormData={setFormData}
+            addOwner={addOwner}
+            removeOwner={removeOwner}
+            updateOwnerPercentage={updateOwnerPercentage}
+            setPrimaryOwner={setPrimaryOwner}
+            signers={signers}
+            onSignersChange={setSignersWithOwnerMapping}
+          />
+        )}
 
           {currentStep === (onboardingMode ? 5 : 4) && !onboardingMode && (
-            <Step4UnitDetails formData={formData} setFormData={setFormData} />
+            formData.management_scope === 'Unit' ? (
+              <div className="border-border bg-muted/30 rounded-lg border p-4 text-sm text-muted-foreground">
+                Units were collected in Property Details for unit-level management.
+              </div>
+            ) : (
+              <Step4UnitDetails formData={formData} setFormData={setFormData} />
+            )
           )}
 
           {currentStep === (onboardingMode ? 5 : 4) && onboardingMode && (
-            <Step4OnboardingUnits
-              units={onboardingUnits}
-              onUnitsChange={setOnboardingUnits}
-              onSaveUnits={saveOnboardingUnits}
-              isSaving={submitting}
-            />
+            formData.management_scope === 'Unit' ? (
+              <div className="border-border bg-muted/30 rounded-lg border p-4 text-sm text-muted-foreground">
+                Units were collected in Property Details for unit-level management.
+              </div>
+            ) : (
+              <Step4OnboardingUnits
+                units={onboardingUnits}
+                onUnitsChange={setOnboardingUnits}
+                onSaveUnits={saveOnboardingUnits}
+                isSaving={submitting}
+              />
+            )
           )}
 
           {currentStep === (onboardingMode ? 6 : 5) && !onboardingMode && (
@@ -1110,7 +1752,7 @@ export default function AddPropertyModal({
               signers={signers}
               units={onboardingUnits}
               selectedTemplateId={selectedTemplateId}
-              onTemplateSelect={(id, name) => {
+              onTemplateChange={(id, name) => {
                 setSelectedTemplateId(id);
                 setSelectedTemplateName(name);
               }}
@@ -1429,9 +2071,31 @@ function Step1PropertyType({
 function Step2PropertyDetails({
   formData,
   setFormData,
+  onboardingMode,
+  onboardingId,
+  draftCreationAttempted,
+  onPostalBlur,
+  inlineUnitsContent,
+  propertyEntryMode,
+  onPropertyEntryModeChange,
+  existingProperties,
+  existingPropertiesLoading,
+  selectedExistingPropertyId,
+  onSelectExistingProperty,
 }: {
   formData: AddPropertyFormData;
   setFormData: Dispatch<SetStateAction<AddPropertyFormData>>;
+  onboardingMode?: boolean;
+  onboardingId?: string | null;
+  draftCreationAttempted?: boolean;
+  onPostalBlur?: () => void;
+  inlineUnitsContent?: React.ReactNode;
+  propertyEntryMode: PropertyEntryMode;
+  onPropertyEntryModeChange: (mode: PropertyEntryMode) => void;
+  existingProperties: ExistingPropertyOption[];
+  existingPropertiesLoading?: boolean;
+  selectedExistingPropertyId?: string;
+  onSelectExistingProperty: (propertyId: string) => void;
 }) {
   const CurrentIcon = STEPS[1].icon;
 
@@ -1447,171 +2111,205 @@ function Step2PropertyDetails({
         </Body>
       </div>
 
+      {onboardingMode ? (
+        <div className="mx-auto mb-4 flex max-w-3xl flex-wrap items-center justify-center gap-2 md:max-w-4xl">
+          <Button
+            type="button"
+            size="sm"
+            variant={propertyEntryMode === 'new' ? 'default' : 'outline'}
+            onClick={() => onPropertyEntryModeChange('new')}
+          >
+            Create new property
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={propertyEntryMode === 'existing' ? 'default' : 'outline'}
+            onClick={() => onPropertyEntryModeChange('existing')}
+          >
+            Select existing property
+          </Button>
+        </div>
+      ) : null}
+
       <div className="mx-auto max-w-3xl space-y-4 md:max-w-4xl">
-        <div>
-          <Label as="label" htmlFor="add-property-street" className="mb-1 block" size="sm">
-            Street Address *
-          </Label>
-          <AddressAutocomplete
-            id="add-property-street"
-            value={formData.addressLine1}
-            onChange={(value) => setFormData((prev) => ({ ...prev, addressLine1: value }))}
-            onPlaceSelect={(place) => {
-              const mappedCountry = mapGoogleCountryToEnum(place.country);
-              setFormData((prev) => ({
-                ...prev,
-                addressLine1: place.address,
-                city: place.city,
-                state: place.state,
-                postalCode: place.postalCode,
-                country: mappedCountry,
-                borough: place.borough || prev.borough,
-                neighborhood: place.neighborhood || prev.neighborhood,
-                longitude: place.longitude ?? prev.longitude,
-                latitude: place.latitude ?? prev.latitude,
-                locationVerified: true,
-              }));
-            }}
-            placeholder="e.g., 123 Main Street"
-            required
-            autoComplete="street-address"
-            className={FOCUS_RING}
-          />
-        </div>
-
-        <div>
-          <Label as="label" className="mb-1 block" size="sm">
-            Address Line 2
-          </Label>
-          <input
-            type="text"
-            value={formData.addressLine2}
-            onChange={(e) => setFormData((prev) => ({ ...prev, addressLine2: e.target.value }))}
-            autoComplete="address-line2"
-            className={`border-border bg-background text-foreground placeholder:text-muted-foreground h-10 w-full rounded-lg border px-3 ${FOCUS_RING}`}
-            placeholder="Apartment, suite, unit, building, floor, etc."
-          />
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div>
-            <Label as="label" className="mb-1 block" size="sm">
-              City *
-            </Label>
-            <input
-              type="text"
-              value={formData.city}
-              onChange={(e) => setFormData((prev) => ({ ...prev, city: e.target.value }))}
-              autoComplete="address-level2"
-              className={`border-border bg-background text-foreground placeholder:text-muted-foreground h-10 w-full rounded-lg border px-3 ${FOCUS_RING}`}
-              placeholder="Enter city"
-            />
-          </div>
-          <div>
-            <Label as="label" className="mb-1 block" size="sm">
-              State *
-            </Label>
-            <input
-              type="text"
-              value={formData.state}
-              onChange={(e) => setFormData((prev) => ({ ...prev, state: e.target.value }))}
-              autoComplete="address-level1"
-              className={`border-border bg-background text-foreground placeholder:text-muted-foreground h-10 w-full rounded-lg border px-3 ${FOCUS_RING}`}
-              placeholder="Enter state"
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div>
-            <Label as="label" className="mb-1 block" size="sm">
-              ZIP Code *
-            </Label>
-            <input
-              type="text"
-              value={formData.postalCode}
-              onChange={(e) => setFormData((prev) => ({ ...prev, postalCode: e.target.value }))}
-              autoComplete="postal-code"
-              className={`border-border bg-background text-foreground placeholder:text-muted-foreground h-10 w-full rounded-lg border px-3 ${FOCUS_RING}`}
-              placeholder="Enter ZIP code"
-            />
-          </div>
-          <div>
-            <Label as="label" htmlFor="add-property-country" className="mb-1 block" size="sm">
-              Country *
-            </Label>
+        {onboardingMode && propertyEntryMode === 'existing' ? (
+          <div className="space-y-2 rounded-lg border border-border/70 bg-muted/20 p-3">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <Label as="label" size="sm">
+                  Choose an existing property
+                </Label>
+                <Body size="xs" tone="muted">
+                  We will use the saved address; add units for this property below.
+                </Body>
+              </div>
+              {existingPropertiesLoading ? (
+                <Body size="xs" tone="muted">
+                  Loading…
+                </Body>
+              ) : null}
+            </div>
             <Select
-              value={formData.country || EMPTY_OPTION_VALUE}
-              onValueChange={(value) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  country: value === EMPTY_OPTION_VALUE ? '' : value,
-                }))
-              }
+              value={selectedExistingPropertyId || ''}
+              onValueChange={(value) => onSelectExistingProperty(value)}
+              disabled={existingPropertiesLoading}
             >
               <SelectTrigger className={`h-10 w-full ${FOCUS_RING}`}>
-                <SelectValue placeholder="Select country" />
+                <SelectValue placeholder="Select property" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={EMPTY_OPTION_VALUE}>Select country</SelectItem>
-                {COUNTRIES.map((c) => (
-                  <SelectItem key={c} value={c}>
-                    {c}
+                <SelectItem value="">Select property</SelectItem>
+                {existingProperties.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}
+                    {p.city ? ` — ${p.city}${p.state ? `, ${p.state}` : ''}` : ''}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
-        </div>
+        ) : null}
 
-        <div>
-          <Label as="label" htmlFor="add-property-status" className="mb-1 block" size="sm">
-            Status
-          </Label>
-          <Select
-            value={formData.status || ''}
-            onValueChange={(value) =>
-              setFormData((prev) => ({ ...prev, status: value as 'Active' | 'Inactive' }))
-            }
-          >
-            <SelectTrigger className={`h-10 w-full ${FOCUS_RING}`}>
-              <SelectValue placeholder="Select status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Active">Active</SelectItem>
-              <SelectItem value="Inactive">Inactive</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        {propertyEntryMode === 'new' && (
+          <>
+            <div>
+              <Label as="label" htmlFor="add-property-street" className="mb-1 block" size="sm">
+                Street Address *
+              </Label>
+              <AddressAutocomplete
+                id="add-property-street"
+                value={formData.addressLine1}
+                onChange={(value) => setFormData((prev) => ({ ...prev, addressLine1: value }))}
+                onPlaceSelect={(place) => {
+                  const mappedCountry = mapGoogleCountryToEnum(place.country);
+                  setFormData((prev) => ({
+                    ...prev,
+                    addressLine1: place.address,
+                    city: place.city,
+                    state: place.state,
+                    postalCode: place.postalCode,
+                    country: mappedCountry,
+                    borough: place.borough || prev.borough,
+                    neighborhood: place.neighborhood || prev.neighborhood,
+                    longitude: place.longitude ?? prev.longitude,
+                    latitude: place.latitude ?? prev.latitude,
+                    locationVerified: true,
+                  }));
+                }}
+                placeholder="e.g., 123 Main Street"
+                required
+                autoComplete="street-address"
+                className={FOCUS_RING}
+              />
+            </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div>
-            <Label as="label" className="mb-1 block" size="sm">
-              Year Built
-            </Label>
-            <input
-              type="text"
-              value={formData.yearBuilt}
-              onChange={(e) => setFormData((prev) => ({ ...prev, yearBuilt: e.target.value }))}
-              className={`border-border bg-background text-foreground placeholder:text-muted-foreground h-10 w-full rounded-lg border px-3 ${FOCUS_RING}`}
-              placeholder="e.g., 2008"
-            />
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <Label as="label" className="mb-1 block" size="sm">
+                  City *
+                </Label>
+                <input
+                  type="text"
+                  value={formData.city}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, city: e.target.value }))}
+                  autoComplete="address-level2"
+                  className={`border-border bg-background text-foreground placeholder:text-muted-foreground h-10 w-full rounded-lg border px-3 ${FOCUS_RING}`}
+                  placeholder="Enter city"
+                />
+              </div>
+              <div>
+                <Label as="label" className="mb-1 block" size="sm">
+                  State *
+                </Label>
+                <input
+                  type="text"
+                  value={formData.state}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, state: e.target.value }))}
+                  autoComplete="address-level1"
+                  className={`border-border bg-background text-foreground placeholder:text-muted-foreground h-10 w-full rounded-lg border px-3 ${FOCUS_RING}`}
+                  placeholder="Enter state"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <Label as="label" className="mb-1 block" size="sm">
+                  ZIP Code *
+                </Label>
+                <input
+                  type="text"
+                  value={formData.postalCode}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, postalCode: e.target.value }))}
+                  onBlur={() => {
+                    if (onboardingMode && !onboardingId && !draftCreationAttempted) {
+                      onPostalBlur?.();
+                    }
+                  }}
+                  autoComplete="postal-code"
+                  className={`border-border bg-background text-foreground placeholder:text-muted-foreground h-10 w-full rounded-lg border px-3 ${FOCUS_RING}`}
+                  placeholder="Enter ZIP code"
+                />
+              </div>
+              <div>
+                <Label as="label" htmlFor="add-property-country" className="mb-1 block" size="sm">
+                  Country *
+                </Label>
+                <Select
+                  value={formData.country || EMPTY_OPTION_VALUE}
+                  onValueChange={(value) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      country: value === EMPTY_OPTION_VALUE ? '' : value,
+                    }))
+                  }
+                >
+                  <SelectTrigger className={`h-10 w-full ${FOCUS_RING}`}>
+                    <SelectValue placeholder="Select country" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={EMPTY_OPTION_VALUE}>Select country</SelectItem>
+                    {COUNTRIES.map((c) => (
+                      <SelectItem key={c} value={c}>
+                        {c}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div>
+              <Label as="label" className="mb-1 block" size="sm">
+                Description
+              </Label>
+              <textarea
+                value={formData.structureDescription}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, structureDescription: e.target.value }))
+                }
+                className={`border-border bg-background text-foreground placeholder:text-muted-foreground w-full rounded-lg border px-3 py-2 ${FOCUS_RING}`}
+                rows={3}
+                placeholder="Brief description of the property..."
+              />
+            </div>
+          </>
+        )}
+
+        {inlineUnitsContent && (
+          <div className="mt-6 space-y-3 rounded-lg border border-dashed border-border/70 bg-muted/30 p-4">
+            <Heading as="h4" size="h6">
+              Units
+            </Heading>
+            <Body size="sm" tone="muted">
+              {propertyEntryMode === 'existing'
+                ? 'You selected an existing property, so add units for it here.'
+                : 'Add units for this onboarding now so the later Units step is review-only.'}
+            </Body>
+            {inlineUnitsContent}
           </div>
-          <div className="sm:col-span-2">
-            <Label as="label" className="mb-1 block" size="sm">
-              Description
-            </Label>
-            <textarea
-              value={formData.structureDescription}
-              onChange={(e) =>
-                setFormData((prev) => ({ ...prev, structureDescription: e.target.value }))
-              }
-              className={`border-border bg-background text-foreground placeholder:text-muted-foreground w-full rounded-lg border px-3 py-2 ${FOCUS_RING}`}
-              rows={3}
-              placeholder="Brief description of the property..."
-            />
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );
@@ -2018,6 +2716,11 @@ function Step3Ownership({
                         Primary
                       </Label>
                     </th>
+                    <th className="px-4 py-2 text-center">
+                      <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
+                        Status
+                      </Label>
+                    </th>
                     <th className="px-4 py-2 text-right">
                       <Label as="span" size="xs" tone="muted" className="uppercase tracking-wide">
                         Action
@@ -2083,6 +2786,11 @@ function Step3Ownership({
                           onChange={() => setPrimaryOwner(owner.id)}
                           aria-label={`Set ${owner.name} as primary owner`}
                         />
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <Badge variant={owner.saved ? 'secondary' : 'outline'} className="text-xs">
+                          {owner.saved ? 'Saved' : 'Draft'}
+                        </Badge>
                       </td>
                       <td className="px-4 py-3 text-right">
                         <Button
@@ -2817,6 +3525,8 @@ function Step3OwnersAndSigners({
   onSignersChange: (signers: Signer[]) => void;
 }) {
   const CurrentIcon = Users;
+  const defaultOwnerClientRowId =
+    formData.owners.find((o) => o.primary)?.clientRowId || formData.owners[0]?.clientRowId;
 
   return (
     <div>
@@ -2846,6 +3556,7 @@ function Step3OwnersAndSigners({
           <OwnerSignerSection
             signers={signers}
             onSignersChange={onSignersChange}
+            defaultOwnerClientRowId={defaultOwnerClientRowId}
           />
         </div>
       </div>
@@ -2895,7 +3606,7 @@ function Step5ReviewAndSend({
   signers,
   units,
   selectedTemplateId,
-  onTemplateSelect,
+  onTemplateChange,
   onEditStep,
   propertyId,
 }: {
@@ -2903,43 +3614,44 @@ function Step5ReviewAndSend({
   signers: Signer[];
   units: UnitRow[];
   selectedTemplateId?: string;
-  onTemplateSelect: (templateId: string, templateName: string) => void;
+  onTemplateChange: (templateId: string, templateName: string) => void;
   onEditStep: (step: number) => void;
   propertyId?: string | null;
 }) {
   const CurrentIcon = Send;
 
-  // Build a mock onboarding object for the review panel
-  const reviewData = {
-    status: 'READY_TO_SEND' as const,
-    progress: 80,
-    current_stage: {},
-    properties: {
-      name: formData.name || `${formData.addressLine1}, ${formData.city}`,
-      address_line1: formData.addressLine1,
-      city: formData.city,
-      state: formData.state,
-      postal_code: formData.postalCode,
-      country: formData.country,
-      property_type: formData.propertyType,
-      service_assignment: formData.service_assignment || 'Property Level',
-    },
-    ownerships: formData.owners.map((o, idx) => ({
-      ownership_percentage: o.ownershipPercentage,
-      owners: {
-        contacts: {
-          primary_email: signers[idx]?.email || '',
-          first_name: o.name.split(' ')[0] || '',
-          last_name: o.name.split(' ').slice(1).join(' ') || '',
-          company_name: '',
-          is_company: false,
-        },
-      },
-    })),
-    units: units.filter((u) => u.unitNumber.trim()).map((u) => ({
-      unit_number: u.unitNumber,
-    })),
+  const reviewProperty = {
+    id: propertyId || 'temporary-property-id',
+    name: formData.name || `${formData.addressLine1}, ${formData.city || formData.postalCode}`,
+    addressLine1: formData.addressLine1,
+    addressLine2: formData.addressLine2,
+    city: formData.city || '',
+    state: formData.state || '',
+    postalCode: formData.postalCode,
+    country: formData.country,
+    propertyType: formData.propertyType,
   };
+
+  const reviewOwners = formData.owners.map((owner, idx) => ({
+    id: owner.id || `owner-${idx}`,
+    name: owner.name,
+    ownershipPercentage: owner.ownershipPercentage,
+    primary: owner.primary,
+  }));
+
+  const reviewSigners = signers.map((signer) => ({
+    email: signer.email,
+    name: signer.name,
+  }));
+
+  const reviewUnits = units
+    .filter((unit) => unit.unitNumber.trim())
+    .map((unit, idx) => ({
+      id: unit.clientRowId || `${unit.unitNumber || 'unit'}-${idx}`,
+      unitNumber: unit.unitNumber,
+      unitBedrooms: unit.unitBedrooms || null,
+      unitBathrooms: unit.unitBathrooms || null,
+    }));
 
   return (
     <div>
@@ -2955,13 +3667,16 @@ function Step5ReviewAndSend({
 
       <div className="space-y-6">
         <AgreementReviewPanel
-          onboarding={reviewData}
+          property={reviewProperty}
+          owners={reviewOwners}
+          signers={reviewSigners}
+          units={reviewUnits}
           onEditStep={onEditStep}
         />
 
         <div className="border-border rounded-lg border p-4">
           <AgreementTemplateSelector
-            onTemplateSelect={onTemplateSelect}
+            onTemplateChange={onTemplateChange}
             selectedTemplateId={selectedTemplateId}
           />
         </div>

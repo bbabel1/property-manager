@@ -5,8 +5,6 @@ import LocationCard from '@/components/property/LocationCard';
 import PropertyRecentFilesSection from '@/components/property/PropertyRecentFilesSection';
 import PropertyRecentNotesSection from '@/components/property/PropertyRecentNotesSection';
 import BuildiumReadinessChecklist from '@/components/onboarding/BuildiumReadinessChecklist';
-import BuildiumReadinessChecklist from '@/components/onboarding/BuildiumReadinessChecklist';
-import BuildiumReadinessChecklist from '@/components/onboarding/BuildiumReadinessChecklist';
 import { supabaseAdmin } from '@/lib/db';
 import { PropertyService } from '@/lib/property-service';
 import { resolvePropertyIdentifier } from '@/lib/public-id-utils';

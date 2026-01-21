@@ -20,7 +20,7 @@ export const OnboardingStatusEnum = z.enum([
 export type OnboardingStatus = z.infer<typeof OnboardingStatusEnum>;
 
 // POST /api/onboarding - Create property + onboarding stub
-export const OnboardingCreateSchema = z.object({
+const OnboardingCreateNewSchema = z.object({
   propertyType: z.enum([
     'Condo',
     'Co-op',
@@ -45,11 +45,20 @@ export const OnboardingCreateSchema = z.object({
   managementScope: z.enum(['Building', 'Unit']).optional(),
 });
 
+const OnboardingCreateExistingSchema = z.object({
+  propertyId: z.string().uuid(),
+});
+
+export const OnboardingCreateSchema = z.union([
+  OnboardingCreateNewSchema,
+  OnboardingCreateExistingSchema,
+]);
+
 export type OnboardingCreateRequest = z.infer<typeof OnboardingCreateSchema>;
 
 // PATCH /api/onboarding/:id - Autosave draft state
 export const OnboardingUpdateSchema = z.object({
-  currentStage: z.record(z.unknown()).optional(),
+  currentStage: z.record(z.string(), z.unknown()).optional(),
   progress: z.number().int().min(0).max(100).optional(),
   status: OnboardingStatusEnum.optional(),
 });
@@ -116,7 +125,7 @@ export const AgreementSendSchema = z.object({
   recipients: z.array(AgreementRecipientSchema).min(1, 'At least one recipient is required'),
   templateId: z.string().uuid().optional(),
   templateName: z.string().optional(),
-  webhookPayload: z.record(z.unknown()).optional(),
+  webhookPayload: z.record(z.string(), z.unknown()).optional(),
 });
 
 export type AgreementRecipient = z.infer<typeof AgreementRecipientSchema>;

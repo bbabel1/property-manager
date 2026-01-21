@@ -127,9 +127,9 @@ export default function StatementEmailHistory({
         <Body
           as="div"
           size="xs"
-          className="flex items-center gap-2 rounded-md border px-3 py-2 bg-[var(--color-danger-50)] text-[var(--color-danger-700)] border-[var(--color-danger-600)]"
+          className="flex items-center gap-2 rounded-md border border-red-500 bg-red-50 px-3 py-2 text-red-700"
         >
-          <AlertCircle className="h-4 w-4 text-[var(--color-danger-600)]" />
+          <AlertCircle className="h-4 w-4 text-red-600" />
           <span>{error}</span>
         </Body>
       ) : null}
@@ -233,7 +233,7 @@ export default function StatementEmailHistory({
                               {recipient.email}
                             </Label>
                             {recipient.error ? (
-                              <Body as="span" size="xs" className="text-[var(--color-danger-700)]">
+                              <Body as="span" size="xs" className="text-red-700">
                                 {recipient.error}
                               </Body>
                             ) : null}

@@ -10,6 +10,7 @@ import { buildiumFetch } from '@/lib/buildium-http';
 import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
 import { supabase } from '@/lib/db';
 import { assertBuildiumEnabled, BuildiumDisabledError } from '@/lib/buildium-gate';
+import { evaluateBuildiumReadiness, updateOnboardingStatusForBuildium } from '@/lib/buildium-readiness';
 import type {
   BuildiumUnit,
   BuildiumLease,
@@ -66,10 +67,13 @@ type OwnerRow = {
 };
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  let propertyId: string | null = null;
+  let orgId: string | null = null;
   try {
     const { supabase: db, user } = await requireAuth();
     const { id } = await params;
-    const orgId = await resolveOrgIdFromRequest(request, user.id, db);
+    propertyId = id;
+    orgId = await resolveOrgIdFromRequest(request, user.id, db);
     await assertBuildiumEnabled(orgId, request.url);
 
     // Load local property (with minimal fields needed to construct Buildium payload)
@@ -82,6 +86,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (propErr || !property) {
       return NextResponse.json({ error: 'Property not found' }, { status: 404 });
     }
+
+    const readiness = await evaluateBuildiumReadiness({ db, propertyId: id, orgId, property });
+    if (!readiness.ready) {
+      return NextResponse.json({ error: 'NOT_READY', issues: readiness.issues }, { status: 400 });
+    }
+    await updateOnboardingStatusForBuildium(db, id, orgId, 'READY_FOR_BUILDIUM');
 
     // Resolve Operating Bank Account ID for Buildium
     // In Buildium, the GL Account ID for a bank account IS the bank account ID
@@ -568,8 +578,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       }
     }
 
+    await updateOnboardingStatusForBuildium(db, id, orgId, 'BUILDIUM_SYNCED');
+
     return NextResponse.json({ success: true, buildium_property_id: buildiumId });
   } catch (error) {
+    // Mark onboarding as failed if applicable
+    if (propertyId && orgId) {
+      await updateOnboardingStatusForBuildium(supabase, propertyId, orgId, 'BUILDIUM_SYNC_FAILED');
+    }
     if (error instanceof BuildiumDisabledError) {
       return NextResponse.json(
         { error: 'Buildium integration is disabled for this organization' },

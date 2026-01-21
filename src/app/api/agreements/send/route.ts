@@ -5,6 +5,7 @@ import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
 import { requireOrgMember } from '@/lib/auth/org-guards';
 import { AgreementSendSchema, type AgreementSendResponse } from '@/schemas/onboarding';
 import { logger } from '@/lib/logger';
+import { cacheIdempotencyKey } from '@/lib/idempotency/cache';
 
 /**
  * Generate a deterministic hash for idempotency
@@ -140,12 +141,7 @@ export async function POST(request: NextRequest) {
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + 24);
 
-    await db.from('idempotency_keys').upsert({
-      key: idempotencyKey,
-      org_id: orgId,
-      response: idempotencyResponse,
-      expires_at: expiresAt.toISOString(),
-    });
+    await cacheIdempotencyKey(db, idempotencyKey, orgId, idempotencyResponse, expiresAt);
 
     // Call webhook if configured (non-blocking)
     const webhookUrl = process.env.AGREEMENT_WEBHOOK_URL;

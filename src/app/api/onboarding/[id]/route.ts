@@ -45,10 +45,10 @@ export async function GET(request: NextRequest, context: RouteContext) {
           city,
           state,
           postal_code,
-          country,
-          property_type,
-          service_assignment,
-          management_scope
+        country,
+        property_type,
+        service_assignment,
+        management_scope
         )
       `,
       )
@@ -63,7 +63,86 @@ export async function GET(request: NextRequest, context: RouteContext) {
       );
     }
 
-    const response: OnboardingResponse & { property: unknown } = {
+    const propertyId = onboarding.property_id;
+    const currentStage = (onboarding.current_stage as Record<string, unknown>) || {};
+    const ownerClientRowMap =
+      (currentStage.ownerClientRowMap as Record<string, string> | undefined) || {};
+    const unitClientRowMap =
+      (currentStage.unitClientRowMap as Record<string, string> | undefined) || {};
+
+    const { data: ownerships } = await db
+      .from('ownerships')
+      .select(
+        `
+        owner_id,
+        ownership_percentage,
+        disbursement_percentage,
+        primary,
+        owners (
+          id,
+          company_name,
+          is_company,
+          contacts (
+            first_name,
+            last_name,
+            company_name,
+            primary_email,
+            is_company
+          )
+        )
+      `,
+      )
+      .eq('property_id', propertyId);
+
+    const owners =
+      ownerships?.map((o) => {
+        const ownerId = o.owner_id as string;
+        const ownerRecordRaw = Array.isArray(o.owners) ? o.owners[0] : o.owners;
+        const ownerRecord = (ownerRecordRaw as Record<string, unknown>) || {};
+        const contactRaw = Array.isArray(ownerRecord.contacts)
+          ? ownerRecord.contacts[0]
+          : ownerRecord.contacts;
+        const contact = (contactRaw as Record<string, unknown>) || {};
+        const name =
+          (typeof ownerRecord.company_name === 'string' && ownerRecord.company_name) ||
+          [contact.first_name, contact.last_name].filter(Boolean).join(' ').trim() ||
+          (typeof contact.company_name === 'string' ? contact.company_name : '') ||
+          'Owner';
+        const clientRowId =
+          Object.entries(ownerClientRowMap).find(([, mappedOwnerId]) => mappedOwnerId === ownerId)?.[0] ||
+          null;
+        return {
+          id: ownerId,
+          name,
+          clientRowId: clientRowId || undefined,
+          ownershipPercentage: o.ownership_percentage ?? 0,
+          disbursementPercentage: o.disbursement_percentage ?? o.ownership_percentage ?? 0,
+          primary: Boolean(o.primary),
+        };
+      }) || [];
+
+    const { data: unitsData } = await db
+      .from('units')
+      .select('id, unit_number, unit_bedrooms, unit_bathrooms, unit_size, description')
+      .eq('property_id', propertyId);
+
+    const units =
+      unitsData?.map((u) => {
+        const clientRowId =
+          Object.entries(unitClientRowMap).find(([, unitId]) => unitId === u.id)?.[0] || null;
+        return {
+          id: u.id,
+          clientRowId: clientRowId || undefined,
+          unitNumber: u.unit_number ?? '',
+          unitBedrooms: (u.unit_bedrooms as string | null | undefined) ?? '',
+          unitBathrooms: (u.unit_bathrooms as string | null | undefined) ?? '',
+          unitSize: (u.unit_size as number | null | undefined) ?? null,
+          description: (u.description as string | null | undefined) ?? '',
+          saved: true,
+        };
+      }) || [];
+
+    const response: OnboardingResponse & { property: unknown; owners: typeof owners; units: typeof units } = {
       id: onboarding.id,
       propertyId: onboarding.property_id,
       orgId: onboarding.org_id,
@@ -74,6 +153,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
       createdAt: onboarding.created_at,
       updatedAt: onboarding.updated_at,
       property: onboarding.properties,
+      owners,
+      units,
     };
 
     return NextResponse.json({ onboarding: response });

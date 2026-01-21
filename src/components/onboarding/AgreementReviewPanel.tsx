@@ -69,7 +69,9 @@ export default function AgreementReviewPanel({
   return (
     <div className="space-y-6">
       <div>
-        <Heading level={3}>Review & Send Agreement</Heading>
+        <Heading as="h3" size="h3">
+          Review & Send Agreement
+        </Heading>
         <Body className="text-muted-foreground mt-1">
           Review the information below before sending the management agreement.
         </Body>

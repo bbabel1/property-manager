@@ -8,7 +8,11 @@ import {
   normalizeAssignmentLevel,
   normalizeCountryWithDefault,
 } from '@/lib/normalizers';
-import { OnboardingCreateSchema, type OnboardingCreateResponse } from '@/schemas/onboarding';
+import {
+  OnboardingCreateSchema,
+  type OnboardingCreateRequest,
+  type OnboardingCreateResponse,
+} from '@/schemas/onboarding';
 import { logger } from '@/lib/logger';
 
 /**
@@ -39,14 +43,126 @@ export async function POST(request: NextRequest) {
     const orgId = await resolveOrgIdFromRequest(request, user.id, db);
     await requireOrgMember({ client: db, userId: user.id, orgId });
 
+    if ('propertyId' in data && data.propertyId) {
+      const { data: property, error: propertyFetchError } = await db
+        .from('properties')
+        .select(
+          'id, name, address_line1, city, state, postal_code, country, borough, neighborhood, property_type, service_assignment, management_scope',
+        )
+        .eq('org_id', orgId)
+        .eq('id', data.propertyId)
+        .maybeSingle();
+
+      if (propertyFetchError) {
+        logger.error({ error: propertyFetchError }, 'Failed to load property for onboarding');
+        return NextResponse.json(
+          { error: { code: 'PROPERTY_LOOKUP_FAILED', message: 'Failed to load property' } },
+          { status: 500 },
+        );
+      }
+
+      if (!property) {
+        return NextResponse.json(
+          { error: { code: 'PROPERTY_NOT_FOUND', message: 'Property not found for this org' } },
+          { status: 404 },
+        );
+      }
+
+      // Check for an existing onboarding tied to this property
+      const { data: existingOnboarding, error: onboardingCheckError } = await db
+        .from('property_onboarding')
+        .select('id, status')
+        .eq('org_id', orgId)
+        .eq('property_id', property.id)
+        .in('status', ['DRAFT', 'OWNERS_ADDED', 'UNITS_ADDED', 'READY_TO_SEND'])
+        .maybeSingle();
+
+      if (onboardingCheckError) {
+        logger.error({ error: onboardingCheckError }, 'Failed to check existing onboarding by property');
+      }
+
+      if (existingOnboarding) {
+        return NextResponse.json(
+          {
+            error: {
+              code: 'DUPLICATE_DRAFT',
+              message: 'An onboarding draft already exists for this property',
+            },
+            existingOnboardingId: existingOnboarding.id,
+            existingPropertyId: property.id,
+          },
+          { status: 409 },
+        );
+      }
+
+      const addressResult = buildNormalizedAddressKey({
+        addressLine1: property.address_line1,
+        city: property.city,
+        state: property.state,
+        postalCode: property.postal_code,
+        country: property.country,
+        borough: property.borough || undefined,
+      });
+
+      const normalizedAddressKey = addressResult?.normalizedAddressKey ?? null;
+
+      const { data: onboarding, error: onboardingError } = await db
+        .from('property_onboarding')
+        .insert({
+          property_id: property.id,
+          org_id: orgId,
+          status: 'DRAFT',
+          progress: 0,
+          current_stage: {},
+          normalized_address_key: normalizedAddressKey,
+        })
+        .select()
+        .single();
+
+      if (onboardingError || !onboarding) {
+        logger.error({ error: onboardingError }, 'Failed to create onboarding record for existing property');
+        return NextResponse.json(
+          { error: { code: 'ONBOARDING_CREATE_FAILED', message: onboardingError?.message || 'Failed to create onboarding' } },
+          { status: 500 },
+        );
+      }
+
+      const response: OnboardingCreateResponse = {
+        property: {
+          id: property.id,
+          name: property.name ?? '',
+          addressLine1: property.address_line1 ?? '',
+          city: property.city,
+          state: property.state,
+          postalCode: property.postal_code ?? '',
+          country: property.country ?? '',
+        },
+        onboarding: {
+          id: onboarding.id,
+          propertyId: onboarding.property_id,
+          orgId: onboarding.org_id,
+          status: onboarding.status,
+          progress: onboarding.progress,
+          currentStage: onboarding.current_stage as Record<string, unknown>,
+          normalizedAddressKey: onboarding.normalized_address_key,
+          createdAt: onboarding.created_at,
+          updatedAt: onboarding.updated_at,
+        },
+      };
+
+      return NextResponse.json(response, { status: 201 });
+    }
+
+    const newData = data as Exclude<OnboardingCreateRequest, { propertyId: string }>;
+
     // Build normalized address key for deduplication
     const addressResult = buildNormalizedAddressKey({
-      addressLine1: data.addressLine1,
-      city: data.city,
-      state: data.state,
-      postalCode: data.postalCode,
-      country: data.country,
-      borough: data.borough,
+      addressLine1: newData.addressLine1,
+      city: newData.city,
+      state: newData.state,
+      postalCode: newData.postalCode,
+      country: newData.country,
+      borough: newData.borough,
     });
 
     const normalizedAddressKey = addressResult?.normalizedAddressKey ?? null;
@@ -81,34 +197,35 @@ export async function POST(request: NextRequest) {
     }
 
     // Normalize property type and other enums
-    const normalizedPropertyType = normalizePropertyType(data.propertyType);
-    const normalizedCountry = normalizeCountryWithDefault(data.country);
-    const normalizedServiceAssignment = data.serviceAssignment
-      ? normalizeAssignmentLevel(data.serviceAssignment)
+    const normalizedPropertyType = normalizePropertyType(newData.propertyType);
+    const normalizedCountry = normalizeCountryWithDefault(newData.country);
+    const normalizedServiceAssignment = newData.serviceAssignment
+      ? normalizeAssignmentLevel(newData.serviceAssignment)
       : null;
 
     // Generate property name if not provided
-    const propertyName = data.name || `${data.addressLine1}, ${data.city || data.postalCode}`;
+    const propertyName =
+      newData.name || `${newData.addressLine1}, ${newData.city || newData.postalCode}`;
 
     // Create property stub
     const { data: property, error: propertyError } = await db
       .from('properties')
       .insert({
         name: propertyName.substring(0, 127),
-        address_line1: data.addressLine1,
-        address_line2: data.addressLine2 || null,
-        address_line3: data.addressLine3 || null,
-        city: data.city || null,
-        state: data.state || null,
-        postal_code: data.postalCode,
+        address_line1: newData.addressLine1,
+        address_line2: newData.addressLine2 || null,
+        address_line3: newData.addressLine3 || null,
+        city: newData.city || null,
+        state: newData.state || null,
+        postal_code: newData.postalCode,
         country: normalizedCountry,
-        borough: data.borough || null,
-        neighborhood: data.neighborhood || null,
-        latitude: data.latitude || null,
-        longitude: data.longitude || null,
+        borough: newData.borough || null,
+        neighborhood: newData.neighborhood || null,
+        latitude: newData.latitude || null,
+        longitude: newData.longitude || null,
         property_type: normalizedPropertyType,
         service_assignment: normalizedServiceAssignment,
-        management_scope: data.managementScope || null,
+        management_scope: newData.managementScope || null,
         status: 'Active',
         org_id: orgId,
       })

@@ -11,7 +11,7 @@ import { fetchWithSupabaseAuth } from '@/lib/supabase/fetch'
 
 type Draft = {
   id: string
-  propertyId: string
+  property_id: string
   status: string
   progress: number
   createdAt: string

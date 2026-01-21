@@ -39,7 +39,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     // Fetch onboarding to get property_id
     const { data: onboarding, error: fetchError } = await db
       .from('property_onboarding')
-      .select('id, property_id, org_id, status, current_stage')
+      .select('id, property_id, org_id, status, progress, current_stage')
       .eq('id', onboardingId)
       .eq('org_id', orgId)
       .single();
@@ -52,10 +52,47 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
 
     const propertyId = onboarding.property_id;
+    const currentStage = (onboarding.current_stage as Record<string, unknown>) || {};
+    const ownerClientRowMap = {
+      ...(currentStage.ownerClientRowMap as Record<string, string> | undefined),
+    };
 
     // Separate owners to delete vs upsert
     const toDelete = owners.filter((o) => o.deleted);
     const toUpsert = owners.filter((o) => !o.deleted);
+
+    // Validate stable clientRowIds (no duplicates, no remaps)
+    const duplicateClientRowId = toUpsert.find(
+      (owner, idx) => toUpsert.findIndex((candidate) => candidate.clientRowId === owner.clientRowId) !== idx,
+    );
+    if (duplicateClientRowId) {
+      return NextResponse.json(
+        {
+          error: {
+            code: 'DUPLICATE_OWNER_CLIENT_ROW_ID',
+            message: 'Each owner row must have a unique clientRowId',
+          },
+        },
+        { status: 422 },
+      );
+    }
+
+    const mismatchedMapping = toUpsert.find((owner) => {
+      const mappedOwnerId = ownerClientRowMap[owner.clientRowId];
+      return mappedOwnerId && mappedOwnerId !== owner.ownerId;
+    });
+
+    if (mismatchedMapping) {
+      return NextResponse.json(
+        {
+          error: {
+            code: 'OWNER_CLIENT_ROW_ID_MISMATCH',
+            message: 'Owner clientRowId is already associated with a different owner',
+          },
+        },
+        { status: 422 },
+      );
+    }
 
     // Validate ownership percentages sum to 100%
     const totalOwnership = toUpsert.reduce((sum, o) => sum + o.ownershipPercentage, 0);
@@ -94,6 +131,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
           .eq('property_id', propertyId)
           .eq('owner_id', owner.ownerId);
       }
+      delete ownerClientRowMap[owner.clientRowId];
     }
 
     // Process upserts
@@ -181,6 +219,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
         continue;
       }
 
+      ownerClientRowMap[ownerInput.clientRowId] = ownerId;
+
       if (ownership) {
         upsertedOwnerships.push({
           id: ownership.id,
@@ -200,13 +240,14 @@ export async function POST(request: NextRequest, context: RouteContext) {
         email: o.signerEmail,
         name: o.signerName || null,
         ownerId: o.ownerId,
+        ownerClientRowId: o.clientRowId,
       }));
 
-    const currentStage = (onboarding.current_stage as Record<string, unknown>) || {};
     const updatedCurrentStage = {
       ...currentStage,
       signers,
       ownerClientRowIds: toUpsert.map((o) => o.clientRowId),
+      ownerClientRowMap,
     };
 
     // Update onboarding status to OWNERS_ADDED

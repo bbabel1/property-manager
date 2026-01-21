@@ -240,11 +240,11 @@ export default function StatementsStage({ monthlyLogId, propertyId }: Statements
         </CardHeader>
         <CardContent className="space-y-6">
           {!gmailStatus.loading && !gmailStatus.connected && (
-            <div className="rounded-lg border p-3 bg-[var(--color-warning-50)] text-[var(--color-warning-700)] border-[var(--color-warning-600)]">
+            <div className="rounded-lg border border-amber-500 bg-amber-50 p-3 text-amber-800">
               <div className="flex items-start gap-2">
-                <AlertCircle className="mt-0.5 h-5 w-5 text-[var(--color-warning-600)]" />
+                <AlertCircle className="mt-0.5 h-5 w-5 text-amber-600" />
                 <div className="flex-1">
-                  <Heading as="p" size="h6" className="text-[var(--color-warning-700)]">
+                  <Heading as="p" size="h6" className="text-amber-800">
                     Gmail Integration Required
                   </Heading>
                   <Body as="p" size="xs" tone="muted" className="mt-1">

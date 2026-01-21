@@ -12,21 +12,18 @@ const SCOPE_OPTIONS = [
   {
     value: 'Association',
     description: 'Common areas/association management',
-    propertyType: 'Condo',
     serviceAssignment: 'Property Level' as const,
     managementScope: 'Building' as const,
   },
   {
     value: 'Rental Unit',
     description: 'Single rental unit managed individually',
-    propertyType: 'Rental Building',
     serviceAssignment: 'Unit Level' as const,
     managementScope: 'Unit' as const,
   },
   {
     value: 'Rental Building',
     description: 'Multi-unit building managed together',
-    propertyType: 'Rental Building',
     serviceAssignment: 'Property Level' as const,
     managementScope: 'Building' as const,
   },
@@ -68,7 +65,6 @@ export function Step1ManagementScope({
               onClick={() =>
                 setFormData((prev) => ({
                   ...prev,
-                  propertyType: opt.propertyType,
                   service_assignment: opt.serviceAssignment,
                   management_scope: opt.managementScope,
                 }))

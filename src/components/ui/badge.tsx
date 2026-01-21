@@ -10,12 +10,12 @@ const badgeVariantStyles = {
   secondary:
     "border-transparent bg-secondary text-secondary-foreground [a&]:hover:bg-secondary/90",
   success:
-    "border-[var(--color-success-500)] bg-[var(--color-success-50)] text-[var(--color-success-700)]",
+    "border-green-500 bg-green-50 text-green-700",
   warning:
-    "border-[var(--color-warning-600)] bg-[var(--color-warning-50)] text-[var(--color-warning-600)]",
+    "border-amber-600 bg-amber-50 text-amber-700",
   danger:
-    "border-[var(--color-danger-700)] bg-[var(--color-danger-50)] text-[var(--color-danger-700)]",
-  info: "border-[var(--surface-primary-soft-border)] bg-[var(--surface-primary-soft)] text-[var(--color-action-700)]",
+    "border-red-700 bg-red-50 text-red-700",
+  info: "border-blue-200 bg-blue-50 text-blue-700",
   destructive:
     "border-transparent bg-destructive text-white [a&]:hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
   outline:

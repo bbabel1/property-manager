@@ -17,15 +17,15 @@ export interface AgreementTemplate {
 }
 
 interface AgreementTemplateSelectorProps {
-  templates: AgreementTemplate[];
+  templates?: AgreementTemplate[];
   selectedTemplateId?: string;
-  onTemplateChange: (templateId: string) => void;
+  onTemplateChange: (templateId: string, templateName: string) => void;
   disabled?: boolean;
   isLoading?: boolean;
 }
 
 // Default templates when none are loaded from the database
-const DEFAULT_TEMPLATES: AgreementTemplate[] = [
+export const DEFAULT_TEMPLATES: AgreementTemplate[] = [
   {
     id: 'default-management-agreement',
     name: 'Standard Management Agreement',
@@ -50,14 +50,20 @@ export default function AgreementTemplateSelector({
   disabled = false,
   isLoading = false,
 }: AgreementTemplateSelectorProps) {
-  const displayTemplates = templates.length > 0 ? templates : DEFAULT_TEMPLATES;
+  const displayTemplates = templates && templates.length > 0 ? templates : DEFAULT_TEMPLATES;
+
+  const handleTemplateChange = (templateId: string) => {
+    const templateName =
+      displayTemplates.find((template) => template.id === templateId)?.name || templateId;
+    onTemplateChange(templateId, templateName);
+  };
 
   return (
     <div className="space-y-2">
       <Label className="text-sm font-medium">Agreement Template</Label>
       <Select
         value={selectedTemplateId}
-        onValueChange={onTemplateChange}
+        onValueChange={handleTemplateChange}
         disabled={disabled || isLoading}
       >
         <SelectTrigger className="w-full">
