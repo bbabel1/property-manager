@@ -4,6 +4,19 @@
 
 BEGIN;
 
+-- 0) Create onboarding_status_enum type if it doesn't exist
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_type t
+    JOIN pg_namespace n ON n.oid = t.typnamespace
+    WHERE t.typname = 'onboarding_status_enum' AND n.nspname = 'public'
+  ) THEN
+    CREATE TYPE public.onboarding_status_enum AS ENUM (
+      'IN_PROGRESS', 'PENDING_APPROVAL', 'OVERDUE', 'COMPLETED'
+    );
+  END IF;
+END $$;
+
 -- 1) Extend onboarding_status_enum with new values
 -- Note: PostgreSQL doesn't support IF NOT EXISTS for enum values, so we use DO blocks
 
@@ -104,10 +117,52 @@ COMMIT;
 
 BEGIN;
 
--- Add normalized_address_key column if it doesn't exist
+-- Ensure property_onboarding table exists first (defensive check)
 DO $$
 BEGIN
   IF NOT EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public'
+    AND table_name = 'property_onboarding'
+  ) THEN
+    -- Create the table if it doesn't exist
+    CREATE TABLE IF NOT EXISTS public.property_onboarding (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      org_id uuid REFERENCES public.organizations(id) ON DELETE RESTRICT,
+      property_id uuid NOT NULL REFERENCES public.properties(id) ON DELETE CASCADE,
+      status public.onboarding_status_enum NOT NULL DEFAULT 'IN_PROGRESS',
+      progress smallint NOT NULL DEFAULT 0 CHECK (progress >= 0 AND progress <= 100),
+      current_stage text,
+      assigned_staff_id integer REFERENCES public.staff(id),
+      due_date date,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    );
+
+    -- Add indexes
+    CREATE INDEX IF NOT EXISTS idx_property_onboarding_org ON public.property_onboarding(org_id);
+    CREATE INDEX IF NOT EXISTS idx_property_onboarding_property ON public.property_onboarding(property_id);
+    CREATE INDEX IF NOT EXISTS idx_property_onboarding_status ON public.property_onboarding(status);
+
+    -- Add updated_at trigger
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_trigger WHERE tgname = 'trg_property_onboarding_updated_at'
+    ) THEN
+      CREATE TRIGGER trg_property_onboarding_updated_at
+      BEFORE UPDATE ON public.property_onboarding
+      FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+    END IF;
+  END IF;
+END $$;
+
+-- Add normalized_address_key column if it doesn't exist
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public'
+    AND table_name = 'property_onboarding'
+  ) AND NOT EXISTS (
     SELECT 1 FROM information_schema.columns
     WHERE table_schema = 'public'
     AND table_name = 'property_onboarding'
@@ -122,7 +177,19 @@ END $$;
 DO $$
 DECLARE
   col_type text;
+  table_exists boolean;
 BEGIN
+  -- Check if table exists
+  SELECT EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public'
+    AND table_name = 'property_onboarding'
+  ) INTO table_exists;
+
+  IF NOT table_exists THEN
+    RETURN;
+  END IF;
+
   SELECT data_type INTO col_type
   FROM information_schema.columns
   WHERE table_schema = 'public'
@@ -220,10 +287,10 @@ CREATE INDEX IF NOT EXISTS idx_agreement_send_log_status ON public.agreement_sen
 CREATE INDEX IF NOT EXISTS idx_agreement_send_log_recipient_hash ON public.agreement_send_log(recipient_hash);
 CREATE INDEX IF NOT EXISTS idx_agreement_send_log_org ON public.agreement_send_log(org_id);
 
--- Partial index for 24h idempotency window queries (non-unique, idempotency handled by idempotency_keys table)
+-- Index for idempotency queries (non-unique, idempotency handled by idempotency_keys table)
+-- Note: Time-based filtering (24h window) should be done in queries, not in index predicate
 CREATE INDEX IF NOT EXISTS idx_agreement_send_log_idempotency_window
-  ON public.agreement_send_log(property_id, template_id, recipient_hash, DATE(sent_at))
-  WHERE sent_at > now() - interval '24 hours';
+  ON public.agreement_send_log(property_id, template_id, recipient_hash, sent_at);
 
 -- updated_at trigger
 DROP TRIGGER IF EXISTS trg_agreement_send_log_updated_at ON public.agreement_send_log;

@@ -4,6 +4,9 @@ import PropertyDetailsCard from '@/components/property/PropertyDetailsCard';
 import LocationCard from '@/components/property/LocationCard';
 import PropertyRecentFilesSection from '@/components/property/PropertyRecentFilesSection';
 import PropertyRecentNotesSection from '@/components/property/PropertyRecentNotesSection';
+import BuildiumReadinessChecklist from '@/components/onboarding/BuildiumReadinessChecklist';
+import BuildiumReadinessChecklist from '@/components/onboarding/BuildiumReadinessChecklist';
+import BuildiumReadinessChecklist from '@/components/onboarding/BuildiumReadinessChecklist';
 import { supabaseAdmin } from '@/lib/db';
 import { PropertyService } from '@/lib/property-service';
 import { resolvePropertyIdentifier } from '@/lib/public-id-utils';
@@ -393,6 +396,7 @@ export default async function SummaryTab({ params }: { params: Promise<{ id: str
             buildiumPropertyId={property.buildium_property_id ?? null}
             orgId={property.org_id ?? null}
           />
+          <BuildiumReadinessChecklist propertyId={property.id} />
         </Stack>
       }
       secondary={

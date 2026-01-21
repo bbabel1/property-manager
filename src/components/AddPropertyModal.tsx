@@ -18,10 +18,11 @@ import {
 import { useRouter } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, LargeDialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import AddressAutocomplete from './HybridAddressAutocomplete';
 import { mapGoogleCountryToEnum } from '@/lib/utils';
+import { fetchWithSupabaseAuth } from '@/lib/supabase/fetch';
 import CreateBankAccountModal from '@/components/CreateBankAccountModal';
 import { PropertyCreateSchema, type PropertyCreateInput } from '@/schemas/property';
 import type { BankAccountSummary } from '@/components/forms/types';
@@ -36,9 +37,11 @@ import {
   BulkUnitCreator,
   AgreementReviewPanel,
   AgreementTemplateSelector,
+  BuildiumReadinessChecklist,
 } from '@/components/onboarding';
 import type { Signer } from '@/components/onboarding/OwnerSignerSection';
-import type { OnboardingUnit } from '@/components/onboarding/BulkUnitCreator';
+import { Step1ManagementScope } from '@/components/onboarding';
+import type { UnitRow } from '@/components/onboarding/BulkUnitCreator';
 
 interface AddPropertyFormData {
   // Step 1: Property Type
@@ -142,11 +145,12 @@ const STEPS = [
 
 // Onboarding mode uses a simplified flow focused on getting to agreement sending
 const ONBOARDING_STEPS = [
-  { id: 1, title: 'Property Type', icon: Building },
-  { id: 2, title: 'Property Details', icon: MapPin },
-  { id: 3, title: 'Owners & Signers', icon: Users },
-  { id: 4, title: 'Units', icon: Home },
-  { id: 5, title: 'Review & Send', icon: Send },
+  { id: 1, title: 'Management Scope', icon: Building },
+  { id: 2, title: 'Property Type', icon: Building },
+  { id: 3, title: 'Property Details', icon: MapPin },
+  { id: 4, title: 'Owners & Signers', icon: Users },
+  { id: 5, title: 'Units', icon: Home },
+  { id: 6, title: 'Review & Send', icon: Send },
 ];
 
 const TOTAL_STEPS = STEPS.length;
@@ -281,6 +285,7 @@ export default function AddPropertyModal({
   onSuccess,
   startInTour = false,
   onboardingMode = false,
+  resumeOnboarding,
 }: {
   isOpen: boolean;
   onClose: () => void;
@@ -288,6 +293,22 @@ export default function AddPropertyModal({
   startInTour?: boolean;
   /** When true, uses simplified onboarding flow with early draft persistence and agreement sending */
   onboardingMode?: boolean;
+  /** Optional resume payload from existing onboarding draft */
+  resumeOnboarding?: {
+    onboardingId: string;
+    propertyId: string;
+    property?: {
+      name?: string | null;
+      addressLine1?: string | null;
+      city?: string | null;
+      state?: string | null;
+      postalCode?: string | null;
+      country?: string | null;
+      propertyType?: string | null;
+      serviceAssignment?: string | null;
+    };
+    signers?: Signer[];
+  };
 }) {
   // Determine which steps to use based on mode
   const activeSteps = onboardingMode ? ONBOARDING_STEPS : STEPS;
@@ -312,7 +333,7 @@ export default function AddPropertyModal({
   const [onboardingId, setOnboardingId] = useState<string | null>(null);
   const [propertyId, setPropertyId] = useState<string | null>(null);
   const [signers, setSigners] = useState<Signer[]>([]);
-  const [onboardingUnits, setOnboardingUnits] = useState<OnboardingUnit[]>([]);
+  const [onboardingUnits, setOnboardingUnits] = useState<UnitRow[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | undefined>();
   const [selectedTemplateName, setSelectedTemplateName] = useState<string | undefined>();
   const [agreementSending, setAgreementSending] = useState(false);
@@ -322,8 +343,10 @@ export default function AddPropertyModal({
       // Onboarding mode validation
       switch (step) {
         case 1:
-          return !!data.propertyType;
+          return !!data.service_assignment;
         case 2:
+          return !!data.propertyType;
+        case 3:
           return (
             !!data.addressLine1 &&
             !!data.city &&
@@ -331,7 +354,7 @@ export default function AddPropertyModal({
             !!data.postalCode &&
             !!data.country
           );
-        case 3: {
+        case 4: {
           // Owners & Signers: need at least one owner and one signer email
           const total = (data.owners || []).reduce(
             (sum, o) => sum + (Number(o.ownershipPercentage) || 0),
@@ -341,11 +364,11 @@ export default function AddPropertyModal({
           const hasSigners = signers.length > 0;
           return hasOwners && hasSigners;
         }
-        case 4: {
+        case 5: {
           // Units: at least one unit with a number
           return onboardingUnits.some((u) => (u.unitNumber || '').trim().length > 0);
         }
-        case 5: {
+        case 6: {
           // Review & Send: all previous steps must be complete and template selected
           return !!selectedTemplateId && signers.length > 0;
         }
@@ -432,9 +455,13 @@ export default function AddPropertyModal({
     let cancelled = false;
     const fetchOptions = async () => {
       try {
-        const ownersRes = await fetch('/api/owners');
-        if (!ownersRes.ok) throw new Error('Failed to load owners');
-        const ownersJson = await ownersRes.json();
+        const ownersRes = await fetchWithSupabaseAuth('/api/owners');
+        if (!ownersRes.ok) {
+          console.warn('Owners fetch non-OK', ownersRes.status);
+          setOwners([]);
+          return;
+        }
+        const ownersJson = await ownersRes.json().catch(() => []);
 
         if (cancelled) return;
         setOwners(
@@ -462,6 +489,25 @@ export default function AddPropertyModal({
     };
   }, [isOpen]);
 
+  // When resuming an onboarding draft, hydrate basic fields and IDs
+  useEffect(() => {
+    if (!isOpen || !onboardingMode || !resumeOnboarding) return;
+    setOnboardingId(resumeOnboarding.onboardingId);
+    setPropertyId(resumeOnboarding.propertyId);
+    setSigners(resumeOnboarding.signers || []);
+    setFormData((prev) => ({
+      ...prev,
+      propertyType: resumeOnboarding.property?.propertyType || prev.propertyType,
+      name: resumeOnboarding.property?.name || prev.name,
+      addressLine1: resumeOnboarding.property?.addressLine1 || prev.addressLine1,
+      city: resumeOnboarding.property?.city || prev.city,
+      state: resumeOnboarding.property?.state || prev.state,
+      postalCode: resumeOnboarding.property?.postalCode || prev.postalCode,
+      country: resumeOnboarding.property?.country || prev.country,
+      service_assignment: resumeOnboarding.property?.serviceAssignment || prev.service_assignment,
+    }));
+  }, [isOpen, onboardingMode, resumeOnboarding]);
+
   // Auto-calculate property name from Street Address and Primary Owner
   useEffect(() => {
     const address = (formData.addressLine1 || '').trim();
@@ -485,13 +531,13 @@ export default function AddPropertyModal({
   const handleNext = async () => {
     if (onboardingMode) {
       // Handle onboarding-specific step transitions
-      if (currentStep === 2 && !onboardingId) {
+      if (currentStep === 3 && !onboardingId) {
         // Create property + onboarding draft after address capture
         await createOnboardingDraft();
-      } else if (currentStep === 3 && onboardingId) {
+      } else if (currentStep === 4 && onboardingId) {
         // Save owners to API
         await saveOnboardingOwners();
-      } else if (currentStep === 4 && onboardingId) {
+      } else if (currentStep === 5 && onboardingId) {
         // Save units to API
         await saveOnboardingUnits();
       }
@@ -513,13 +559,14 @@ export default function AddPropertyModal({
     try {
       setSubmitting(true);
       setSubmitError(null);
-      const response = await fetch('/api/onboarding', {
+      const response = await fetchWithSupabaseAuth('/api/onboarding', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           propertyType: formData.propertyType,
           name: formData.name || `${formData.addressLine1}, ${formData.city}`,
           addressLine1: formData.addressLine1,
+          addressLine2: formData.addressLine2 || undefined,
           city: formData.city,
           state: formData.state,
           postalCode: formData.postalCode,
@@ -528,7 +575,8 @@ export default function AddPropertyModal({
           neighborhood: formData.neighborhood,
           latitude: formData.latitude,
           longitude: formData.longitude,
-          service_assignment: formData.service_assignment || 'Property Level',
+          serviceAssignment: formData.service_assignment || 'Property Level',
+          managementScope: formData.management_scope || 'Building',
         }),
       });
 
@@ -572,7 +620,7 @@ export default function AddPropertyModal({
         signerName: signers[idx]?.name,
       }));
 
-      const response = await fetch(`/api/onboarding/${onboardingId}/owners`, {
+      const response = await fetchWithSupabaseAuth(`/api/onboarding/${onboardingId}/owners`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ owners: ownersPayload }),
@@ -589,11 +637,12 @@ export default function AddPropertyModal({
     }
   };
 
-  const saveOnboardingUnits = async () => {
+  const saveOnboardingUnits = async (unitsToSave?: UnitRow[]) => {
     if (!onboardingId) return;
+    const units = unitsToSave ?? onboardingUnits;
     try {
       setSubmitting(true);
-      const unitsPayload = onboardingUnits
+      const unitsPayload = units
         .filter((u) => u.unitNumber.trim())
         .map((u) => ({
           clientRowId: u.clientRowId,
@@ -604,7 +653,7 @@ export default function AddPropertyModal({
           description: u.description,
         }));
 
-      const response = await fetch(`/api/onboarding/${onboardingId}/units`, {
+      const response = await fetchWithSupabaseAuth(`/api/onboarding/${onboardingId}/units`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ units: unitsPayload }),
@@ -614,6 +663,15 @@ export default function AddPropertyModal({
         const data = await response.json();
         throw new Error(data.error || 'Failed to save units');
       }
+
+      // Mark saved state locally
+      setOnboardingUnits(
+        units.map((u) => ({
+          ...u,
+          saved: true,
+          error: undefined,
+        })),
+      );
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : 'Failed to save units');
     } finally {
@@ -629,7 +687,7 @@ export default function AddPropertyModal({
 
       // First finalize the onboarding
       if (onboardingId) {
-        const finalizeRes = await fetch(`/api/onboarding/${onboardingId}/finalize`, {
+        const finalizeRes = await fetchWithSupabaseAuth(`/api/onboarding/${onboardingId}/finalize`, {
           method: 'POST',
         });
         if (!finalizeRes.ok) {
@@ -639,7 +697,7 @@ export default function AddPropertyModal({
       }
 
       // Then send the agreement
-      const response = await fetch('/api/agreements/send', {
+      const response = await fetchWithSupabaseAuth('/api/agreements/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -714,7 +772,7 @@ export default function AddPropertyModal({
       const url = syncToBuildium ? '/api/properties?syncToBuildium=true' : '/api/properties';
       const { operatingBankAccountName, ...submitPayload } = formData;
 
-      const response = await fetch(url, {
+      const response = await fetchWithSupabaseAuth(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -755,7 +813,7 @@ export default function AddPropertyModal({
                 : serviceDraft.plan_fee_frequency || 'Monthly',
             };
 
-            const assignmentRes = await fetch('/api/services/assignments', {
+            const assignmentRes = await fetchWithSupabaseAuth('/api/services/assignments', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(assignmentPayload),
@@ -794,7 +852,7 @@ export default function AddPropertyModal({
                   }));
 
             if (servicesPayload.length) {
-              const servicesRes = await fetch('/api/services/assignment-services', {
+              const servicesRes = await fetchWithSupabaseAuth('/api/services/assignment-services', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ assignment_id: assignmentId, services: servicesPayload }),
@@ -896,7 +954,7 @@ export default function AddPropertyModal({
         if (!open) onClose();
       }}
     >
-      <DialogContent
+      <LargeDialogContent
         onInteractOutside={(e: Event) => {
           const event = e as CustomEvent;
           const orig = event?.detail?.originalEvent as Event | undefined;
@@ -908,7 +966,7 @@ export default function AddPropertyModal({
             e.preventDefault();
           }
         }}
-        className="bg-card border-border/80 max-h-[90vh] w-fit max-w-[800px] overflow-y-auto rounded-none border p-0 shadow-2xl sm:rounded-2xl"
+        className="bg-card border-border/80"
       >
         {/* Header */}
         <DialogHeader className="border-border border-b p-6">
@@ -976,13 +1034,31 @@ export default function AddPropertyModal({
           {isTourActive && !showTourIntro && (
             <GuidedStepTip config={TOUR_STEPS[currentStep]} ready={stepReady} />
           )}
-          {currentStep === 1 && <Step1PropertyType formData={formData} setFormData={setFormData} />}
+          {currentStep === 1 && onboardingMode && (
+            <Step1ManagementScope formData={formData} setFormData={setFormData} />
+          )}
 
-          {currentStep === 2 && (
+          {currentStep === 1 && !onboardingMode && (
+            <Step1PropertyType
+              formData={formData}
+              setFormData={setFormData}
+              onboardingMode={onboardingMode}
+            />
+          )}
+
+          {currentStep === 2 && onboardingMode && (
+            <Step1PropertyType
+              formData={formData}
+              setFormData={setFormData}
+              onboardingMode={onboardingMode}
+            />
+          )}
+
+          {currentStep === (onboardingMode ? 3 : 2) && (
             <Step2PropertyDetails formData={formData} setFormData={setFormData} />
           )}
 
-          {currentStep === 3 && !onboardingMode && (
+          {currentStep === (onboardingMode ? 4 : 3) && !onboardingMode && (
             <Step3Ownership
               formData={formData}
               setFormData={setFormData}
@@ -993,7 +1069,7 @@ export default function AddPropertyModal({
             />
           )}
 
-          {currentStep === 3 && onboardingMode && (
+          {currentStep === (onboardingMode ? 4 : 3) && onboardingMode && (
             <Step3OwnersAndSigners
               formData={formData}
               setFormData={setFormData}
@@ -1006,18 +1082,20 @@ export default function AddPropertyModal({
             />
           )}
 
-          {currentStep === 4 && !onboardingMode && (
+          {currentStep === (onboardingMode ? 5 : 4) && !onboardingMode && (
             <Step4UnitDetails formData={formData} setFormData={setFormData} />
           )}
 
-          {currentStep === 4 && onboardingMode && (
+          {currentStep === (onboardingMode ? 5 : 4) && onboardingMode && (
             <Step4OnboardingUnits
               units={onboardingUnits}
               onUnitsChange={setOnboardingUnits}
+              onSaveUnits={saveOnboardingUnits}
+              isSaving={submitting}
             />
           )}
 
-          {currentStep === 5 && !onboardingMode && (
+          {currentStep === (onboardingMode ? 6 : 5) && !onboardingMode && (
             <Step5ManagementServices
               formData={formData}
               setFormData={setFormData}
@@ -1026,7 +1104,7 @@ export default function AddPropertyModal({
             />
           )}
 
-          {currentStep === 5 && onboardingMode && (
+          {currentStep === (onboardingMode ? 6 : 5) && onboardingMode && (
             <Step5ReviewAndSend
               formData={formData}
               signers={signers}
@@ -1037,6 +1115,7 @@ export default function AddPropertyModal({
                 setSelectedTemplateName(name);
               }}
               onEditStep={setCurrentStep}
+              propertyId={propertyId}
             />
           )}
 
@@ -1088,7 +1167,7 @@ export default function AddPropertyModal({
             </Button>
           </div>
         </div>
-      </DialogContent>
+      </LargeDialogContent>
     </Dialog>
   );
 }
@@ -1235,11 +1314,28 @@ function TourIntroCard({ onStart, onSkip }: { onStart: () => void; onSkip: () =>
 function Step1PropertyType({
   formData,
   setFormData,
+  onboardingMode,
 }: {
   formData: AddPropertyFormData;
   setFormData: Dispatch<SetStateAction<AddPropertyFormData>>;
+  onboardingMode?: boolean;
 }) {
   const CurrentIcon = STEPS[0].icon;
+  const showManagementScope = !onboardingMode;
+
+  const handleSelectType = (type: string) => {
+    setFormData((prev) => {
+      const next: AddPropertyFormData = { ...prev, propertyType: type };
+      if (!prev.service_assignment) {
+        next.service_assignment = 'Property Level';
+      }
+      if (!prev.management_scope) {
+        next.management_scope = 'Building';
+      }
+      return next;
+    });
+  };
+
 
   return (
     <div className="text-center">
@@ -1261,7 +1357,7 @@ function Step1PropertyType({
                 type="button"
                 variant={selected ? 'default' : 'outline'}
                 className={`h-14 flex-col justify-center gap-1 md:h-16 ${selected ? 'bg-primary text-primary-foreground' : 'bg-card'} transition-colors ${FOCUS_RING}`}
-                onClick={() => setFormData({ ...formData, propertyType: type })}
+                onClick={() => handleSelectType(type)}
               >
                 <Building
                   className={`h-5 w-5 ${selected ? 'text-primary-foreground' : 'text-muted-foreground'}`}
@@ -1274,6 +1370,57 @@ function Step1PropertyType({
           })}
         </div>
       </div>
+
+      {showManagementScope && (
+        <div className="mx-auto mt-6 max-w-2xl space-y-2 rounded-lg border border-dashed border-border/70 bg-muted/40 p-4 text-left">
+          <Label size="sm" className="font-semibold">
+            Management scope
+          </Label>
+          <Body size="xs" tone="muted">
+            Choose how you manage services and setup: once for the property or separately per unit.
+          </Body>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <Button
+              type="button"
+              variant={formData.service_assignment === 'Property Level' ? 'default' : 'outline'}
+              className={`h-12 justify-start ${FOCUS_RING}`}
+              onClick={() =>
+                setFormData((prev) => ({
+                  ...prev,
+                  service_assignment: 'Property Level',
+                  management_scope: 'Building',
+                }))
+              }
+            >
+              <div className="text-left">
+                <Label size="sm">Property level</Label>
+                <Body size="xs" tone="muted">
+                  Configure services once for the whole building.
+                </Body>
+              </div>
+            </Button>
+            <Button
+              type="button"
+              variant={formData.service_assignment === 'Unit Level' ? 'default' : 'outline'}
+              className={`h-12 justify-start ${FOCUS_RING}`}
+              onClick={() =>
+                setFormData((prev) => ({
+                  ...prev,
+                  service_assignment: 'Unit Level',
+                  management_scope: 'Unit',
+                }))
+              }
+            >
+              <div className="text-left">
+                <Label size="sm">Unit level</Label>
+                <Body size="xs" tone="muted">
+                  Configure services separately for each unit.
+                </Body>
+              </div>
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1513,7 +1660,7 @@ function Step3Ownership({
     setCsrfLoading(true);
     let token: string | null = null;
     try {
-      const res = await fetch('/api/csrf', { credentials: 'include' });
+      const res = await fetchWithSupabaseAuth('/api/csrf', { credentials: 'include' });
       if (res.ok) {
         const j = await res.json().catch(() => ({}));
         token = typeof j?.token === 'string' ? j.token : null;
@@ -1536,7 +1683,7 @@ function Step3Ownership({
     const load = async () => {
       try {
         setErr(null);
-        const res = await fetch('/api/owners');
+        const res = await fetchWithSupabaseAuth('/api/owners');
         if (!res.ok) throw new Error('Failed to load owners');
         const data = await res.json();
         if (!cancelled) {
@@ -1594,7 +1741,7 @@ function Step3Ownership({
         return;
       }
       const csrf = csrfToken;
-      const res = await fetch('/api/owners', {
+      const res = await fetchWithSupabaseAuth('/api/owners', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -2107,7 +2254,7 @@ function Step6BankAccount({
     let cancelled = false;
     const load = async () => {
       try {
-        const res = await fetch('/api/gl-accounts/bank-accounts');
+        const res = await fetchWithSupabaseAuth('/api/gl-accounts/bank-accounts');
         if (!res.ok) throw new Error('Failed to load bank accounts');
         const data = await res.json();
         if (!cancelled)
@@ -2308,7 +2455,7 @@ function Step7PropertyManager({
     let cancelled = false;
     const load = async () => {
       try {
-        const res = await fetch('/api/staff');
+        const res = await fetchWithSupabaseAuth('/api/staff');
         if (!res.ok) {
           // Not fatal if staff table missing; leave list empty
           setStaff([]);
@@ -2697,7 +2844,7 @@ function Step3OwnersAndSigners({
         {/* Add signer section */}
         <div className="border-border rounded-lg border p-4">
           <OwnerSignerSection
-            initialSigners={signers}
+            signers={signers}
             onSignersChange={onSignersChange}
           />
         </div>
@@ -2710,9 +2857,13 @@ function Step3OwnersAndSigners({
 function Step4OnboardingUnits({
   units,
   onUnitsChange,
+  onSaveUnits,
+  isSaving,
 }: {
-  units: OnboardingUnit[];
-  onUnitsChange: (units: OnboardingUnit[]) => void;
+  units: UnitRow[];
+  onUnitsChange: (units: UnitRow[]) => void;
+  onSaveUnits: (units: UnitRow[]) => Promise<void>;
+  isSaving: boolean;
 }) {
   const CurrentIcon = Home;
 
@@ -2729,8 +2880,10 @@ function Step4OnboardingUnits({
       </div>
 
       <BulkUnitCreator
-        initialUnits={units}
+        units={units}
         onUnitsChange={onUnitsChange}
+        onSaveUnits={onSaveUnits}
+        isSaving={isSaving}
       />
     </div>
   );
@@ -2744,13 +2897,15 @@ function Step5ReviewAndSend({
   selectedTemplateId,
   onTemplateSelect,
   onEditStep,
+  propertyId,
 }: {
   formData: AddPropertyFormData;
   signers: Signer[];
-  units: OnboardingUnit[];
+  units: UnitRow[];
   selectedTemplateId?: string;
   onTemplateSelect: (templateId: string, templateName: string) => void;
   onEditStep: (step: number) => void;
+  propertyId?: string | null;
 }) {
   const CurrentIcon = Send;
 
@@ -2829,6 +2984,18 @@ function Step5ReviewAndSend({
             ))}
           </div>
         </div>
+
+        {propertyId ? (
+          <div className="border-border rounded-lg border p-4">
+            <Heading as="h4" size="h6" className="mb-2">
+              Buildium readiness
+            </Heading>
+            <Body as="p" tone="muted" size="sm" className="mb-3">
+              Check required fields before syncing to Buildium (optional).
+            </Body>
+            <BuildiumReadinessChecklist propertyId={propertyId} />
+          </div>
+        ) : null}
       </div>
     </div>
   );

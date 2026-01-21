@@ -11,6 +11,7 @@ import {
   MapPin,
   Plus,
   Search,
+  Sparkles,
   Users,
 } from 'lucide-react'
 
@@ -44,6 +45,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Body, Label as TextLabel } from '@/ui/typography'
+import { useOnboardingFlag } from '@/hooks/useOnboardingFlag'
 
 interface Property {
   id: string
@@ -121,7 +123,9 @@ export default function PropertiesClient({
 }: PropertiesClientProps) {
   const searchParams = useSearchParams()
   const router = useRouter()
+  const onboardingEnabled = useOnboardingFlag()
   const [isAddPropertyModalOpen, setIsAddPropertyModalOpen] = useState(false)
+  const [isOnboardingFlow, setIsOnboardingFlow] = useState(false)
   const [startTourFromQuery, setStartTourFromQuery] = useState(false)
   const [properties, setProperties] = useState<Property[]>(initialData)
   const [total, setTotal] = useState(initialTotal)
@@ -142,6 +146,7 @@ export default function PropertiesClient({
     const wantsTour = searchParams.get('tour') === 'add-property'
     if (wantsTour) {
       setStartTourFromQuery(true)
+      setIsOnboardingFlow(false)
       setIsAddPropertyModalOpen(true)
       const params = new URLSearchParams(searchParams.toString())
       params.delete('tour')
@@ -213,6 +218,7 @@ export default function PropertiesClient({
 
   const handleCloseModal = () => {
     setIsAddPropertyModalOpen(false)
+    setIsOnboardingFlow(false)
     setStartTourFromQuery(false)
   }
 
@@ -610,10 +616,32 @@ export default function PropertiesClient({
         title="Properties"
         description="Manage and monitor your property portfolio from a single view."
         actions={
-          <Button onClick={() => setIsAddPropertyModalOpen(true)} className="flex items-center gap-2">
-            <Plus className="h-4 w-4" />
-            Add Property
-          </Button>
+          <Cluster gap="sm">
+            {onboardingEnabled && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-2"
+                onClick={() => {
+                  setIsOnboardingFlow(true)
+                  setIsAddPropertyModalOpen(true)
+                }}
+              >
+                <Sparkles className="h-4 w-4" />
+                Start onboarding
+              </Button>
+            )}
+            <Button
+              onClick={() => {
+                setIsOnboardingFlow(false)
+                setIsAddPropertyModalOpen(true)
+              }}
+              className="flex items-center gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              Add Property
+            </Button>
+          </Cluster>
         }
       />
       <PageBody>
@@ -624,6 +652,7 @@ export default function PropertiesClient({
         onClose={handleCloseModal}
         onSuccess={handlePropertyCreated}
         startInTour={startTourFromQuery}
+        onboardingMode={isOnboardingFlow}
       />
     </PageShell>
   )

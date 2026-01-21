@@ -35,6 +35,7 @@ import {
   ChevronRight,
   Calendar,
   ShieldCheck,
+  Rocket,
 } from 'lucide-react';
 import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FocusEvent, MouseEvent } from 'react';
@@ -44,6 +45,7 @@ import { useAuth } from '@/components/providers';
 import { RoleRank, type AppRole } from '@/lib/auth/roles';
 import { cn } from '@/components/ui/utils';
 import { Body } from '@/ui/typography';
+import { useOnboardingFlag } from '@/hooks/useOnboardingFlag';
 
 type NavItem = {
   id: string;
@@ -53,7 +55,7 @@ type NavItem = {
   children?: { id: string; label: string; href: string }[];
 };
 
-const NAV_ITEMS: NavItem[] = [
+const BASE_NAV_ITEMS: NavItem[] = [
   { id: 'dashboard', label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { id: 'properties', label: 'Properties', href: '/properties', icon: Building },
   { id: 'buildings', label: 'Buildings', href: '/buildings', icon: Building2 },
@@ -124,6 +126,18 @@ export function AppSidebarLayout({ children, title }: { children: ReactNode; tit
   const pathname = usePathname();
   const router = useRouter();
   const { user, signOut } = useAuth();
+  const onboardingEnabled = useOnboardingFlag();
+  const navItems = useMemo(() => {
+    if (!onboardingEnabled) return BASE_NAV_ITEMS;
+    const items = [...BASE_NAV_ITEMS];
+    items.splice(1, 0, {
+      id: 'onboarding',
+      label: 'Onboarding',
+      href: '/onboarding',
+      icon: Rocket,
+    });
+    return items;
+  }, [onboardingEnabled]);
   const [openItemId, setOpenItemId] = useState<string | null>(null);
   const closeTimeoutRef = useRef<NodeJS.Timeout>();
   const [submenuPosition, setSubmenuPosition] = useState<{ top: number; left: number } | null>(
@@ -149,7 +163,7 @@ export function AppSidebarLayout({ children, title }: { children: ReactNode; tit
   );
 
   const activeMeta = useMemo(() => {
-    for (const item of NAV_ITEMS) {
+    for (const item of navItems) {
       if (matchesPath(item.href)) {
         return { item, label: item.label };
       }
@@ -158,9 +172,9 @@ export function AppSidebarLayout({ children, title }: { children: ReactNode; tit
         return { item, label: child.label };
       }
     }
-    const fallback = NAV_ITEMS[0];
+    const fallback = navItems[0];
     return { item: fallback, label: fallback.label };
-  }, [matchesPath]);
+  }, [matchesPath, navItems]);
 
   const activeId = activeMeta.item.id;
   const activeLabel = activeMeta.label;
@@ -228,7 +242,7 @@ export function AppSidebarLayout({ children, title }: { children: ReactNode; tit
             <SidebarContent>
               <SidebarGroup>
                 <SidebarMenu>
-                  {NAV_ITEMS.map((item) => {
+                  {navItems.map((item) => {
                     const children = item.children ?? [];
                     const hasChildren = children.length > 0;
                     const childMatch = hasChildren

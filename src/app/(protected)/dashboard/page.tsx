@@ -29,6 +29,7 @@ import {
 } from '@/components/layout/page-shell';
 import { ExpiringLeaseBucketKey, ExpiringLeaseCounts, useDashboardMetrics } from '@/hooks/useDashboardMetrics';
 import { supabase } from '@/lib/db';
+import { useOnboardingFlag } from '@/hooks/useOnboardingFlag';
 import { amountToneClassName, formatAmountDisplay } from '@/lib/amount-formatting';
 import { formatCurrency } from '@/lib/format-currency';
 import { Body, Heading, Label } from '@/ui/typography';
@@ -60,6 +61,7 @@ const makeEmptyExpiringCounts = (): ExpiringLeaseCounts => ({
 export default function DashboardPage() {
   const { data, error, isLoading, refresh, orgId } = useDashboardMetrics();
   const k = data?.kpis;
+  const onboardingEnabled = useOnboardingFlag();
   const [selectedExpiringBucket, setSelectedExpiringBucket] =
     useState<ExpiringLeaseBucketKey>('0_30');
   const [txPage, setTxPage] = useState(1);
@@ -392,6 +394,24 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 </div>
+                {onboardingEnabled ? (
+                  <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+                    <Body size="sm" tone="muted">
+                      Kick off the guided flow from here.
+                    </Body>
+                    <Button asChild size="sm">
+                      <Link href="/onboarding" className="inline-flex items-center gap-2">
+                        Start property onboarding
+                        <ArrowRight className="h-4 w-4" />
+                      </Link>
+                    </Button>
+                  </div>
+                ) : (
+                  <Body size="sm" tone="muted" className="mt-2">
+                    Set NEXT_PUBLIC_ENABLE_PROPERTY_ONBOARDING=true to surface the onboarding entry
+                    points.
+                  </Body>
+                )}
               </CardContent>
             </Card>
           </PageGrid>

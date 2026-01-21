@@ -2305,3 +2305,56 @@ callWebhookAsync(log.id, webhookUrl).catch(error => {
 - **Draft Recovery Rate:** % of drafts that are resumed vs abandoned
 - **Idempotency Hit Rate:** % of agreement sends that hit idempotency check
 - **Buildium Sync Success Rate:** % of sync attempts that succeed (P1)
+
+## Launch Readiness (Non-Code Additions)
+
+- Detailed checklists live in `docs/property-onboarding-rollout-readiness.md`.
+
+### Analytics Instrumentation (Make Metrics Actionable)
+
+- **Owner:** PM + Data; **Due:** with P0 release
+- **Events (standard props: onboarding_id, property_id, org_id, user_id, feature_flag_version, timestamp):**
+  - `onboarding_started` (source: fresh vs resume, entry_point)
+  - `onboarding_step_viewed` (step_name, status)
+  - `onboarding_autosave` (step_name, outcome: success|failed, error_code)
+  - `onboarding_owner_upserted` (owner_count, signer_count, sum_ownership_pct)
+  - `onboarding_unit_upserted` (unit_count, duplicate_unit_number: bool)
+  - `onboarding_finalize` (outcome, blocking_reasons[])
+  - `agreement_send` (outcome, template_id/name, recipient_count, idempotency_hit: bool, error_code)
+  - `onboarding_resume_clicked` (from_prompt: address_conflict|board|property_page)
+  - `onboarding_cancelled` (status_at_cancel, has_units, has_owners)
+  - `buildium_readiness_checked` (ready: bool, missing_codes[]) and `buildium_sync` (outcome, error_code) for P1
+- **Funnels:** start → step2 property created → owners valid → units valid → ready_to_send → agreement_sent. Secondary funnel: drafts resumed → agreement_sent.
+- **Dashboards:** Completion, recovery, and failure-dropoff by step_name; idempotency hit rate; send failure codes.
+
+### UX Research & Pilot Feedback
+
+- **Goal:** Validate flow with target users before broad rollout.
+- **Plan:** 5–10 moderated sessions (property managers/owners); mix of new vs existing customers.
+- **Artifacts:** Screen recordings, time-to-complete, critical error log, SUS-lite score, and top 5 issues.
+- **Pilot:** 1–2 orgs behind feature flag; collect a short post-send survey (clarity of agreement email, confidence to proceed).
+
+### Support Runbook & Internal Enablement
+
+- **Runbook topics:** draft recovery/resume prompt, duplicate address handling, ownership percentage errors, duplicate unit numbers, agreement resend/idempotency 409, webhook failure states.
+- **Troubleshooting steps:** how to locate onboarding by address/org, how to retry send, how to delete a draft safely, where to see `agreement_send_log`.
+- **Macros/FAQs:** “Resume draft,” “Agreement already sent,” “Resend agreement,” “Duplicate unit number.”
+- **Escalation:** path for webhook failures and Buildium readiness blockers (P1).
+
+### Help Content & External Docs
+
+- Create a lightweight help article/FAQ covering: who signs, expected timeline, what happens after sending, how to resend, how to change owners/units, and Buildium sync expectations.
+- Link “Learn more” in Step 3 (signers) and Step 5 (send) to this doc; keep content owner in PM/support.
+
+### Compliance & Consent Checklist
+
+- Confirm e-sign consent language and email delivery consent before sending; surface brief consent text near the Send CTA.
+- Ensure audit trail: `agreement_send_log` retained per policy (define retention window), include recipients, payload, and webhook responses.
+- Verify required disclosures (signature intent, record retention) are present in templates; document where logs are stored and who can access them.
+- Validate PII handling for owners/signers (no logging of full payloads in error messages).
+
+### Agreement Content QA
+
+- Review email subject/preview/CTA for clarity and tone; include property name/address and sender org.
+- Pre-send checklist: spelling/links, reply-to address, mobile rendering.
+- Stakeholder sign-off: PM + Legal/Compliance on final template and any attachments.
